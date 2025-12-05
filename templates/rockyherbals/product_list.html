@@ -1,0 +1,18 @@
+<h2>Product List</h2>
+<ul>
+{% for product in products %}
+    <li>
+        <img src="{{ product.image.url }}" width="150"><br>
+        <strong>{{ product.name }}</strong> - ₹{{ product.mrp }}<br>
+        {{ product.description }}<br>
+
+        <!-- MLM futures -->
+        Distributor ID: {{ product.distributor_id }}<br>
+        Referral Code: {{ product.referral_code }}<br>
+        Commission %: {{ product.commission_percentage }}<br>
+        Level: {{ product.level }}<br>
+        Parent Distributor: {{ product.parent_distributor }}
+    </li>
+{% endfor %}
+</ul>
+

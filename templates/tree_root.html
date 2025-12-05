@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Tree Root</title>
+</head>
+<body>
+    <h1>🌳 MLM Tree Roots</h1>
+
+    {% if roots %}
+        <ul>
+        {% for r in roots %}
+            <li>
+                <a href="/tree/{{ r.id }}/">
+                    {{ r.name }} (ID: {{ r.id }})
+                </a>
+            </li>
+        {% endfor %}
+        </ul>
+    {% else %}
+        <p>No tree root found.</p>
+    {% endif %}
+
+</body>
+</html>
+

@@ -1,0 +1,155 @@
+/* ────────────────────────────────────────────
+   PREMIUM ROYAL BLUE — GLASS CARD TREE DESIGN
+   HTML STRUCTURE NOT MODIFIED
+   ──────────────────────────────────────────── */
+
+.tree-container {
+  width: 100%;
+  overflow-x: auto;
+  padding: 20px 14px;
+  box-sizing: border-box;
+}
+
+/* Node wrapper */
+.node-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+  margin: 12px 14px;
+}
+
+/* ✨ GLASS + GRADIENT PREMIUM CARD */
+.node-card {
+  background: rgba(255, 255, 255, 0.55);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(0, 102, 255, 0.35);
+  padding: 16px 18px;
+  border-radius: 16px;
+  min-width: 150px;
+  text-align: center;
+  box-shadow: 
+    0 8px 24px rgba(0, 0, 60, 0.22),
+    inset 0 0 6px rgba(255,255,255,0.3);
+  position: relative;
+  z-index: 2;
+}
+
+.node-name {
+  font-size: 1.08rem;
+  font-weight: 800;
+  color: #002060; /* royal navy blue */
+}
+
+.node-id {
+  font-size: 0.84rem;
+  color: #0066ff;
+  margin-top: 4px;
+}
+
+/* children row */
+.children {
+  display: flex;
+  gap: 70px;
+  margin-top: 22px;
+  width: 100%;
+  justify-content: center;
+  position: relative;
+}
+
+/* left/right placeholder */
+.child {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  min-width: 160px;
+  position: relative;
+}
+
+.node-empty {
+  width: 140px;
+  height: 42px;
+}
+
+/* ROYAL BLUE THEME */
+:root {
+  --blue-dark: #002456;
+  --blue-mid: #0055ff;
+  --blue-light: #00a2ff;
+}
+
+/* 🔥 FULL BLUE VERTICAL LINE */
+.node-wrap::after {
+  content: "";
+  position: absolute;
+  top: calc(100% - 8px);
+  left: 50%;
+  width: 6px;
+  height: 28px;
+  transform: translateX(-50%);
+  border-radius: 6px;
+  background: linear-gradient(180deg, var(--blue-mid), var(--blue-dark));
+  box-shadow: 
+    0 0 18px rgba(0, 85, 255, 0.6),
+    0 0 26px rgba(0, 30, 80, 0.45);
+  z-index: 1;
+}
+
+/* 🔥 FULL BLUE HORIZONTAL CONNECTOR */
+.children::before {
+  content: "";
+  position: absolute;
+  top: -6px;
+  left: 6%;
+  right: 6%;
+  height: 16px;
+  background: linear-gradient(90deg, var(--blue-dark), var(--blue-mid), var(--blue-dark));
+  border-radius: 10px;
+  box-shadow:
+    0 0 16px rgba(0, 85, 255, 0.4),
+    inset 0 0 8px rgba(0,0,0,0.3);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ROUND END CAPS */
+.child::before {
+  content: "";
+  position: absolute;
+  top: -7px;
+  left: 50%;
+  width: 24px;
+  height: 16px;
+  transform: translateX(-50%);
+  background: var(--blue-mid);
+  border-radius: 10px;
+  box-shadow:
+    0 0 16px rgba(0, 85, 255, 0.45),
+    inset 0 0 10px rgba(0,0,0,0.3);
+  z-index: 0;
+}
+
+/* Hover glow */
+.node-card:hover {
+  transform: translateY(-5px);
+  transition: 0.22s ease;
+  box-shadow:
+    0 14px 32px rgba(0, 0, 60, 0.36),
+    inset 0 0 10px rgba(255,255,255,0.4);
+  border-color: rgba(0, 102, 255, 0.6);
+}
+
+/* Responsive */
+@media (max-width:900px){
+  .children { gap: 40px; }
+  .node-card { min-width: 130px; padding: 12px 14px; }
+}
+
+@media (max-width:520px){
+  .children { gap: 20px; }
+  .children::before { height: 12px; top:-4px; }
+  .node-wrap::after { height: 18px; width:5px; }
+  .child::before { width: 18px; height:12px; }
+}
+

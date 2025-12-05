@@ -1,0 +1,45 @@
+<h2>Upload Product</h2>
+<form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+    <p>
+        {{ form.name.label_tag }}<br>
+        {{ form.name }}
+    </p>
+    <p>
+        {{ form.description.label_tag }}<br>
+        {{ form.description }}
+    </p>
+    <p>
+        {{ form.mrp.label_tag }}<br>
+        {{ form.mrp }}
+    </p>
+    <p>
+        {{ form.image.label_tag }}<br>
+        {{ form.image }}
+    </p>
+
+    <!-- MLM futures fields -->
+    <p>
+        {{ form.distributor_id.label_tag }}<br>
+        {{ form.distributor_id }}
+    </p>
+    <p>
+        {{ form.referral_code.label_tag }}<br>
+        {{ form.referral_code }}
+    </p>
+    <p>
+        {{ form.commission_percentage.label_tag }}<br>
+        {{ form.commission_percentage }}
+    </p>
+    <p>
+        {{ form.level.label_tag }}<br>
+        {{ form.level }}
+    </p>
+    <p>
+        {{ form.parent_distributor.label_tag }}<br>
+        {{ form.parent_distributor }}
+    </p>
+
+    <button type="submit">Upload</button>
+</form>
+

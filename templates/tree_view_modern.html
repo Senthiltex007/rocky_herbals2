@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>{{ member.name }} - MLM Tree</title>
+<style>
+/* Modern MLM Tree */
+.tree-container {
+    width: 100%;
+    overflow-x: auto;
+    padding: 20px 0;
+}
+
+.tree {
+    display: flex;
+    justify-content: center;
+    white-space: nowrap;
+}
+
+.tree ul {
+    padding-top: 20px;
+    position: relative;
+    display: inline-block;
+    vertical-align: top;
+    text-align: center;
+    padding-left: 0;
+}
+
+.tree li {
+    list-style-type: none;
+    display: inline-block;
+    text-align: center;
+    position: relative;
+    padding: 20px 10px 0 10px;
+    vertical-align: top;
+}
+
+/* Connectors */
+.tree li::before, .tree li::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    border-top: 2px solid #6c6c6c;
+    width: 50%;
+    height: 20px;
+}
+
+.tree li::before { right: 50%; }
+.tree li::after { left: 50%; border-left: 2px solid #6c6c6c; }
+
+.tree li:only-child::before, .tree li:only-child::after { display: none; }
+.tree li li::before { border-left: 2px solid #6c6c6c; }
+
+/* Node box */
+.member-box {
+    display: inline-block;
+    padding: 12px 18px;
+    background: #ffffff;
+    border: 2px solid #4986e7;
+    border-radius: 12px;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+    font-weight: bold;
+    cursor: pointer;
+    transition: 0.28s ease-in-out;
+}
+
+.member-box:hover {
+    transform: scale(1.05);
+    background: #e8f0ff;
+}
+
+/* Empty Add Box */
+.member-box.text-muted {
+    border: 2px dashed #a0a0a0;
+    background: #f2f2f2;
+    color: #777;
+}
+.member-box.text-muted:hover { background: #e1e1e1; }
+
+/* Collapsible children */
+ul.collapsible { display: none; }
+li.open > ul.collapsible { display: block; }
+.toggle-btn {
+    display: block;
+    font-size: 12px;
+    margin-top: 4px;
+    color: #555;
+    cursor: pointer;
+}
+</style>
+</head>
+<body>
+<h2 style="text-align:center;">MLM Tree - {{ member.name }} ({{ member.auto_id }})</h2>
+
+<div class="tree-container">
+    <div class="tree">
+        {{ tree_html|safe }}
+    </div>
+</div>
+
+<script>
+// Collapsible nodes
+document.querySelectorAll('.member-box').forEach(box => {
+    box.addEventListener('click', e => {
+        const li = box.parentElement;
+        if (!li) return;
+        li.classList.toggle('open');
+    });
+});
+
+// Optional: show alert with member info
+function showMemberDetail(member) {
+    alert("Name: " + member.name + "\nID: " + member.auto_id + "\nPhone: " + member.phone);
+}
+</script>
+</body>
+</html>
+

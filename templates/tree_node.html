@@ -1,0 +1,33 @@
+<li>
+    {% if node %}
+        <div class="node">
+            {{ node.name }}
+            <div class="tooltip">
+                ID: {{ node.id }}<br>
+                Package: {{ node.package }}<br>
+                Joined Date: {{ node.joined_date }}
+            </div>
+        </div>
+        <ul>
+            <li>
+                {% if node.left %}
+                    {% include "tree_node.html" with node=node.left %}
+                {% else %}
+                    <div class="add-btn">
+                        <a href="{% url 'add_member_form' %}?parent={{ node.id }}&side=left">+ Add</a>
+                    </div>
+                {% endif %}
+            </li>
+            <li>
+                {% if node.right %}
+                    {% include "tree_node.html" with node=node.right %}
+                {% else %}
+                    <div class="add-btn">
+                        <a href="{% url 'add_member_form' %}?parent={{ node.id }}&side=right">+ Add</a>
+                    </div>
+                {% endif %}
+            </li>
+        </ul>
+    {% endif %}
+</li>
+

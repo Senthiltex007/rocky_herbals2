@@ -1,0 +1,36 @@
+{% if parent.left_child or parent.right_child %}
+  <ul>
+    {% if parent.left_child %}
+      <li>
+        {{ parent.left_child.name }} ({{ parent.left_child.auto_id }})
+
+        {% for side in sides %}
+          {% if side == 'left' and not parent.left_child.left_child %}
+            <a href="{% url 'add_member' parent.left_child.id side %}">[ + ]</a>
+          {% elif side == 'right' and not parent.left_child.right_child %}
+            <a href="{% url 'add_member' parent.left_child.id side %}">[ + ]</a>
+          {% endif %}
+        {% endfor %}
+
+        {% include "herbalapp/child_tree.html" with parent=parent.left_child %}
+      </li>
+    {% endif %}
+
+    {% if parent.right_child %}
+      <li>
+        {{ parent.right_child.name }} ({{ parent.right_child.auto_id }})
+
+        {% for side in sides %}
+          {% if side == 'left' and not parent.right_child.left_child %}
+            <a href="{% url 'add_member' parent.right_child.id side %}">[ + ]</a>
+          {% elif side == 'right' and not parent.right_child.right_child %}
+            <a href="{% url 'add_member' parent.right_child.id side %}">[ + ]</a>
+          {% endif %}
+        {% endfor %}
+
+        {% include "herbalapp/child_tree.html" with parent=parent.right_child %}
+      </li>
+    {% endif %}
+  </ul>
+{% endif %}
+

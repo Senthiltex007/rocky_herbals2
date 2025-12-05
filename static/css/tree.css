@@ -1,0 +1,97 @@
+/* ---------------------------------------------------
+   MODERN PYRAMID Geniology BINARY TREE – 2025 DESIGN
+--------------------------------------------------- */
+
+.tree ul {
+    padding-top: 20px;
+    position: relative;
+    display: flex;
+    justify-content: center;
+    padding-left: 0;
+}
+
+.tree li {
+    list-style-type: none;
+    text-align: center;
+    position: relative;
+    padding: 20px 10px 0 10px;
+}
+
+/* Connecting lines */
+.tree li::before, 
+.tree li::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    border-top: 2px solid #3fa9ff;
+    width: 50%;
+    height: 20px;
+}
+
+.tree li::before {
+    right: 50%;
+    border-right: 2px solid #3fa9ff;
+}
+
+.tree li::after {
+    left: 50%;
+    border-left: 2px solid #3fa9ff;
+}
+
+/* Single child case */
+.tree li:only-child::before,
+.tree li:only-child::after {
+    display: none;
+}
+
+.tree li:only-child {
+    padding-top: 0;
+}
+
+.tree li:first-child::before {
+    border: 0 none;
+}
+
+.tree li:last-child::after {
+    border: 0 none;
+}
+
+/* Node card */
+.node-card {
+    background: linear-gradient(135deg, #007bff, #003d99);
+    color: white;
+    padding: 10px 20px;
+    border-radius: 14px;
+    font-size: 14px;
+    font-weight: 600;
+    min-width: 130px;
+    box-shadow: 0 6px 15px rgba(0, 123, 255, 0.35);
+    cursor: pointer;
+    transition: 0.2s ease-in-out;
+}
+
+/* Hover effect */
+.node-card:hover {
+    transform: scale(1.05);
+    box-shadow: 0 8px 25px rgba(0, 123, 255, 0.55);
+}
+
+/* Add Member (+) Button */
+.btn.rounded-circle {
+    background: linear-gradient(180deg, #4bb3ff, #0055ff);
+    color: white !important;
+    font-size: 20px;
+    width: 40px !important;
+    height: 40px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    border-radius: 50%;
+    box-shadow: 0 6px 18px rgba(0, 123, 255, 0.45);
+    transition: 0.2s;
+}
+
+.btn.rounded-circle:hover {
+    transform: scale(1.12);
+}
+

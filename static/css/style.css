@@ -1,0 +1,203 @@
+:root {
+  --green: #4b8b3b;
+  --green-2: #6fae55;
+  --cream: #fdf6e3;
+  --accent: #fff3cd;
+  --text: #2d2d2d;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: 'Poppins', system-ui, sans-serif;
+  color: var(--text);
+  background: var(--cream);
+}
+
+/* Topbar */
+.topbar {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 16px;
+  align-items: center;
+  padding: 12px 20px;
+  background: var(--green);
+  color: #fff;
+}
+.brand .leaf { margin-right: 8px; }
+.auth a { color: #fff; text-decoration: none; margin-left: 8px; }
+.auth a:hover { text-decoration: underline; }
+
+/* Navigation */
+.nav {
+  display: flex;
+  gap: 18px;
+  padding: 10px 20px;
+  background: var(--green-2);
+}
+.nav a {
+  color: #fff;
+  text-decoration: none;
+  font-weight: 600;
+  transition: color 0.3s ease, transform 0.2s ease;
+}
+.nav a:hover {
+  color: var(--accent);
+  transform: scale(1.05);
+}
+
+/* Hero Section */
+.hero {
+  position: relative;
+  width: 100%;
+  height: 150px;   /* ✅ reduced height */
+  overflow: hidden;
+}
+.banner {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;   /* keep it filling the box */
+  display: block;
+}
+
+.hero-text {
+  position: absolute;
+  bottom: 16px;
+  left: 16px;
+  padding: 10px 14px;
+  background: rgba(0,0,0,0.35);
+  color: #fff;
+  border-radius: 8px;
+}
+.hero-text h1 {
+  font-size: 2rem;
+  font-weight: bold;
+  text-shadow: 1px 1px 4px rgba(0,0,0,0.6);
+}
+.hero-text p {
+  font-size: 1.2rem;
+  margin-top: 6px;
+}
+
+/* Product Highlights */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(220px, 1fr));
+  gap: 18px;
+  padding: 20px;
+}
+.card {
+  background: #fff;
+  border-radius: 10px;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.08);
+  overflow: hidden;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+.card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 20px rgba(0,0,0,0.12);
+}
+.card img {
+  width: 100%;
+  height: auto;          /* ✅ let height adjust naturally */
+  object-fit: contain;   /* ✅ show full image without cut */
+  background: #fff;      /* optional filler background */
+}
+.card h2 { margin: 14px; color: var(--green); }
+.card p { margin: 0 14px 16px; color: #555; }
+
+/* Benefits */
+.benefits {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  padding: 20px;
+}
+.benefit {
+  background: var(--accent);
+  padding: 12px;
+  border-radius: 8px;
+  font-weight: 500;
+}
+
+/* Blog, Categories, About */
+.blog, .categories, .about { padding: 20px; }
+.cats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  list-style: none;
+  padding: 0;
+}
+.cats li {
+  background: #fff;
+  padding: 10px;
+  border-radius: 8px;
+  text-align: center;
+  font-weight: 500;
+  transition: background 0.3s ease;
+}
+.cats li:hover { background: var(--accent); }
+
+/* Footer */
+.footer, footer {
+  background: var(--green);
+  color: #fff;
+  padding: 16px 20px;
+  display: grid;
+  gap: 6px;
+  text-align: center;
+}
+.footer a {
+  color: #fff;
+  text-decoration: underline;
+  transition: color 0.3s ease;
+}
+.footer a:hover {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+/* Footer Banners */
+.footer-banners {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 20px;
+}
+.footer-banners img {
+  width: 30%;
+  min-width: 120px;
+  height: auto;
+  border-radius: 6px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+}
+
+/* Responsive Tweaks */
+@media (max-width: 768px) {
+  .grid { grid-template-columns: repeat(2, 1fr); }
+  .benefits, .cats { grid-template-columns: repeat(2, 1fr); }
+  .footer-banners img { width: 45%; }
+}
+@media (max-width: 480px) {
+  .grid { grid-template-columns: 1fr; }
+  .benefits, .cats { grid-template-columns: 1fr; }
+  .hero { height: 250px; }             /* ✅ smaller hero */
+  .banner { object-fit: cover; }       /* ✅ allow cropping only on small screens */
+  .hero-text h1 { font-size: 1.5rem; }
+  .hero-text p { font-size: 1rem; }
+  .footer-banners img { width: 90%; }
+}
+
+/* Rocky Herbals Card Header Branding */
+.card-header {
+  background: linear-gradient(90deg, var(--green), var(--green-2));
+  color: #fff;
+  font-weight: 600;
+  font-size: 1.1rem;
+  border-top-left-radius: 10px;
+  border-top-right-radius: 10px;
+  padding: 10px 14px;
+}
+

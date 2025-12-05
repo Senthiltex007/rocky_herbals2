@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Root Members</title>
+<style>
+    body { font-family: Arial; padding: 20px; }
+    .member-box {
+        padding: 10px;
+        margin: 10px 0;
+        border: 2px solid #333;
+        width: 300px;
+        border-radius: 8px;
+        cursor: pointer;
+    }
+    a {
+        text-decoration: none;
+        color: darkblue;
+        font-weight: bold;
+    }
+    #memberModal {
+        display:none;
+        position:fixed;
+        top:20%;
+        left:30%;
+        background:#fff;
+        border:1px solid #ccc;
+        padding:20px;
+        z-index:1000;
+        width: 400px;
+    }
+</style>
+</head>
+<body>
+
+<h2>Root Members</h2>
+
+{% if roots %}
+    {% for member in roots %}
+        <div class="member-box" onclick="showMemberDetail({id:{{ member.id }}, auto_id:'{{ member.auto_id|escapejs }}', name:'{{ member.name|escapejs }}', phone:'{{ member.phone|escapejs }}'})">
+            <strong>ID:</strong> {{ member.auto_id }} <br>
+            <strong>Name:</strong> {{ member.name }} <br>
+            <a href="/tree/{{ member.id }}/">View Tree</a>
+        </div>
+    {% endfor %}
+{% else %}
+    <p>No root members found.</p>
+{% endif %}
+
+<a href="/">Go to Home</a>
+
+<!-- Member Detail Modal -->
+<div id="memberModal">
+  <h3 id="modalName"></h3>
+  <p><strong>ID:</strong> <span id="modalAutoId"></span></p>
+  <p><strong>Phone:</strong> <span id="modalPhone"></span></p>
+  <hr>
+  <p><strong>Self BV:</strong> <span id="bvSelf"></span></p>
+  <p><strong>Left BV:</strong> <span id="bvLeft"></span></p>
+  <p><strong>Right BV:</strong> <span id="bvRight"></span></p>
+  <p><strong>Total BV:</strong> <span id="bvTotal"></span></p>
+  <button onclick="closeModal()">Close</button>
+</div>
+
+<script>
+function showMemberDetail(member) {
+    console.log("Clicked member:", member);
+    document.getElementById("modalName").innerText = member.name;
+    document.getElementById("modalAutoId").innerText = member.auto_id;
+    document.getElementById("modalPhone").innerText = member.phone || "N/A";
+
+    fetch(`/member/${member.id}/bv/`)
+      .then(res => res.json())
+      .then(data => {
+          document.getElementById("bvSelf").innerText = data.self_bv || 0;
+          document.getElementById("bvLeft").innerText = data.left_bv || 0;
+          document.getElementById("bvRight").innerText = data.right_bv || 0;
+          document.getElementById("bvTotal").innerText = data.total_bv || 0;
+      });
+
+    document.getElementById("memberModal").style.display = "block";
+}
+function closeModal() {
+    document.getElementById("memberModal").style.display = "none";
+}
+</script>
+
+</body>
+</html>
+

@@ -1,0 +1,52 @@
+<div class="container mt-5">
+  <h2 class="text-center mb-4">💰 Income Dashboard</h2>
+
+  {% if income_data %}
+    <table class="table table-striped">
+      <thead>
+        <tr>
+          <th>Member</th>
+          <th>Joining</th>
+          <th>Binary Income</th>
+          <th>Flash Bonus</th>
+          <th>Sponsor Income</th>
+          <th>Salary</th>
+          <th>Stock Commission</th>
+          <th>Total Income</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in income_data %}
+          <tr>
+            <td>{{ row.member.name }}</td>
+            <td>{{ row.joining }}</td>
+            <td>{{ row.binary_income }}</td>
+            <td>{{ row.flash_bonus }}</td>
+            <td>{{ row.sponsor_income }}</td>
+            <td>{{ row.salary }}</td>
+            <td>{{ row.stock_commission }}</td>
+            <td>{{ row.total_income_all }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <h4 class="mt-4">Totals</h4>
+    <ul>
+      <li>Joining: {{ totals.joining }}</li>
+      <li>Binary Income: {{ totals.binary_income }}</li>
+      <li>Flash Bonus: {{ totals.flash_bonus }}</li>
+      <li>Sponsor Income: {{ totals.sponsor_income }}</li>
+      <li>Salary: {{ totals.salary }}</li>
+      <li>Stock Commission: {{ totals.stock_commission }}</li>
+      <li>Total Income: {{ totals.total_income_all }}</li>
+    </ul>
+  {% else %}
+    <div class="alert alert-info text-center">No income reports available yet.</div>
+  {% endif %}
+
+  <div class="text-center mt-3">
+    <a href="/dashboard/" class="btn btn-secondary">⬅ Back to Dashboard</a>
+  </div>
+</div>
+

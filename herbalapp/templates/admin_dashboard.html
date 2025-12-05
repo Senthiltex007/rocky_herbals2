@@ -1,0 +1,104 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container mt-4">
+  <h2 class="text-center mb-4">🌿 Rocky Herbals Admin Dashboard</h2>
+
+  <!-- Quick Stats -->
+  <div class="row text-center mb-4">
+    <div class="col-md-3">
+      <div class="card shadow-sm p-3">
+        <h5>Members</h5>
+        <p class="display-6">{{ members_count }}</p>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card shadow-sm p-3">
+        <h5>Products</h5>
+        <p class="display-6">{{ products_count }}</p>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card shadow-sm p-3">
+        <h5>Payments</h5>
+        <p class="display-6">{{ payments_count }}</p>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card shadow-sm p-3">
+        <h5>Income</h5>
+        <p class="display-6">₹{{ income_count }}</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Navigation Cards -->
+  <div class="row text-center">
+    <div class="col-md-3 mb-3">
+      <a href="{% url 'member_list' %}" class="text-decoration-none">
+        <div class="card shadow-sm p-4">
+          👥 Manage Members
+        </div>
+      </a>
+    </div>
+    <div class="col-md-3 mb-3">
+      <a href="{% url 'products' %}" class="text-decoration-none">
+        <div class="card shadow-sm p-4">
+          📦 Manage Products
+        </div>
+      </a>
+    </div>
+    <div class="col-md-3 mb-3">
+      <a href="{% url 'orders' %}" class="text-decoration-none">
+        <div class="card shadow-sm p-4">
+          💳 Manage Payments
+        </div>
+      </a>
+    </div>
+    <div class="col-md-3 mb-3">
+      <a href="{% url 'reports' %}" class="text-decoration-none">
+        <div class="card shadow-sm p-4">
+          📊 Reports
+        </div>
+      </a>
+    </div>
+  </div>
+
+  <div class="row text-center">
+    <div class="col-md-3 mb-3">
+      <a href="{% url 'settings' %}" class="text-decoration-none">
+        <div class="card shadow-sm p-4">
+          ⚙️ Settings
+        </div>
+      </a>
+    </div>
+    <div class="col-md-3 mb-3">
+      <!-- ✅ Updated to point to tree_view_root -->
+      <a href="{% url 'tree_view_root' %}" class="text-decoration-none">
+        <div class="card shadow-sm p-4">
+          🌳 View Tree
+        </div>
+      </a>
+    </div>
+    <div class="col-md-3 mb-3">
+      <a href="{% url 'add_member' 1 'left' %}" class="text-decoration-none">
+        <div class="card shadow-sm p-4">
+          ➕ Add Member
+        </div>
+      </a>
+    </div>
+    <div class="col-md-3 mb-3">
+      <a href="{% url 'place_member' %}" class="text-decoration-none">
+        <div class="card shadow-sm p-4">
+          📍 Place Member
+        </div>
+      </a>
+    </div>
+  </div>
+
+  <!-- Back to Home -->
+  <div class="text-center mt-4">
+    <a href="{% url 'home' %}" class="btn btn-dark">🏠 Back to Home</a>
+  </div>
+</div>
+{% endblock %}
+

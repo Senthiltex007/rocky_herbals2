@@ -1,0 +1,10 @@
+/* animated connectors */
+.children::before, .children > div::before {
+  transition: all .3s ease;
+  background: linear-gradient(90deg, rgba(33,150,243,0.9), rgba(33,150,243,0.3));
+}
+.node .card { transition: transform .25s cubic-bezier(.2,.9,.3,1), box-shadow .25s; }
+.node:hover .card { transform: translateY(-6px) scale(1.02); box-shadow: 0 12px 30px rgba(0,0,0,0.14); }
+.tree a.btn-success { box-shadow: 0 6px 14px rgba(40,167,69,0.2); transition: transform .15s, box-shadow .15s; }
+.tree a.btn-success:active { transform: scale(.98); }
+

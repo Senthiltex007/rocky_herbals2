@@ -1,0 +1,14 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="dashboard">
+  <h2>Admin Dashboard</h2>
+  <div class="stats">
+    <p>Total Members: {{ total_members }}</p>
+    <p>Paid: {{ paid }}</p>
+    <p>Unpaid: {{ unpaid }}</p>
+    <p>Total Income: ₹{{ income }}</p>
+    <p>Total Spend: ₹{{ spend }}</p>
+  </div>
+</div>
+{% endblock %}
+
