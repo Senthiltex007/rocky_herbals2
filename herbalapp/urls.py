@@ -6,9 +6,6 @@ from django.conf.urls.static import static
 from herbalapp import views
 
 urlpatterns = [
-    # ===================== ADMIN =====================
-    path('admin/', admin.site.urls),
-
     # ===================== HOME / STATIC PAGES =====================
     path('', views.home, name='home'),
     path('dashboard/', views.dashboard, name='dashboard'),
@@ -64,6 +61,7 @@ urlpatterns = [
     path("income/", views.income_view, name="income_page"),
     path("income/export/", views.export_income_excel, name="export_income_excel"),
     path('export-income/', views.export_members_income, name='export_income'),
+    path("income_report/", views.income_report, name="income_report"),
 ]
 
 # ===================== STATIC / MEDIA =====================

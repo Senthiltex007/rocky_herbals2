@@ -32,7 +32,7 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
-ROOT_URLCONF = 'rocky_herbals.urls'
+ROOT_URLCONF = 'rocky_herbals2.urls'
 
 TEMPLATES = [
     {
@@ -49,8 +49,8 @@ TEMPLATES = [
         },
     },
 ]
+WSGI_APPLICATION = 'rocky_herbals2.wsgi.application'
 
-WSGI_APPLICATION = 'rocky_herbals.wsgi.application'
 
 # Database (default sqlite3)
 DATABASES = {

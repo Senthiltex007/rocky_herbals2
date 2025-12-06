@@ -557,4 +557,3 @@ class DailyIncomeReport(models.Model):
 
     def __str__(self):
         return f"{self.member.name} - {self.date}"
-
