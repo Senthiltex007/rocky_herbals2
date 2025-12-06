@@ -55,6 +55,12 @@ footer p{text-align:center;padding:8px;background:black;color:white;margin:0;}
 
 <h2 class="text-center mb-4">💰 Income Dashboard</h2>
 
+<!-- Search Form -->
+<form method="get" class="mb-3 text-center">
+  <input type="text" name="name" placeholder="Search by member name" value="{{ request.GET.name }}" class="form-control d-inline-block w-50">
+  <button type="submit" class="btn btn-primary ms-2">Search</button>
+</form>
+
 {% if income_data %}
 <div class="table-responsive">
 <table class="table table-bordered table-striped shadow-sm">
@@ -68,6 +74,8 @@ footer p{text-align:center;padding:8px;background:black;color:white;margin:0;}
     <th>Sponsor Income</th>
     <th>Flash Bonus</th>
     <th>Salary</th>
+    <th>Repurchase Wallet</th>
+    <th>Wash Out Members</th>
     <th>Total Income</th>
 </tr>
 </thead>
@@ -82,7 +90,9 @@ footer p{text-align:center;padding:8px;background:black;color:white;margin:0;}
     <td>{{ row.sponsor }}</td>
     <td>{{ row.flash }}</td>
     <td>{{ row.salary }}</td>
-    <td><b class="text-success">{{ row.total }}</b></td>
+    <td>{{ row.repurchase_wallet }}</td>
+    <td>{{ row.wash_out_members }}</td>
+    <td><span class="badge bg-success fs-6">{{ row.total }}</span></td>
 </tr>
 {% endfor %}
 </tbody>

@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Geniology Tree</title>
+<style>
+    .tree ul { padding-top:20px; position:relative; display:table; margin:0 auto; }
+    .tree li { display:table-cell; text-align:center; vertical-align:top; position:relative; padding:20px 5px 0 5px; }
+    .tree li::before, .tree li::after { content:''; position:absolute; top:0; right:50%; border-top:1px solid #ccc; width:50%; height:20px; }
+    .tree li::after { right:auto; left:50%; border-left:1px solid #ccc; }
+    .tree li:only-child::before, .tree li:only-child::after { display:none; }
+    .tree li div { border:1px solid #ccc; padding:5px 10px; display:inline-block; border-radius:5px; background:#f9f9f9; cursor:pointer; }
+    .member-box.text-muted { background:#eee; cursor:default; }
+    #memberModal { display:none; position:fixed; top:20%; left:30%; background:#fff; border:1px solid #ccc; padding:20px; z-index:1000; }
+</style>
+</head>
+<body>
+
+<h2 style="text-align:center;">Geniology Tree</h2>
+
+<div class="tree">
+    <!-- Example node -->
+    <ul class='tree-root'>
+        <li>
+            <div class='member-box' onclick="showMemberDetail({id:29, auto_id:'rocky0001', name:'Venkatesh', phone:'8988766534'})">
+                Venkatesh <br><small>ID: rocky0001</small>
+            </div>
+            <ul>
+                <li>
+                    <div class='member-box text-muted'>➕ Left<br>
+                        <button onclick="addMember(29,'left')">Add</button>
+                    </div>
+                </li>
+                <li>
+                    <div class='member-box text-muted'>➕ Right<br>
+                        <button onclick="addMember(29,'right')">Add</button>
+                    </div>
+                </li>
+            </ul>
+        </li>
+    </ul>
+</div>
+
+<!-- Member Detail Modal -->
+<div id="memberModal">
+  <h3 id="modalName"></h3>
+  <p><strong>ID:</strong> <span id="modalAutoId"></span></p>
+  <p><strong>Phone:</strong> <span id="modalPhone"></span></p>
+  <p><strong>BV:</strong> <span id="modalBV"></span></p>
+  <button onclick="closeModal()">Close</button>
+</div>
+
+<script>
+// Show member detail popup
+function showMemberDetail(member) {
+    document.getElementById("modalName").innerText = member.name;
+    document.getElementById("modalAutoId").innerText = member.auto_id;
+    document.getElementById("modalPhone").innerText = member.phone || "N/A";
+    // Fetch BV details via AJAX
+    fetch(`/member/${member.id}/bv/`)
+      .then(res => res.json())
+      .then(data => {
+          document.getElementById("modalBV").innerText = data.total_bv || "N/A";
+      });
+    document.getElementById("memberModal").style.display = "block";
+}
+function closeModal() {
+    document.getElementById("memberModal").style.display = "none";
+}
+
+// Add new member under parent
+function addMember(parentId, side) {
+    const data = {
+        name: prompt("Enter name"),
+        phone: prompt("Enter phone"),
+        email: prompt("Enter email"),
+        aadhar: prompt("Enter aadhar"),
+        place: prompt("Enter place"),
+        district: prompt("Enter district"),
+        pincode: prompt("Enter pincode")
+    };
+
+    fetch(`/member/add/${parentId}/${side}/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data)
+    })
+    .then(res => res.json())
+    .then(res => {
+        if (res.status === "success") {
+            alert("Member added: " + res.name + " (" + res.auto_id + ")");
+            location.reload(); // reload tree to show new member
+        } else {
+            alert("Error: " + res.message);
+        }
+    });
+}
+</script>
+
+</body>
+</html>
+

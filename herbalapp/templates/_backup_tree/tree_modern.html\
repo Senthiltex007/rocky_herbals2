@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>MLM Tree - Venkatesh</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+
+<style>
+body {
+    background: #f4f6f9;
+    font-family: Arial, sans-serif;
+}
+
+h2 {
+    color: #004080;
+    margin-bottom: 25px;
+}
+
+.tree {
+    display: flex;
+    justify-content: center;
+    overflow-x: auto;
+    padding-bottom: 40px;
+}
+
+.tree ul {
+    position: relative;
+    padding-top: 20px;
+    display: flex;
+    justify-content: center;
+}
+
+.tree ul::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    border-left: 2px solid #6c6c6c;
+    height: 20px;
+}
+
+.tree li {
+    list-style-type: none;
+    text-align: center;
+    position: relative;
+    padding: 20px 10px 0 10px;
+}
+
+.tree li::before,
+.tree li::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    width: 50%;
+    height: 20px;
+    border-top: 2px solid #6c6c6c;
+}
+
+.tree li::before {
+    left: -50%;
+    border-right: 2px solid #6c6c6c;
+}
+
+.tree li::after {
+    right: -50%;
+    border-left: 2px solid #6c6c6c;
+}
+
+.tree li:only-child::before,
+.tree li:only-child::after {
+    display: none;
+}
+
+.tree li:first-child::before {
+    border: none;
+}
+
+.tree li:last-child::after {
+    border: none;
+}
+
+.member-box {
+    display: inline-block;
+    background: #fff;
+    border-radius: 12px;
+    border: 2px solid #0d6efd;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+    padding: 12px;
+    width: 150px;
+    cursor: pointer;
+    transition: transform 0.3s, background 0.3s;
+}
+
+.member-box:hover {
+    transform: scale(1.05);
+    background: #e8f0ff;
+}
+
+.member-box small {
+    font-weight: normal;
+    color: #555;
+}
+
+.add-node {
+    width: 40px;
+    height: 40px;
+    background-color: #28a745;
+    border-radius: 50%;
+    display: inline-block;
+    position: relative;
+    margin: 10px auto;
+    cursor: pointer;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+}
+
+.add-node::before,
+.add-node::after {
+    content: '';
+    position: absolute;
+    background-color: #fff;
+}
+
+.add-node::before {
+    top: 50%;
+    left: 10px;
+    width: 20px;
+    height: 4px;
+    transform: translateY(-50%);
+    border-radius: 2px;
+}
+
+.add-node::after {
+    left: 50%;
+    top: 10px;
+    width: 4px;
+    height: 20px;
+    transform: translateX(-50%);
+    border-radius: 2px;
+}
+
+#overlayBackground,
+#addMemberOverlay {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: rgba(0,0,0,0.5);
+    display: none;
+    z-index: 999;
+}
+
+#overlayBackground.show,
+#addMemberOverlay.show {
+    display: block;
+}
+
+#memberDetailPanel,
+#addMemberFormPanel {
+    position: fixed;
+    top: 20%;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 360px;
+    background: #fff;
+    border-radius: 10px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    display: none;
+    z-index: 1000;
+}
+
+#memberDetailPanel.show,
+#addMemberFormPanel.show {
+    display: block;
+}
+</style>
+</head>
+<body>
+
+<h2 class="text-center mt-3">🌳 MLM Tree - Venkatesh ({{ root.auto_id }})</h2>
+
+<div class="tree">
+    <ul class="tree-root">
+        {% include "member_node.html" with member=root %}
+    </ul>
+</div>
+
+<!-- Member Detail Panel -->
+<div id="overlayBackground" onclick="hideMemberDetail()"></div>
+<div id="memberDetailPanel" class="card shadow-lg">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <span id="panelName"></span> (<span id="panelAutoId"></span>)
+    <button type="button" class="btn-close" onclick="hideMemberDetail()"></button>
+  </div>
+  <div class="card-body">
+    <p><strong>Phone:</strong> <span id="panelPhone"></span></p>
+    <p><strong>District:</strong> <span id="panelDistrict"></span></p>
+    <p><strong>Joined:</strong> <span id="panelJoined"></span></p>
+    <div class="d-flex justify-content-between mt-3">
+      <a id="editLink" class="btn btn-primary btn-sm">Edit</a>
+      <a id="deleteLink" class="btn btn-danger btn-sm">Delete</a>
+    </div>
+  </div>
+</div>
+
+<!-- Add Member Form -->
+<div id="addMemberOverlay" onclick="hideAddMemberForm()"></div>
+<div id="addMemberFormPanel" class="card shadow-lg">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <span>Add New Member</span>
+    <button type="button" class="btn-close" onclick="hideAddMemberForm()"></button>
+  </div>
+  <div class="card-body">
+    <form method="POST" action="/member/create/">
+      <input type="hidden" name="parent_id" id="formParentId">
+      <input type="hidden" name="position" id="formPosition">
+      <div class="mb-2">
+        <label class="form-label">Name</label>
+        <input type="text" name="name" class="form-control" required>
+      </div>
+      <div class="mb-2">
+        <label class="form-label">Mobile Number</label>
+        <input type="text" name="phone" class="form-control" required>
+      </div>
+      <div class="mb-2">
+        <label class="form-label">Aadhaar Number</label>
+        <input type="text" name="aadhar" class="form-control" required>
+      </div>
+      <div class="mb-2">
+        <label class="form-label">Auto ID</label>
+        <input type="text" name="auto_id" class="form-control" id="formAutoId" readonly>
+      </div>
+      <button type="submit" class="btn btn-success w-100">Add Member</button>
+    </form>
+  </div>
+</div>
+
+<script>
+function showMemberDetail(data) {
+  document.getElementById("panelName").innerText = data.name;
+  document.getElementById("panelAutoId").innerText = data.auto_id;
+  document.getElementById("panelPhone").innerText = data.phone;
+  document.getElementById("panelDistrict").innerText = data.district;
+  document.getElementById("panelJoined").innerText = data.joined_date;
+
+  document.getElementById("editLink").href = "/member/edit/" + data.id + "/";
+  document.getElementById("deleteLink").href = "/member/delete/" + data.id + "/";
+
+  document.getElementById("overlayBackground").classList.add("show");
+  document.getElementById("memberDetailPanel").classList.add("show");
+}
+
+function hideMemberDetail() {
+  document.getElementById("overlayBackground").classList.remove("show");
+  document.getElementById("memberDetailPanel").classList.remove("show");
+}
+
+function showAddMemberForm(parentId, position) {
+  document.getElementById("formParentId").value = parentId;
+  document.getElementById("formPosition").value = position;
+  document.getElementById("formAutoId").value = "rocky" + Date.now().toString().slice(-6);
+
+  document.getElementById("addMemberOverlay").classList.add("show");
+  document.getElementById("addMemberFormPanel").classList.add("show");
+}
+
+function hideAddMemberForm() {
+  document.getElementById("addMemberOverlay").classList.remove("show");
+  document.getElementById("addMemberFormPanel").classList.remove("show");
+}
+
+document.addEventListener("keydown", function(e) {
+  if (e.key === "Escape") {
+    hideMember
