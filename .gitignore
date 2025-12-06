@@ -1,7 +1,25 @@
+# Ignore Python virtual environment
 venv/
+
+# Ignore duplicate backup folder
+backup_duplicates/
+
+# Ignore Python cache
 __pycache__/
 *.pyc
+*.pyo
+
+# Ignore database files
 *.sqlite3
-staticfiles/
-_backup_tree/
+
+# Ignore log files
+*.log
+
+# Ignore backup files
+*.bak
+*.swp
+
+# Ignore OS files
+.DS_Store
+Thumbs.db
 
