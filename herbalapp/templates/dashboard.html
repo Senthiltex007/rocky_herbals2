@@ -51,10 +51,36 @@
         <div class="card-body text-center">
           <h5 class="card-title">Income</h5>
           <p class="card-text">View members income details.</p>
-          <!-- ✅ Changed link to income_report -->
           <a href="{% url 'income_report' %}" class="btn btn-warning">Income Report</a>
         </div>
       </div>
+    </div>
+  </div>
+
+  <!-- ✅ Products Section -->
+  <div class="mt-5">
+    <h4 class="text-success fw-bold">Products</h4>
+    <div class="row">
+      {% for product in products %}
+        <div class="col-md-4">
+          <div class="card shadow-sm mb-3">
+            {% if product.image %}
+              <img src="{{ product.image.url }}" class="card-img-top" alt="{{ product.name }}">
+            {% endif %}
+            <div class="card-body">
+              <h5 class="card-title">{{ product.name }}</h5>
+              <p class="card-text">{{ product.description }}</p>
+              <p><strong>MRP:</strong> ₹{{ product.mrp }}</p>
+              <p><strong>BV:</strong> {{ product.bv_value }}</p>
+              <!-- ✅ Auto Product ID box -->
+              <div class="form-group">
+                <label>Product ID</label>
+                <input type="text" class="form-control" value="{{ product.product_id }}" readonly>
+              </div>
+            </div>
+          </div>
+        </div>
+      {% endfor %}
     </div>
   </div>
 

@@ -437,6 +437,9 @@ class Commission(models.Model):
 # ==========================================================
 # PRODUCT MODEL
 # ==========================================================
+from decimal import Decimal
+from django.db import models
+
 class Product(models.Model):
     name = models.CharField(max_length=200)
     description = models.TextField(blank=True)
@@ -445,8 +448,22 @@ class Product(models.Model):
     image = models.ImageField(upload_to='products/', blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
+    # 🔹 Add this new field here
+    product_id = models.CharField(max_length=10, unique=True, editable=False, null=True, blank=True)
+
+    def save(self, *args, **kwargs):
+        if not self.product_id:
+            last_product = Product.objects.order_by('-id').first()
+            if last_product and last_product.product_id:
+                last_num = int(last_product.product_id.replace("RH", ""))
+                new_num = last_num + 1
+            else:
+                new_num = 1
+            self.product_id = f"RH{new_num:03d}"
+        super().save(*args, **kwargs)
+
     def __str__(self):
-        return f"{self.name} - ₹{self.mrp} - BV: {self.bv_value}"
+        return f"{self.name} ({self.product_id}) - ₹{self.mrp} - BV: {self.bv_value}"
 
 
 # ==========================================================
