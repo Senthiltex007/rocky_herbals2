@@ -1,14 +1,16 @@
 # herbalapp/signals.py
 # ----------------------------------------------------------
 # Auto income trigger on:
-#   1. Payment Success (existing)
-#   2. New Member Creation (NEW added)
+#   1. Payment Success
+#   2. New Member Creation
 # ----------------------------------------------------------
 
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 from .models import Payment, Member
+from .utils.sponsor_income import give_sponsor_income
 from .utils.binary_income import process_member_binary_income
+#from .utils.flash_out_bonus import process_out_flash_bonus
 from .services import add_salary_income
 
 
@@ -22,18 +24,37 @@ def create_income_on_payment(sender, instance, created, **kwargs):
         print(f"💰 Payment received for Member ID: {member.member_id}")
 
         # Binary income
-        process_member_binary_income(member)
-        print("🔹 Binary income processed")
+        try:
+            process_member_binary_income(member)
+            print("🔹 Binary income processed")
+        except Exception as e:
+            print(f"[signals] Binary income error: {e}")
 
-        # Temporary salary income
-        bv_left = instance.amount
-        bv_right = instance.amount
-        add_salary_income(member, bv_left, bv_right)
-        print("🔸 Salary income added")
+        # Sponsor income
+        try:
+            give_sponsor_income(member)
+            print("🔸 Sponsor income processed")
+        except Exception as e:
+            print(f"[signals] Sponsor income error: {e}")
+
+        # Flash bonus
+        try:
+            process_flash_bonus(member)
+            print("✨ Flash bonus processed")
+        except Exception as e:
+            print(f"[signals] Flash bonus error: {e}")
+
+        # Salary income
+        try:
+            bv_left = instance.amount
+            bv_right = instance.amount
+            add_salary_income(member, bv_left, bv_right)
+            print("💼 Salary income added")
+        except Exception as e:
+            print(f"[signals] Salary income error: {e}")
 
     else:
         print("ℹ Payment updated or not Paid → Income skipped")
-
 
 
 # ==========================================================
@@ -45,9 +66,15 @@ def auto_binary_on_new_member(sender, instance, created, **kwargs):
         # Parent income calculate (child attach போதும்)
         if instance.parent:
             print(f"🧩 New Member Added: {instance.member_id} → Parent: {instance.parent.member_id}")
-            process_member_binary_income(instance.parent)
+            try:
+                process_member_binary_income(instance.parent)
+            except Exception as e:
+                print(f"[signals] Parent binary income error: {e}")
 
         # Own income eligibility check
-        process_member_binary_income(instance)
-        print("🔹 Auto Binary Trigger Completed")
+        try:
+            process_member_binary_income(instance)
+            print("🔹 Auto Binary Trigger Completed")
+        except Exception as e:
+            print(f"[signals] Member binary income error: {e}")
 

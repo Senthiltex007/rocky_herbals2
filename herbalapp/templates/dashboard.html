@@ -44,14 +44,15 @@
       </div>
     </div>
 
-    <!-- Income Page Card -->
+    <!-- Income Report Card -->
     <div class="col-md-3">
       <div class="card shadow-sm">
         <img src="{% static 'images/income.png' %}" class="card-img-top" alt="Income">
         <div class="card-body text-center">
           <h5 class="card-title">Income</h5>
           <p class="card-text">View members income details.</p>
-          <a href="{% url 'income_page' %}" class="btn btn-warning">Income Report</a>
+          <!-- ✅ Changed link to income_report -->
+          <a href="{% url 'income_report' %}" class="btn btn-warning">Income Report</a>
         </div>
       </div>
     </div>

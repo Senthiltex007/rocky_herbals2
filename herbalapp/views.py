@@ -1191,9 +1191,12 @@ def add_member_form(request):
     })
 
 
-# ===============================================================
-# INCOME REPORT VIEW (connects with income_report.html)
-# ===============================================================
+from django.shortcuts import render
+from herbalapp.models import Member, DailyIncomeReport
+
+# ==========================================================
+# INCOME REPORT VIEW (list all members + calculated incomes)
+# ==========================================================
 def income_report(request):
     name = request.GET.get('name', '')
 
@@ -1203,7 +1206,8 @@ def income_report(request):
 
     income_data = []
     for m in members:
-        income = m.calculate_full_income()   # MUST EXIST IN MODEL
+        # MUST EXIST in Member model
+        income = m.calculate_full_income()
 
         income_data.append({
             "member": m,
@@ -1213,8 +1217,25 @@ def income_report(request):
             "flash": income.get('flash_bonus', 0),
             "salary": income.get('salary', 0),
             "stock": income.get('stock_commission', 0),   # future use
-            "total": income.get('total_income_all', 0)
+            "total": income.get('total_income_all', 0),
         })
 
-    return render(request, 'income_report.html', {"income_data": income_data})
+    return render(request, "income_report.html", {"income_data": income_data})
+
+
+# ==========================================================
+# INCOME CHART VIEW (plot salary + total income growth)
+# ==========================================================
+def income_chart(request, member_id):
+    reports = DailyIncomeReport.objects.filter(member_id=member_id).order_by('date')
+
+    dates = [str(r.date) for r in reports]
+    salary = [float(r.salary) for r in reports]
+    total_income = [float(r.total_income) for r in reports]
+
+    return render(request, "income_chart.html", {
+        "dates": dates,
+        "salary": salary,
+        "total_income": total_income,
+    })
 

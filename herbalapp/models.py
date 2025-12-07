@@ -21,7 +21,6 @@ class RockCounter(models.Model):
 
 class Member(models.Model):
     # Basic details
-    position = models.CharField(max_length=10, choices=[('left','Left'),('right','Right')], null=True, blank=True)
     member_id = models.CharField(max_length=20, unique=True)
     name = models.CharField(max_length=200)
     phone = models.CharField(max_length=20)
@@ -85,6 +84,10 @@ class Member(models.Model):
 
     # Flash bonus
     flash_bonus = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
+    # Stock commission
+    stock_commission = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
+    # Salary income (persist per member)
+    salary = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
 
     # Eligibility + carry-forward
     binary_eligible = models.BooleanField(default=False)
@@ -111,16 +114,6 @@ class Member(models.Model):
         choices=[('left', 'Left'), ('right', 'Right')],
         null=True, blank=True
     )
-
-    main_wallet = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
-    # -------- STOCK COMMISSION CALCULATION --------
-    def total_stock_commission(self):
-        return Commission.objects.filter(member=self).aggregate(
-            total=Sum('commission_amount')
-        )['total'] or 0
-
-    def __str__(self):
-        return f"{self.auto_id or self.id} - {self.name}"
 
     # ==========================================================
     # LAST MONTH BV HELPER
@@ -360,6 +353,35 @@ class Member(models.Model):
             "total_income_all": Decimal(total_income_all)
         }
 
+    # ==========================================================
+    # WRAPPER ENGINE (calls calculate_full_income and updates DB)
+    # ==========================================================
+    def run_income_engine(self):
+        data = self.calculate_full_income()
+
+        # Update DB fields
+        self.binary_income += data["binary_income"]
+        self.sponsor_income += data["sponsor_income"]
+        self.flash_bonus += data["flash_bonus"]
+        self.repurchase_wallet += data["repurchase_wallet"]
+        self.rank_reward += data.get("rank_reward", Decimal("0.00"))
+        self.stock_commission += data["stock_commission"]
+        self.salary += data["salary"]   # ✅ New line
+        self.save()
+
+        # Log into DailyIncomeReport
+        DailyIncomeReport.objects.create(
+            member=self,
+            binary_income=data["binary_income"],
+            flash_bonus=data["flash_bonus"],
+            sponsor_income=data["sponsor_income"],
+            salary=data["salary"],
+            stock_commission=data["stock_commission"],
+            total_income=data["total_income_all"]
+        )
+
+        return data
+
 
 # ==========================================================
 # PAYMENT MODEL
@@ -550,10 +572,11 @@ class DailyIncomeReport(models.Model):
     binary_income = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
     flash_bonus = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
     sponsor_income = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
-    salary = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
+    salary = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))   # ✅ keep salary log
     stock_commission = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
 
     total_income = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal('0.00'))
 
     def __str__(self):
         return f"{self.member.name} - {self.date}"
+

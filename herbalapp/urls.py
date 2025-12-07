@@ -62,6 +62,7 @@ urlpatterns = [
     path("income/export/", views.export_income_excel, name="export_income_excel"),
     path('export-income/', views.export_members_income, name='export_income'),
     path("income_report/", views.income_report, name="income_report"),
+    path("income_chart/<int:member_id>/", views.income_chart, name="income_chart"),  # ✅ NEW ROUTE
 ]
 
 # ===================== STATIC / MEDIA =====================
