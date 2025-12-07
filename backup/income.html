@@ -1,0 +1,46 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container mt-5">
+  <h2 class="text-center mb-4">💰 Income Dashboard</h2>
+
+  {% if reports %}
+    <div class="table-responsive">
+      <table class="table table-striped table-bordered shadow-sm">
+        <thead class="table-dark">
+          <tr>
+            <th>Date</th>
+            <th>Member</th>
+            <th>Binary Income</th>
+            <th>Flash Bonus</th>
+            <th>Sponsor Income</th>
+            <th>Salary</th>
+            <th>Stock Commission</th>
+            <th>Total Income</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for report in reports %}
+          <tr>
+            <td>{{ report.date }}</td>
+            <td>{{ report.member.name }}</td>
+            <td>{{ report.binary_income }}</td>
+            <td>{{ report.flash_bonus }}</td>
+            <td>{{ report.sponsor_income }}</td>
+            <td>{{ report.salary }}</td>
+            <td>{{ report.stock_commission }}</td>
+            <td>{{ report.total_income }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <div class="alert alert-info text-center">No income reports available yet.</div>
+  {% endif %}
+
+  <div class="text-center mt-3">
+    <a href="{% url 'dashboard' %}" class="btn btn-secondary">⬅ Back to Dashboard</a>
+  </div>
+</div>
+{% endblock %}
+

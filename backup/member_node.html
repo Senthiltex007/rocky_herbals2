@@ -1,0 +1,53 @@
+<div class="node">
+  <div class="card">
+    <h5 class="card-title">{{ member.name }}</h5>
+    <p>ID: {{ member.id }}</p>
+
+    {% if member.email %}
+      <p>📧 {{ member.email }}</p>
+    {% endif %}
+
+    {% if member.mobile_number %}
+      <p>📱 {{ member.mobile_number }}</p>
+    {% endif %}
+
+    {% if member.district %}
+      <p>🏠 District: {{ member.district }}</p>
+    {% endif %}
+
+    {% if member.taluk %}
+      <p>🏢 Taluk: {{ member.taluk }}</p>
+    {% endif %}
+
+    {% if member.pincode %}
+      <p>📮 Pincode: {{ member.pincode }}</p>
+    {% endif %}
+
+    <div class="mt-2">
+      <a href="{% url 'replace_member' member.id %}" class="btn btn-sm btn-warning">✏️ Replace</a>
+      <a href="{% url 'delete_member' member.id %}" class="btn btn-sm btn-danger">🗑️ Delete</a>
+    </div>
+  </div>
+
+  <div class="children">
+    <div class="left">
+      {% if member.left_child %}
+        {% include 'member_node.html' with member=member.left_child %}
+      {% else %}
+        <div class="placeholder">
+          <a href="{% url 'place_member' %}?parent_id={{ member.id }}&side=L" class="btn btn-success">➕</a>
+        </div>
+      {% endif %}
+    </div>
+    <div class="right">
+      {% if member.right_child %}
+        {% include 'member_node.html' with member=member.right_child %}
+      {% else %}
+        <div class="placeholder">
+          <a href="{% url 'place_member' %}?parent_id={{ member.id }}&side=R" class="btn btn-success">➕</a>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+

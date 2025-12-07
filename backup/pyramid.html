@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ root.name }} - Geniology Tree</title>
+
+    <style>
+        .tree, .tree ul {
+            margin: 0;
+            padding: 0;
+            list-style: none;
+            text-align: center;
+        }
+
+        .tree ul {
+            padding-top: 20px;
+            position: relative;
+            display: table;
+            margin: 0 auto;
+        }
+
+        .tree li {
+            display: table-cell;
+            vertical-align: top;
+            padding: 20px 5px 0 5px;
+            position: relative;
+        }
+
+        .tree li::before, .tree li::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            border-top: 1px solid #ccc;
+            width: 50%;
+            height: 20px;
+        }
+
+        .tree li::before {
+            right: 50%;
+        }
+
+        .tree li::after {
+            left: 50%;
+            border-left: 1px solid #ccc;
+        }
+
+        .tree li:only-child::before,
+        .tree li:only-child::after {
+            display: none;
+        }
+
+        .tree li:first-child::before { border: none; }
+        .tree li:last-child::after { border: none; }
+
+        .node {
+            border: 1px solid #3498db;
+            padding: 5px 10px;
+            display: inline-block;
+            border-radius: 5px;
+            background-color: #f9f9f9;
+            font-weight: bold;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+
+<h2 style="text-align:center;">{{ root.name }} Pyramid Tree</h2>
+
+<div class="tree">
+    <ul>
+        <li>
+            <!-- ROOT NODE -->
+            <div class="node" onclick="alert('ID: {{ root.auto_id }}')">
+                {{ root.name }} ({{ root.auto_id }})
+            </div>
+
+            {% if root.left or root.right %}
+            <ul>
+                {% if root.left %}
+                <li>
+                    {% include 'herbalapp/pyramid_node.html' with member=root.left %}
+                </li>
+                {% endif %}
+
+                {% if root.right %}
+                <li>
+                    {% include 'herbalapp/pyramid_node.html' with member=root.right %}
+                </li>
+                {% endif %}
+            </ul>
+            {% endif %}
+        </li>
+    </ul>
+</div>
+
+</body>
+</html>
+

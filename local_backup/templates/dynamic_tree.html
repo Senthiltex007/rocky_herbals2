@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ root_member.name }} - Geniology Tree</title>
+    <style>
+        /* Simple pyramid tree styles */
+        .tree ul {
+            padding-top: 20px;
+            position: relative;
+            display: table;
+            margin: 0 auto;
+        }
+
+        .tree li {
+            display: table-cell;
+            text-align: center;
+            vertical-align: top;
+            position: relative;
+            padding: 20px 5px 0 5px;
+        }
+
+        .tree li::before, .tree li::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            right: 50%;
+            border-top: 1px solid #ccc;
+            width: 50%;
+            height: 20px;
+        }
+
+        .tree li::after {
+            right: auto;
+            left: 50%;
+            border-left: 1px solid #ccc;
+        }
+
+        .tree li:only-child::before, .tree li:only-child::after {
+            display: none;
+        }
+
+        .tree li div {
+            border: 1px solid #ccc;
+            padding: 5px 10px;
+            display: inline-block;
+            border-radius: 5px;
+            background-color: #f9f9f9;
+        }
+    </style>
+</head>
+<body>
+    <h2 style="text-align:center;">Geniology Pyramid Tree - {{ root_member.name }}</h2>
+
+    <div class="tree">
+        <ul>
+            {% include "tree_node.html" with node=tree %}
+        </ul>
+    </div>
+</body>
+</html>
+
