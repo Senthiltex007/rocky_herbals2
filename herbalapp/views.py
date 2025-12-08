@@ -190,7 +190,7 @@ def add_dashboard_sheet(wb, members):
 # HOME / STATIC PAGES
 # -------------------------
 def home(request):
-    return render(request, "dashboard.html")
+    return render(request, "home.html")
 
 
 def about(request):
@@ -947,12 +947,6 @@ def generate_daily_report():
     email.send()
 
 
-from django.shortcuts import render
-
-def home(request):
-    return render(request, "dashboard.html")
-
-    return render(request, "dashboard.html")
 from django.shortcuts import render, redirect
 from django.contrib import messages
 from django.utils import timezone
