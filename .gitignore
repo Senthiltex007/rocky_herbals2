@@ -1,26 +1,44 @@
-# Ignore Python virtual environment
+# Python virtual environment
 venv/
 
-# Ignore duplicate backup folder
-backup_duplicates/
-
-# Ignore Python cache
+# Byte-compiled / cache files
 __pycache__/
-*.pyc
-*.pyo
+*.py[cod]
+*$py.class
 
-# Ignore database files
+# Django database
 *.sqlite3
 
-# Ignore log files
+# Logs
 *.log
 
-# Ignore backup files
-*.bak
-*.swp
-
-# Ignore OS files
+# OS files
 .DS_Store
 Thumbs.db
 
+# Backup and temp files
+*.bak
+*.swp
+*.zip
+*.csv
+models_backup.py
 backup/
+backup_duplicates/
+
+# Migrations (optional: ignore auto-generated migrations)
+herbalapp/migrations/*.py
+!herbalapp/migrations/__init__.py
+
+# Static build outputs
+staticfiles/
+herbalapp/static/images/banner_home_v2.jpg
+herbalapp/static/images/favicon-herbal.ico
+herbalapp/static/js/bootstrap.bundle.herbal.min.js
+
+# Media uploads
+media/
+
+# IDE configs
+.vscode/
+.idea/
+
