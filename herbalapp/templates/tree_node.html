@@ -1,9 +1,16 @@
 <li>
     <!-- MEMBER BOX — opens popup instead of redirecting -->
     <div class="member-box"
-         onclick="openMemberPopup('{{ member.id }}','{{ member.name }}','{{ member.auto_id }}')">
+         onclick="openMemberPopup('{{ member.id }}','{{ member.name }}','{{ member.member_id }}')">
+        {% if member.avatar %}
+            <img src="{{ member.avatar.url }}" alt="{{ member.name }}"
+                 style="width:60px;height:60px;border-radius:50%;margin-bottom:5px;">
+        {% else %}
+            <img src="/static/images/default-avatar.png" alt="No Avatar"
+                 style="width:60px;height:60px;border-radius:50%;margin-bottom:5px;">
+        {% endif %}
         <b>{{ member.name }}</b><br>
-        <small>ID: {{ member.auto_id }}</small>
+        <small>ID: {{ member.member_id }}</small>
     </div>
 
     <ul>
@@ -14,7 +21,7 @@
             <li>
                 <div class="add-box">
                     ➕ Left <br>
-                    <a href="/member/add/?parent={{ member.id }}&side=left">Add</a>
+                    <a href="/member/add/?parent={{ member.member_id }}&side=left">Add</a>
                 </div>
             </li>
         {% endif %}
@@ -26,7 +33,7 @@
             <li>
                 <div class="add-box">
                     ➕ Right <br>
-                    <a href="/member/add/?parent={{ member.id }}&side=right">Add</a>
+                    <a href="/member/add/?parent={{ member.member_id }}&side=right">Add</a>
                 </div>
             </li>
         {% endif %}

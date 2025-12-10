@@ -468,11 +468,11 @@ def build_tree_html(member):
     left, right = _get_children(member)
 
     safe_name = (member.name or "").replace("'", "\\'").replace('"', '\\"')
-    safe_auto = str(member.id)
+    safe_auto = str(member.member_id)
 
     node_html = (
         f"<li>"
-        f"<div class='member-box' onclick=\"showMemberDetail({{id:'{member.id}', auto_id:'{safe_auto}', name:'{safe_name}', phone:'{(member.phone or '')}'}})\">"
+        f"<div class='member-box' onclick=\"showMemberDetail({{id:'{member.member_id}', name:'{safe_name}', phone:'{(member.phone or '')}'}})\">"
         f"{safe_name} <br><small>ID: {safe_auto}</small>"
         f"</div>"
     )
@@ -482,10 +482,7 @@ def build_tree_html(member):
     if left:
         node_html += build_tree_html(left)
     else:
-        try:
-            add_url = reverse('add_member_form') + f"?parent={member.id}&side=left"
-        except Exception:
-            add_url = "#"
+        add_url = reverse('add_member_form') + f"?parent={member.member_id}&side=left"
         node_html += (
             "<li><div class='member-box text-muted'>➕ Left<br>"
             f"<a href='{add_url}'>Add</a></div></li>"
@@ -494,10 +491,7 @@ def build_tree_html(member):
     if right:
         node_html += build_tree_html(right)
     else:
-        try:
-            add_url = reverse('add_member_form') + f"?parent={member.id}&side=right"
-        except Exception:
-            add_url = "#"
+        add_url = reverse('add_member_form') + f"?parent={member.member_id}&side=right"
         node_html += (
             "<li><div class='member-box text-muted'>➕ Right<br>"
             f"<a href='{add_url}'>Add</a></div></li>"
@@ -512,16 +506,17 @@ def build_tree_html(member):
 # ======================================================
 def tree_view(request, member_id):
     try:
-        member = Member.objects.get(id=member_id)
+        # First try business member_id
+        member = Member.objects.get(member_id=member_id)
     except Member.DoesNotExist:
-        return render(request, "tree_not_found.html", {"member_id": member_id})
+        try:
+            # Fallback: try numeric PK
+            member = Member.objects.get(id=int(member_id))
+        except (Member.DoesNotExist, ValueError):
+            return render(request, "tree_not_found.html", {"member_id": member_id})
 
-    # Build tree HTML
     tree_html = "<ul class='tree-root'>" + build_tree_html(member) + "</ul>"
-
-    # ✅ Calculate BV values using helper
     bv = member.calculate_bv()
-
     return render(request, "tree_view.html", {
         "member": member,
         "tree_html": tree_html,
@@ -533,47 +528,32 @@ def tree_view(request, member_id):
 
 
 def pyramid_view(request, member_id):
-    root = get_object_or_404(Member, id=member_id)
+    root = get_object_or_404(Member, member_id=member_id)
 
     def build_pyramid(member):
         if not member:
             return ""
-
         left, right = _get_children(member)
-
         safe_name = (member.name or "").replace("'", "\\'").replace('"', '\\"')
-        safe_auto = member.auto_id or str(member.id)
-
+        safe_auto = member.member_id
         node_html = "<li>"
         node_html += (
             f"<div class='member-box' "
-            f"onclick=\"showMemberDetail({{id:'{member.id}', auto_id:'{safe_auto}', name:'{safe_name}', phone:'{getattr(member, 'phone', '')}'}})\">"
+            f"onclick=\"showMemberDetail({{id:'{member.member_id}', name:'{safe_name}', phone:'{getattr(member, 'phone', '')}'}})\">"
             f"{safe_name} <br><small>ID: {safe_auto}</small>"
             f"</div>"
         )
-
         node_html += "<ul>"
-
-        # LEFT CHILD
         if left:
             node_html += build_pyramid(left)
         else:
-            add_url_left = reverse('add_member_form') + f"?parent={member.id}&side=left"
-            node_html += (
-                "<li><div class='member-box text-muted'>➕ Left<br>"
-                f"<a href='{add_url_left}'>Add</a></div></li>"
-            )
-
-        # RIGHT CHILD
+            add_url_left = reverse('add_member_form') + f"?parent={member.member_id}&side=left"
+            node_html += "<li><div class='member-box text-muted'>➕ Left<br><a href='{add_url_left}'>Add</a></div></li>"
         if right:
             node_html += build_pyramid(right)
         else:
-            add_url_right = reverse('add_member_form') + f"?parent={member.id}&side=right"
-            node_html += (
-                "<li><div class='member-box text-muted'>➕ Right<br>"
-                f"<a href='{add_url_right}'>Add</a></div></li>"
-            )
-
+            add_url_right = reverse('add_member_form') + f"?parent={member.member_id}&side=right"
+            node_html += "<li><div class='member-box text-muted'>➕ Right<br><a href='{add_url_right}'>Add</a></div></li>"
         node_html += "</ul></li>"
         return node_html
 
@@ -585,33 +565,31 @@ def pyramid_view(request, member_id):
 # member_tree wrappers
 # -------------------------
 def member_tree_root(request):
-    roots = Member.objects.filter(parent__isnull=True)
-    return render(request, "member_tree_root.html", {"roots": roots})
+    root = get_object_or_404(Member, member_id="rocky001")
+    return render(request, "member_tree_root.html", {"roots": [root]})
 
 
 def member_tree(request, member_id):
-    root = get_object_or_404(Member, id=member_id)
+    root = get_object_or_404(Member, member_id=member_id)
     tree_html = "<ul class='tree-root'>" + build_tree_html(root) + "</ul>"
     return render(request, "member_tree.html", {"tree_html": tree_html, "root_member": root})
 
 
 def dynamic_tree(request, member_id):
-    member = get_object_or_404(Member, id=member_id)
+    member = get_object_or_404(Member, member_id=member_id)
     if hasattr(member, "get_pyramid_tree"):
         tree_data = member.get_pyramid_tree()
         return render(request, "dynamic_tree.html", {"tree": tree_data, "root_member": member})
     tree_html = "<ul class='tree-root'>" + build_tree_html(member) + "</ul>"
     return render(request, "dynamic_tree.html", {"tree_html": tree_html, "root_member": member})
 
-
 def place_member(request):
-    members = Member.objects.all().order_by("id")
+    # Order by business member_id instead of numeric id
+    members = Member.objects.all().order_by("member_id")
     return render(request, "place_member.html", {"members": members})
-
 
 def join(request):
     return render(request, "join.html", {"page_title": "Join Us"})
-
 
 def shop_login(request):
     return render(request, "shop_login.html", {"page_title": "Shop Login"})
@@ -1094,16 +1072,26 @@ def add_member_form(request):
     # Auto-generate rocky ID
     last = Member.objects.order_by('-id').first()
     if last:
-        num = int(last.member_id.replace("rocky", ""))
+        try:
+            num = int(last.member_id.replace("rocky", ""))
+        except ValueError:
+            num = last.id
         new_member_id = f"rocky{num+1:03d}"
     else:
         new_member_id = "rocky001"
 
-    parent_db_id = request.GET.get("parent")
+    parent_code = request.GET.get("parent")
     placement_member_id = ""
 
-    if parent_db_id:
-        parent = Member.objects.filter(id=parent_db_id).first()
+    parent = None
+    if parent_code:
+        # First try business member_id
+        parent = Member.objects.filter(member_id=parent_code).first()
+        if not parent:
+            try:
+                parent = Member.objects.filter(id=int(parent_code)).first()
+            except ValueError:
+                parent = None
         if parent:
             placement_member_id = parent.member_id
 

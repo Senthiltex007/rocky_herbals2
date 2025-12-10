@@ -47,7 +47,8 @@
 
 <body>
 
-<h2>Genealogy Tree – {{ member.name }} (ID: {{ member.auto_id }})</h2>
+<!-- ✅ Use member_id instead of auto_id -->
+<h2>Genealogy Tree – {{ member.name }} (ID: {{ member.member_id }})</h2>
 
 <div class="tree">
     <ul class="tree-root">
@@ -59,7 +60,7 @@
 <div id="popup">
     <div class="popup-box">
         <h3 id="popName"></h3>
-        <p>ID: <span id="popAutoId"></span></p>
+        <p>ID: <span id="popMemberId"></span></p>
 
         <a id="viewBtn" href="#" style="color:blue;font-weight:bold;">View Full Profile</a><br><br>
         <button onclick="closePopup()">Close</button>
@@ -67,9 +68,9 @@
 </div>
 
 <script>
-function openMemberPopup(id,name,auto){
+function openMemberPopup(id,name,memberId){
     document.getElementById("popName").innerText=name;
-    document.getElementById("popAutoId").innerText=auto;
+    document.getElementById("popMemberId").innerText=memberId;
     document.getElementById("viewBtn").href="/member/detail/"+id+"/";
     document.getElementById("popup").style.display="flex";
 }

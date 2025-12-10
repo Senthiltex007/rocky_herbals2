@@ -11,7 +11,7 @@
         h2 { text-align:center; margin-bottom:20px; }
 
         label { font-weight:bold; margin-top:10px; display:block; }
-        input { width:100%; padding:8px; margin-top:5px; border:1px solid #ccc; border-radius:5px; }
+        input, select { width:100%; padding:8px; margin-top:5px; border:1px solid #ccc; border-radius:5px; }
 
         input[readonly] { background:#e9ecef; font-weight:bold; }
 
@@ -24,6 +24,9 @@
 
         .error { background:#ffdddd; padding:10px; color:#a00;
                  border-left:5px solid red; margin-bottom:15px; }
+
+        .avatar-preview { margin-top:15px; text-align:center; }
+        .avatar-preview img { width:60px; height:60px; border-radius:50%; border:2px solid #ccc; }
     </style>
 </head>
 
@@ -36,7 +39,7 @@
         <div class="error">{{ error }}</div>
     {% endif %}
 
-    <form method="POST">
+    <form method="POST" enctype="multipart/form-data">
         {% csrf_token %}
 
         <label>Member ID (Auto Generated)</label>
@@ -70,8 +73,19 @@
         <label>Sponsor ID (Income Goes To)</label>
         <input type="text" name="sponsor_id" placeholder="rocky001" required>
 
+        <!-- ✅ New Avatar Upload -->
+        <label>Avatar (Optional)</label>
+        <input type="file" name="avatar" accept="image/*">
+
         <button type="submit">Save Member</button>
     </form>
+
+    {% if form.instance.avatar %}
+        <div class="avatar-preview">
+            <p>Current Avatar:</p>
+            <img src="{{ form.instance.avatar.url }}" alt="Avatar">
+        </div>
+    {% endif %}
 
     <div class="back"><a href="/members/">Back</a></div>
 
