@@ -5,6 +5,16 @@ from django.utils import timezone
 from decimal import Decimal
 from collections import deque
 
+
+def generate_auto_id():
+    from herbalapp.models import Member
+    last = Member.objects.order_by('-id').first()
+    if not last:
+        return "rocky001"
+    last_id = last.auto_id.replace("rocky", "")
+    new_number = int(last_id) + 1
+    return f"rocky{new_number:03d}"
+
 # ==========================================================
 # AUTO COUNTER FOR ROCKY IDs
 # ==========================================================
@@ -170,35 +180,6 @@ class Member(models.Model):
 
     def has_right(self):
         return self.right_child is not None
-
-    # ==========================================================
-    # AUTO PLACEMENT (BFS)
-    # ==========================================================
-    def auto_place(self, sponsor):
-        queue = [sponsor]
-        while queue:
-            current = queue.pop(0)
-
-            if not current.has_left():
-                self.parent = current
-                self.side = 'left'
-                self.save()
-                current.left_child = self
-                current.save()
-                return
-
-            if not current.has_right():
-                self.parent = current
-                self.side = 'right'
-                self.save()
-                current.right_child = self
-                current.save()
-                return
-
-            if current.left_child:
-                queue.append(current.left_child)
-            if current.right_child:
-                queue.append(current.right_child)
 
     # ==========================================================
     # PYRAMID TREE (JSON)
