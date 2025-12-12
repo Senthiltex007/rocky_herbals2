@@ -16,11 +16,11 @@ class IncomeContext:
     left_cf_before: int = 0
     right_cf_before: int = 0
 
-    # Total BV (repurchase) for each side
+    # Total BV (repurchase) for each side (PRESERVED but NOT used for eligibility)
     total_left_bv: int = 0
     total_right_bv: int = 0
 
-    # Binary eligibility
+    # Binary eligibility (one-time)
     binary_eligible: bool = False
 
     # Stock commission inputs (not used fully, because branch based)
@@ -41,42 +41,41 @@ class IncomeContext:
 # -----------------------------
 # CONFIG
 # -----------------------------
-BINARY_PAIR_AMOUNT = Decimal("500.00")  # for each pair
-FLASHOUT_LIMIT = Decimal("5000.00")     # above this, extra goes to flash
-FLASHOUT_PERCENT = Decimal("0.50")      # 50% to flash of excess
-SALARY_PERCENT = Decimal("0.05")        # 5% of matched BV as salary
+BINARY_PAIR_AMOUNT = Decimal("500.00")  # Rs 500 per pair
+FLASHOUT_LIMIT = Decimal("5000.00")
+FLASHOUT_PERCENT = Decimal("0.50")
+SALARY_PERCENT = Decimal("0.05")  # 5% of matched BV
 
 
 # -----------------------------
-# HELPER: ONE-TIME ELIGIBILITY
+# COUNT-BASED ELIGIBILITY
 # -----------------------------
 def check_binary_eligibility(ctx: IncomeContext) -> bool:
     """
-    One-time 1:2 or 2:1 eligibility rule.
-    Once eligible, member stays eligible forever.
-    Here we ONLY check today's + CF status; the Member model
-    will store `binary_eligible=True` permanently when first achieved.
+    One-time eligibility based on MEMBER COUNT:
+    - 1:2 or 2:1
+    BV is preserved but NOT used for eligibility.
     """
     left_total = ctx.left_cf_before + ctx.today_left_joins
     right_total = ctx.right_cf_before + ctx.today_right_joins
 
     cond_1_2 = (left_total >= 1 and right_total >= 2)
     cond_2_1 = (left_total >= 2 and right_total >= 1)
+
     return cond_1_2 or cond_2_1
 
 
 # -----------------------------
-# MAIN ENGINE
+# MAIN ENGINE (COUNT-BASED)
 # -----------------------------
 def process_daily_income(ctx: IncomeContext, direct_binary_incomes=None) -> IncomeContext:
     """
     Core binary + flash + salary + rank + stock engine.
-    - Takes IncomeContext
-    - Returns updated IncomeContext
-    - Does NOT touch database directly
+    COUNT-BASED eligibility (1:2 or 2:1).
+    BV is preserved but NOT used for eligibility.
     """
 
-    # 1) Binary eligibility check (one-time 1:2 or 2:1)
+    # 1) One-time eligibility
     if not ctx.binary_eligible:
         ctx.binary_eligible = check_binary_eligibility(ctx)
 
@@ -91,7 +90,7 @@ def process_daily_income(ctx: IncomeContext, direct_binary_incomes=None) -> Inco
     ctx.left_cf_after = left_total - pairs
     ctx.right_cf_after = right_total - pairs
 
-    # 5) Binary income
+    # 5) Binary income (count-based)
     if ctx.binary_eligible and pairs > 0:
         gross_binary = BINARY_PAIR_AMOUNT * pairs
     else:
@@ -100,7 +99,7 @@ def process_daily_income(ctx: IncomeContext, direct_binary_incomes=None) -> Inco
     ctx.binary_pairs_paid = pairs
     ctx.binary_income = gross_binary
 
-    # 6) Flashout – if binary crosses limit
+    # 6) Flashout
     flash_income = Decimal("0.00")
     final_binary = gross_binary
 
@@ -112,14 +111,14 @@ def process_daily_income(ctx: IncomeContext, direct_binary_incomes=None) -> Inco
     ctx.flash_income = flash_income
     ctx.binary_income = final_binary
 
-    # 7) Salary income from BV
+    # 7) Salary income (BV-based, preserved)
     matched_bv = min(ctx.total_left_bv, ctx.total_right_bv)
     ctx.salary_income = (Decimal(matched_bv) * SALARY_PERCENT).quantize(Decimal("1.00"))
 
-    # 8) Stock commission (here minimal; real branch-based in app)
+    # 8) Stock commission (branch-based, disabled)
     ctx.stock_commission = Decimal("0.00")
 
-    # 9) Rank logic from BV
+    # 9) Rank logic (BV-based, preserved)
     ctx.rank_title = determine_rank_from_bv(matched_bv)
 
     return ctx
@@ -130,34 +129,35 @@ def process_daily_income(ctx: IncomeContext, direct_binary_incomes=None) -> Inco
 # -----------------------------
 def determine_rank_from_bv(matched_bv: int) -> str | None:
     """
-    BJ Rank titles based on matched BV (Left = Right).
-    You can tune thresholds if needed.
+    Rank titles based on matched BV (Left = Right).
+    BV logic preserved for future use.
     """
     bv = matched_bv
 
-    if bv >= 250000000:  # 25Cr
+    if bv >= 250000000:
         return "Triple Diamond"
-    elif bv >= 100000000:  # 10Cr
+    elif bv >= 100000000:
         return "Double Diamond"
-    elif bv >= 50000000:  # 5Cr
+    elif bv >= 50000000:
         return "Diamond Star"
-    elif bv >= 25000000:  # 2.5Cr
+    elif bv >= 25000000:
         return "Mono Platinum Star"
-    elif bv >= 10000000:  # 1Cr
+    elif bv >= 10000000:
         return "Platinum Star"
-    elif bv >= 5000000:  # 50L
+    elif bv >= 5000000:
         return "Gilded Gold"
-    elif bv >= 2500000:  # 25L
+    elif bv >= 2500000:
         return "Gold Star"
-    elif bv >= 1000000:  # 10L
+    elif bv >= 1000000:
         return "Shine Silver (Advanced)"
-    elif bv >= 500000:  # 5L
+    elif bv >= 500000:
         return "Shine Silver"
-    elif bv >= 250000:  # 2.5L
+    elif bv >= 250000:
         return "Triple Star / Silver Star"
-    elif bv >= 100000:  # 1L
+    elif bv >= 100000:
         return "Double Star"
-    elif bv >= 50000:  # 50K
+    elif bv >= 50000:
         return "1st Star"
+
     return None
 

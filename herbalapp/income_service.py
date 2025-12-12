@@ -18,8 +18,12 @@ def _get_today():
 
 def build_income_context_for_member(member: Member) -> IncomeContext:
     """
-    Build IncomeContext for the placement parent (upline) 
+    Build IncomeContext for the placement parent (upline)
     based on today's joins + current CF + BV.
+
+    IMPORTANT:
+    - Eligibility is now COUNT-BASED (1:2 or 2:1).
+    - BV is preserved only for salary/rank, not eligibility.
     """
 
     # Today’s new joins on each side (count only, NOT BV)
@@ -35,9 +39,6 @@ def build_income_context_for_member(member: Member) -> IncomeContext:
     total_left_bv = int(bv_data.get("left_bv", 0))
     total_right_bv = int(bv_data.get("right_bv", 0))
 
-    # NOTE: stock_role & stock_billing are set to None/0 here,
-    # because real stock commission is branch-oriented and
-    # better handled directly at order/branch level, not per member.
     ctx = IncomeContext(
         member_id=member.id,
         date=_get_today().isoformat(),
@@ -88,6 +89,10 @@ def update_member_from_context(member: Member, ctx: IncomeContext):
     member.stock_commission += Decimal(ctx.stock_commission)
     member.main_wallet += Decimal(ctx.stock_commission)
 
+    # IMPORTANT: mark member as eligible permanently once reached
+    if ctx.binary_eligible and not member.binary_eligible:
+        member.binary_eligible = True
+
     member.save()
 
 
@@ -134,31 +139,17 @@ def log_daily_income(member: Member, ctx: IncomeContext, sponsor_income: Decimal
 
 def apply_sponsor_income_for_new_join(new_member: Member, ctx: IncomeContext) -> Decimal:
     """
-    Sponsor income logic for NEW JOIN only (your final, important rule).
-
-    RULES (based on our final Tamil understanding):
+    Sponsor income logic for NEW JOIN only.
 
     CASE 1 — Placement ID = Sponsor ID:
-        - New member is added by X, placed under X.
-        - Sponsor income should go to X's sponsor (X.parent / X.sponsor).
-          Example:
-              Venkatesh added Ram  → Ram.sponsor = Venkatesh
-              Ram adds Prakash     → Placement=Ram, Sponsor=Ram
-              Sponsor income → Venkatesh (Ram sponsor)
+        - Sponsor income goes to placement_parent.sponsor
 
     CASE 2 — Placement ID != Sponsor ID:
-        - Sponsor income goes ONLY to Sponsor ID (the one in the form).
-          Example:
-              Ravi adds a member under Ram
-              Placement=Ram, Sponsor=Ravi
-              Sponsor income → Ravi ONLY (not Ram, not Venkatesh, not Ravi’s parent)
-
-    NOTE:
-      - This applies ONLY to sponsor income, not to binary/CF/BV/salary/rank.
+        - Sponsor income goes to Sponsor ID directly
     """
 
-    placement_parent = new_member.placement        # Member object or None
-    sponsor_member = new_member.sponsor            # Member object or None
+    placement_parent = new_member.placement
+    sponsor_member = new_member.sponsor
 
     # No sponsor logic possible if both missing
     if not placement_parent and not sponsor_member:
@@ -166,17 +157,14 @@ def apply_sponsor_income_for_new_join(new_member: Member, ctx: IncomeContext) ->
 
     # CASE 1: Placement and Sponsor same person
     if placement_parent and sponsor_member and placement_parent == sponsor_member:
-        # Sponsor income goes to the sponsor of placement parent
         final_sponsor = placement_parent.sponsor
     else:
         # CASE 2: Sponsor is different → sponsor id gets it directly
         final_sponsor = sponsor_member
 
-    # If no valid sponsor exists, stop
     if not final_sponsor:
         return Decimal("0.00")
 
-    # For now, sponsor income = full binary income of this day for that placement parent.
     sponsor_income_amount = Decimal(ctx.binary_income)
 
     final_sponsor.sponsor_income += sponsor_income_amount
@@ -216,7 +204,7 @@ def run_binary_on_new_join(new_member: Member):
     - Updates placement parent's join counts for today
     - Builds IncomeContext for placement parent
     - Runs binary + CF + flashout + salary + rank + stock (from engine)
-    - Applies sponsor income using your CASE1/CASE2 rule
+    - Applies sponsor income using CASE1/CASE2 rule
     - Updates placement parent model + wallets
     - Logs DailyIncomeReport for placement parent and sponsor
     """
@@ -228,7 +216,6 @@ def run_binary_on_new_join(new_member: Member):
         return None
 
     # Update today's join counters for placement parent
-    # Determine which side this new member is on
     if new_member.side == "left":
         placement_parent.left_join_count += 1
         placement_parent.left_new_today += 1
@@ -241,17 +228,16 @@ def run_binary_on_new_join(new_member: Member):
     # Build engine context for placement parent
     ctx = build_income_context_for_member(placement_parent)
 
-    # Run the engine
+    # Run the ENGINE (now COUNT-BASED via updated mlm_engine_binary)
     ctx = process_daily_income(ctx, direct_binary_incomes=None)
 
-    # Apply sponsor income rule (your special logic)
+    # Apply sponsor income rule
     sponsor_income_amount = apply_sponsor_income_for_new_join(new_member, ctx)
 
-    # Update placement parent from context (binary, CF, salary, stock, wallets)
+    # Update placement parent from context (binary, CF, salary, stock, wallets, eligibility)
     update_member_from_context(placement_parent, ctx)
 
     # Log placement parent's daily income including binary/flash/salary/stock
-    # (sponsor for them is logged separately above)
     log_daily_income(placement_parent, ctx)
 
     return {
