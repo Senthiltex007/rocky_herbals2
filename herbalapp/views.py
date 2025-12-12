@@ -1,6 +1,6 @@
 # herbalapp/views.py ====================================================== CLEAN, CONSISTENT VIEWS FOR Rocky Herbals (tree + app) Modern Tree (uses auto_id) - 
 # single complete file ======================================================
-
+from herbalapp.income_service import run_binary_on_new_join
 from decimal import Decimal
 from collections import deque
 
@@ -1085,7 +1085,6 @@ def add_member_form(request):
 
     parent = None
     if parent_code:
-        # First try business member_id
         parent = Member.objects.filter(member_id=parent_code).first()
         if not parent:
             try:
@@ -1142,7 +1141,8 @@ def add_member_form(request):
             district=request.POST.get('district'),
             pincode=request.POST.get('pincode'),
             parent=placement,
-            sponsor=sponsor
+            sponsor=sponsor,
+            side=side
         )
 
         # Attach Child
@@ -1152,18 +1152,8 @@ def add_member_form(request):
             placement.right_child = new
         placement.save()
 
-        # Update binary count
-        if side == "left":
-            placement.left_new_today += 1
-        else:
-            placement.right_new_today += 1
-        placement.save()
-
-        # Generate binary income
-        process_member_binary_income(placement)
-
-        # Generate sponsor income
-        give_sponsor_income(new)
+        # ✅ ✅ NEW ENGINE CALL (binary + sponsor + CF + salary + rank)
+        run_binary_on_new_join(new)
 
         return redirect("/tree/")
 
