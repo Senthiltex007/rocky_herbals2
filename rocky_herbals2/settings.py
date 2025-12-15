@@ -3,13 +3,14 @@ from pathlib import Path
 # Base directory of the project
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# SECURITY WARNING: keep the secret key used in production secret!
+# SECURITY WARNING: keep the secret key used in production!
 SECRET_KEY = 'django-insecure-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
 
-# SECURITY WARNING: don't run with debug turned on in production!
+# ✅ Demo mode ON (safe for local testing)
 DEBUG = True
 
-ALLOWED_HOSTS = []
+# ✅ Allow local access
+ALLOWED_HOSTS = ["127.0.0.1", "localhost"]
 
 # Application definition
 INSTALLED_APPS = [
@@ -19,7 +20,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'herbalapp.apps.HerbalappConfig',  # ✅ AppConfig reference
+    'herbalapp.apps.HerbalappConfig',
 ]
 
 MIDDLEWARE = [
@@ -34,10 +35,11 @@ MIDDLEWARE = [
 
 ROOT_URLCONF = 'rocky_herbals2.urls'
 
+# ✅ Correct template loading
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [BASE_DIR / 'herbalapp' / 'templates'],  # ← Templates folder path
+        'DIRS': [BASE_DIR / 'templates'],   # Global templates folder
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -49,10 +51,10 @@ TEMPLATES = [
         },
     },
 ]
+
 WSGI_APPLICATION = 'rocky_herbals2.wsgi.application'
 
-
-# Database (default sqlite3)
+# ✅ SQLite database
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
@@ -62,18 +64,10 @@ DATABASES = {
 
 # Password validation
 AUTH_PASSWORD_VALIDATORS = [
-    {
-        'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
-    },
-    {
-        'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
-    },
-    {
-        'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',
-    },
-    {
-        'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
-    },
+    {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
 ]
 
 # Internationalization
@@ -85,29 +79,19 @@ USE_TZ = True
 # Default primary key field type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# Static files (CSS, JavaScript, Images)
+# ✅ Static files
 STATIC_URL = '/static/'
-STATICFILES_DIRS = [BASE_DIR / "herbalapp" / "static"]
+STATICFILES_DIRS = [
+    BASE_DIR / "static",
+]
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
-# Media files (Uploaded content)
+# ✅ Media files
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / "media"
 
-# Templates
-TEMPLATES = [
-    {
-        'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [BASE_DIR / 'herbalapp' / 'templates'],
-        'APP_DIRS': True,
-        'OPTIONS': {
-            'context_processors': [
-                'django.template.context_processors.debug',
-                'django.template.context_processors.request',
-                'django.contrib.auth.context_processors.auth',
-                'django.contrib.messages.context_processors.messages',
-            ],
-        },
-    },
-]
+# ✅ ✅ TEMPORARY DEMO FIX — Disable login redirect
+# Django normally redirects to /accounts/login/ when a page requires login.
+# For demo mode, we override it to root so no redirect happens.
+LOGIN_URL = '/'
 

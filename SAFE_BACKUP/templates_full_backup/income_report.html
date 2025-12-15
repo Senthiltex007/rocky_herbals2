@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Rocky Sri Herbals - Income Report</title>
+<link rel="stylesheet" href="/static/css/bootstrap.min.css">
+<link rel="stylesheet" href="/static/css/style.css">
+<link rel="icon" type="image/x-icon" href="/static/favicon.ico?v=2">
+
+<style>
+.hero-banner{width:100%;height:400px;object-fit:cover;}
+.logo{max-height:120px;margin-top:10px;}
+table th,table td{text-align:center;vertical-align:middle;}
+nav a{color:white;padding:10px;text-decoration:none;}
+nav{background:black;display:flex;gap:20px;justify-content:center;}
+footer p{text-align:center;padding:8px;background:black;color:white;margin:0;}
+</style>
+</head>
+<body>
+
+<!-- ===================== HEADER ===================== -->
+<header>
+    <div id="heroCarousel" class="carousel slide" data-bs-ride="carousel">
+        <div class="carousel-inner">
+            <div class="carousel-item active"><img src="/static/images/newbanner.jpg" class="d-block w-100 hero-banner"></div>
+            <div class="carousel-item"><img src="/static/images/newbanner2.jpg" class="d-block w-100 hero-banner"></div>
+            <div class="carousel-item"><img src="/static/images/newbanner3.jpg" class="d-block w-100 hero-banner"></div>
+        </div>
+
+        <button class="carousel-control-prev" type="button" data-bs-target="#heroCarousel" data-bs-slide="prev">
+            <span class="carousel-control-prev-icon"></span>
+        </button>
+        <button class="carousel-control-next" type="button" data-bs-target="#heroCarousel" data-bs-slide="next">
+            <span class="carousel-control-next-icon"></span>
+        </button>
+    </div>
+
+    <div class="brand text-center">
+        <img src="/static/images/newlogo.jpeg" class="logo" alt="Rocky Sri Herbals Logo">
+    </div>
+</header>
+
+<!-- ===================== NAV ===================== -->
+<nav>
+    <a href="/">Home</a>
+    <a href="/products/">Products</a>
+    <a href="/tree/">Genealogy Tree</a>
+    <a href="/about/">About</a>
+    <a href="/contact/">Contact</a>
+</nav>
+
+<!-- ===================== INCOME DASHBOARD ===================== -->
+<main>
+<div class="container mt-5">
+
+<h2 class="text-center mb-4">💰 Income Dashboard</h2>
+
+<!-- Search Form -->
+<form method="get" class="mb-3 text-center">
+  <input type="text" name="name" placeholder="Search by member name" value="{{ request.GET.name }}" class="form-control d-inline-block w-50">
+  <button type="submit" class="btn btn-primary ms-2">Search</button>
+</form>
+
+{% if income_data %}
+<div class="table-responsive">
+<table class="table table-bordered table-striped shadow-sm">
+<thead class="table-dark">
+<tr>
+    <th>ID</th>
+    <th>Auto ID</th>
+    <th>Name</th>
+    <th>Joining Package</th>
+    <th>Binary Income</th>
+    <th>Sponsor Income</th>
+    <th>Flash Bonus</th>
+    <th>Salary</th>
+    <th>Repurchase Wallet</th>
+    <th>Wash Out Members</th>
+    <th>Total Income</th>
+</tr>
+</thead>
+<tbody>
+{% for row in income_data %}
+<tr>
+    <td>{{ row.member.id }}</td>
+    <td>{{ row.member.member_id }}</td>
+    <td>{{ row.member.name }}</td>
+    <td>{{ row.package }}</td>
+    <td>{{ row.binary }}</td>
+    <td>{{ row.sponsor }}</td>
+    <td>{{ row.flash }}</td>
+    <td>{{ row.salary }}</td>
+    <td>{{ row.repurchase_wallet }}</td>
+    <td>{{ row.wash_out_members }}</td>
+    <td><span class="badge bg-success fs-6">{{ row.total }}</span></td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
+</div>
+{% else %}
+<div class="alert alert-info text-center fs-5">No income reports available yet.</div>
+{% endif %}
+
+<div class="text-center mt-3">
+<a href="/dashboard/" class="btn btn-secondary">⬅ Back to Dashboard</a>
+</div>
+</div>
+</main>
+
+<!-- ===================== FOOTER ===================== -->
+<footer class="mt-5">
+    <img src="/static/images/banner_home.jpg" style="width:100%;">
+    <img src="/static/images/banner_shop.jpg" style="width:100%;">
+    <img src="/static/images/banner_contact.jpg" style="width:100%;">
+    <p>&copy; 2025 Rocky Sri Herbals</p>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
+

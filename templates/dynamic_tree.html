@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>{{ member.name }} - Genealogy Tree</title>
+    <title>{{ root_member.name }} - Dynamic Tree</title>
 
     <style>
         body { font-family: Arial, sans-serif; background:#f4f4f4; margin:0; }
@@ -20,9 +20,8 @@
         .tree li:only-child::before, .tree li:only-child::after { display:none; }
 
         .box {
-            background:white; padding:12px; border-radius:10px; border:2px solid #999;
-            cursor:pointer; min-width:150px; transition:.3s; position:relative;
-            display:inline-block;
+            background:white; padding:10px 15px; border-radius:8px; border:1px solid #999;
+            cursor:pointer; min-width:140px; transition:.3s; position:relative;
         }
         .box:hover { background:#dff1ff; transform:scale(1.06); }
 
@@ -50,7 +49,7 @@
         .add-btn:hover { background:#caffca; }
 
         @media(max-width:600px){
-            .box { min-width:120px; font-size:12px; padding:8px; }
+            .box { min-width:100px; font-size:12px; padding:8px; }
             .add-btn { font-size:11px; padding:5px 8px; }
             .tree li { padding:10px 2px; }
         }
@@ -59,9 +58,9 @@
 
 <body>
 
-<h2>Genealogy Tree – {{ member.name }} (ID: {{ member.member_id }})</h2>
+<h2>Dynamic Tree – {{ root_member.name }} (ID: {{ root_member.member_id }})</h2>
 
-<!-- ✅ ZOOM CONTROLS -->
+<!-- ZOOM CONTROLS -->
 <div style="text-align:center; margin-top:10px;">
     <button onclick="zoomIn()" style="padding:5px 10px;">➕ Zoom In</button>
     <button onclick="zoomOut()" style="padding:5px 10px;">➖ Zoom Out</button>
@@ -69,7 +68,7 @@
 
 <div class="tree" id="treeContainer">
     <ul class="tree-root">
-        {% include "herbalapp/tree_box.html" with node=member %}
+        {% include "tree_node.html" with member=root_member %}
     </ul>
 </div>
 

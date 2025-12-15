@@ -1,4 +1,5 @@
 # rocky_herbals/urls.py
+
 from django.contrib import admin
 from django.urls import path
 from django.conf import settings
@@ -6,6 +7,7 @@ from django.conf.urls.static import static
 from herbalapp import views
 
 urlpatterns = [
+
     # ===================== HOME / STATIC PAGES =====================
     path('', views.home, name='home'),
     path('dashboard/', views.dashboard, name='dashboard'),
@@ -15,7 +17,6 @@ urlpatterns = [
     path('shop-login/', views.shop_login, name='shop_login'),
 
     # ===================== TREE / PYRAMID VIEWS =====================
-    # Root path must come before <str:member_id>
     path('tree/root/', views.member_tree_root, name='member_tree_root'),
     path('tree/', views.member_tree_root, name='member_tree_root_default'),
     path('tree/<str:member_id>/', views.tree_view, name='tree_view'),
@@ -40,10 +41,8 @@ urlpatterns = [
     path('member/replace/<str:member_id>/', views.replace_member, name='replace_member'),
     path('member/<str:member_id>/bv/', views.member_bv, name='member_bv'),
 
-    # ===================== MEMBER DETAIL POPUP (JSON) =====================
+    # MEMBER DETAIL POPUP (JSON)
     path('member/detail-json/<str:member_id>/', views.member_detail_json, name='member_detail_json'),
-
-    # ===================== LEGACY PATH (Backward Compatible) =====================
     path('member/detail/<str:member_id>/', views.member_detail_json, name='member_detail_legacy'),
 
     # ===================== PRODUCT / CART / CHECKOUT =====================
@@ -63,7 +62,12 @@ urlpatterns = [
     path("income/export/", views.export_income_excel, name="export_income_excel"),
     path('export-income/', views.export_members_income, name='export_income'),
     path("income_report/", views.income_report, name="income_report"),
-    path("income_chart/<str:member_id>/", views.income_chart, name="income_chart"),  # ✅ NEW ROUTE
+    path("income_chart/<str:member_id>/", views.income_chart, name="income_chart"),
+
+    # ===================== RANK / SALARY REPORTS (NEW) =====================
+    path("rank-report/", views.rank_report, name="rank_report"),
+    path("salary-report/", views.salary_report, name="salary_report"),
+    path("member/<str:member_id>/rank/", views.member_rank_detail, name="member_rank_detail"),
 ]
 
 # ===================== STATIC / MEDIA =====================

@@ -1,163 +1,259 @@
-# mlm_engine_binary.py
-from dataclasses import dataclass
-from decimal import Decimal
-
-
-@dataclass
-class IncomeContext:
-    member_id: int
-    date: str
-
-    # Today new joins on each side
-    today_left_joins: int = 0
-    today_right_joins: int = 0
-
-    # Carry forward BEFORE today
-    left_cf_before: int = 0
-    right_cf_before: int = 0
-
-    # Total BV (repurchase) for each side (PRESERVED but NOT used for eligibility)
-    total_left_bv: int = 0
-    total_right_bv: int = 0
-
-    # Binary eligibility (one-time)
-    binary_eligible: bool = False
-
-    # Stock commission inputs (not used fully, because branch based)
-    stock_role: str | None = None
-    stock_billing: int = 0
-
-    # Results (filled by engine)
-    left_cf_after: int = 0
-    right_cf_after: int = 0
-    binary_pairs_paid: int = 0
-    binary_income: Decimal = Decimal("0.00")
-    flash_income: Decimal = Decimal("0.00")
-    salary_income: Decimal = Decimal("0.00")
-    stock_commission: Decimal = Decimal("0.00")
-    rank_title: str | None = None
-
-
-# -----------------------------
-# CONFIG
-# -----------------------------
-BINARY_PAIR_AMOUNT = Decimal("500.00")  # Rs 500 per pair
-FLASHOUT_LIMIT = Decimal("5000.00")
-FLASHOUT_PERCENT = Decimal("0.50")
-SALARY_PERCENT = Decimal("0.05")  # 5% of matched BV
-
-
-# -----------------------------
-# COUNT-BASED ELIGIBILITY
-# -----------------------------
-def check_binary_eligibility(ctx: IncomeContext) -> bool:
+def calculate_member_binary_income_for_day(
+    left_joins_today: int,
+    right_joins_today: int,
+    left_cf_before: int,
+    right_cf_before: int,
+    binary_eligible: bool,
+):
     """
-    One-time eligibility based on MEMBER COUNT:
-    - 1:2 or 2:1
-    BV is preserved but NOT used for eligibility.
-    """
-    left_total = ctx.left_cf_before + ctx.today_left_joins
-    right_total = ctx.right_cf_before + ctx.today_right_joins
+    Core MLM binary engine for ONE MEMBER for ONE DAY.
 
-    cond_1_2 = (left_total >= 1 and right_total >= 2)
-    cond_2_1 = (left_total >= 2 and right_total >= 1)
-
-    return cond_1_2 or cond_2_1
-
-
-# -----------------------------
-# MAIN ENGINE (COUNT-BASED)
-# -----------------------------
-def process_daily_income(ctx: IncomeContext, direct_binary_incomes=None) -> IncomeContext:
-    """
-    Core binary + flash + salary + rank + stock engine.
-    COUNT-BASED eligibility (1:2 or 2:1).
-    BV is preserved but NOT used for eligibility.
+    Implements ALL rules:
+    - Lifetime eligibility from 1:2 or 2:1 (NOT 1:1)
+    - One-time eligibility bonus = 500
+    - After eligibility: only 1:1 pairs
+    - Daily binary income max: 5 pairs (5 * 500 = 2500)
+    - After 5 pairs: flashout bonuses (5 pairs = 1 flashout = 1000)
+    - Max 9 flashout bonuses per day (9 * 1000 = 9000)
+    - Extra pairs (above binary + flashout) → washout (lost)
+    - Carry forward: leftover single side counts (not forming pairs) stay forever
     """
 
-    # 1) One-time eligibility
-    if not ctx.binary_eligible:
-        ctx.binary_eligible = check_binary_eligibility(ctx)
+    # -------------------------------
+    # 0. Plan configuration constants
+    # -------------------------------
+    PAIR_VALUE = 500                 # ₹500 per 1:1 pair
+    ELIGIBILITY_BONUS = 500          # One-time bonus on 1:2 or 2:1
+    DAILY_BINARY_PAIR_LIMIT = 5      # Max 5 pairs/day for binary income
+    FLASHOUT_GROUP_SIZE = 5          # 5 pairs → 1 flashout
+    FLASHOUT_VALUE = 1000            # ₹1000 per flashout
+    MAX_DAILY_FLASHOUTS = 9          # Max 9 flashouts/day
 
-    # 2) TOTAL available joins including CF
-    left_total = ctx.left_cf_before + ctx.today_left_joins
-    right_total = ctx.right_cf_before + ctx.today_right_joins
+    # -------------------------------
+    # 1. Compute total available legs
+    # -------------------------------
+    # Today’s total effective left & right counts including CF
+    L = left_joins_today + left_cf_before
+    R = right_joins_today + right_cf_before
 
-    # 3) PAIRS possible today
-    pairs = min(left_total, right_total)
+    # Prepare outputs
+    new_binary_eligible = binary_eligible
+    eligibility_income = 0
 
-    # 4) Carry forward AFTER using pairs
-    ctx.left_cf_after = left_total - pairs
-    ctx.right_cf_after = right_total - pairs
+    binary_pairs_paid = 0
+    binary_income = 0
 
-    # 5) Binary income (count-based)
-    if ctx.binary_eligible and pairs > 0:
-        gross_binary = BINARY_PAIR_AMOUNT * pairs
-    else:
-        gross_binary = Decimal("0.00")
+    flashout_pairs_used = 0
+    flashout_units = 0
+    flashout_income = 0
 
-    ctx.binary_pairs_paid = pairs
-    ctx.binary_income = gross_binary
+    washed_pairs = 0
 
-    # 6) Flashout
-    flash_income = Decimal("0.00")
-    final_binary = gross_binary
+    # -------------------------------
+    # 2. Lifetime eligibility check
+    # -------------------------------
+    # Eligibility ONLY from 1:2 or 2:1, NOT 1:1
+    # This can happen only once in member lifetime.
+    if not binary_eligible:
+        # Check if today’s combined L/R (with CF) qualifies for 1:2 or 2:1
+        if (L >= 1 and R >= 2) or (L >= 2 and R >= 1):
+            new_binary_eligible = True
+            eligibility_income = ELIGIBILITY_BONUS
 
-    if gross_binary > FLASHOUT_LIMIT:
-        excess = gross_binary - FLASHOUT_LIMIT
-        flash_income = excess * FLASHOUT_PERCENT
-        final_binary = gross_binary - flash_income
+            # Deduct the eligibility pattern from L and R.
+            # IMPORTANT: We must preserve as many total pairs as possible.
+            # Strategy: Prefer the pattern that leaves the larger min(L, R) afterwards.
+            # However, since you did NOT specify a preference order, we use a clean rule:
+            # - If both 1:2 and 2:1 are possible, choose the one where the side with more
+            #   members spends 2, to make sides more balanced.
 
-    ctx.flash_income = flash_income
-    ctx.binary_income = final_binary
+            if L >= 2 and R >= 2:
+                # Both 1:2 and 2:1 possible; choose based on which side is heavier
+                if L > R:
+                    # Use 2:1 (spend 2 from left, 1 from right)
+                    L -= 2
+                    R -= 1
+                else:
+                    # Use 1:2 (spend 1 from left, 2 from right)
+                    L -= 1
+                    R -= 2
+            else:
+                # Only one pattern possible, pick that
+                if L >= 1 and R >= 2:
+                    # 1:2 eligibility
+                    L -= 1
+                    R -= 2
+                elif L >= 2 and R >= 1:
+                    # 2:1 eligibility
+                    L -= 2
+                    R -= 1
+                # No else, because we already checked the OR condition above
+        else:
+            # Not yet eligible → ALL PAIRS TODAY ARE WASHOUT
+            # IMPORTANT:
+            # - Pairs formed today, while not eligible, are lost (washout)
+            # - Single-side excess remains as CF.
+            potential_pairs_today = min(L, R)
+            washed_pairs = potential_pairs_today
 
-    # 7) Salary income (BV-based, preserved)
-    matched_bv = min(ctx.total_left_bv, ctx.total_right_bv)
-    ctx.salary_income = (Decimal(matched_bv) * SALARY_PERCENT).quantize(Decimal("1.00"))
+            # Remove washed pairs from both sides
+            L -= washed_pairs
+            R -= washed_pairs
 
-    # 8) Stock commission (branch-based, disabled)
-    ctx.stock_commission = Decimal("0.00")
+            # Remaining L/R become CF
+            left_cf_after = L
+            right_cf_after = R
 
-    # 9) Rank logic (BV-based, preserved)
-    ctx.rank_title = determine_rank_from_bv(matched_bv)
+            # No binary income, no flashout, no eligibility bonus
+            total_income = 0
 
-    return ctx
+            return {
+                "new_binary_eligible": new_binary_eligible,
+                "eligibility_income": eligibility_income,
+                "binary_pairs_paid": 0,
+                "binary_income": 0,
+                "flashout_units": 0,
+                "flashout_pairs_used": 0,
+                "flashout_income": 0,
+                "washed_pairs": washed_pairs,
+                "left_cf_after": left_cf_after,
+                "right_cf_after": right_cf_after,
+                "total_income": total_income,
+            }
+
+    # -------------------------------
+    # 3. After eligibility: only 1:1 pairs count
+    # -------------------------------
+    # At this point, member is eligible (either already, or became so above).
+    # All remaining pairs form 1:1 pairs.
+    total_pairs_available = min(L, R)
+
+    # -------------------------------
+    # 4. First layer: Binary income (max 5 pairs)
+    # -------------------------------
+    binary_pairs_paid = min(total_pairs_available, DAILY_BINARY_PAIR_LIMIT)
+    binary_income = binary_pairs_paid * PAIR_VALUE
+
+    pairs_remaining_after_binary = total_pairs_available - binary_pairs_paid
+
+    # Remove used pairs from L & R
+    L -= binary_pairs_paid
+    R -= binary_pairs_paid
+
+    # -------------------------------
+    # 5. Second layer: Flashout bonuses
+    # -------------------------------
+    # Each flashout consumes FLASHOUT_GROUP_SIZE pairs
+    # Max MAX_DAILY_FLASHOUTS per day
+    possible_flashout_units = pairs_remaining_after_binary // FLASHOUT_GROUP_SIZE
+    flashout_units = min(possible_flashout_units, MAX_DAILY_FLASHOUTS)
+
+    flashout_pairs_used = flashout_units * FLASHOUT_GROUP_SIZE
+    flashout_income = flashout_units * FLASHOUT_VALUE
+
+    pairs_remaining_after_flashout = pairs_remaining_after_binary - flashout_pairs_used
+
+    # Remove flashout pairs from L & R
+    L -= flashout_pairs_used
+    R -= flashout_pairs_used
+
+    # -------------------------------
+    # 6. Third layer: Washout
+    # -------------------------------
+    # Any remaining full pairs (1:1) after:
+    # - 5 binary pairs
+    # - up to 9 flashout units
+    # are WASHOUT (lost).
+    washed_pairs = pairs_remaining_after_flashout
+
+    # Remove washed pairs from L & R
+    L -= washed_pairs
+    R -= washed_pairs
+
+    # -------------------------------
+    # 7. Carry forward
+    # -------------------------------
+    # Leftover single side members (L or R) stay as CF.
+    left_cf_after = L
+    right_cf_after = R
+
+    # -------------------------------
+    # 8. Total income for the day
+    # -------------------------------
+    total_income = eligibility_income + binary_income + flashout_income
+
+    return {
+        "new_binary_eligible": new_binary_eligible,  # bool
+        "eligibility_income": eligibility_income,    # ₹
+        "binary_pairs_paid": binary_pairs_paid,      # count
+        "binary_income": binary_income,              # ₹
+        "flashout_units": flashout_units,            # count of 1000₹ units
+        "flashout_pairs_used": flashout_pairs_used,  # pairs used for flashout
+        "flashout_income": flashout_income,          # ₹
+        "washed_pairs": washed_pairs,                # pairs lost
+        "left_cf_after": left_cf_after,              # count
+        "right_cf_after": right_cf_after,            # count
+        "total_income": total_income,                # ₹
+    }
 
 
 # -----------------------------
-# RANK LOGIC (BV-based)
+# CORRECT ROCKY HERBALS RANK LOGIC
 # -----------------------------
-def determine_rank_from_bv(matched_bv: int) -> str | None:
+def determine_rank_from_bv(bv: int):
     """
-    Rank titles based on matched BV (Left = Right).
-    BV logic preserved for future use.
+    Returns:
+        (rank_title, monthly_salary, months)
+        or None if no rank achieved
     """
-    bv = matched_bv
 
+    # 25 Cr
     if bv >= 250000000:
-        return "Triple Diamond"
-    elif bv >= 100000000:
-        return "Double Diamond"
-    elif bv >= 50000000:
-        return "Diamond Star"
-    elif bv >= 25000000:
-        return "Mono Platinum Star"
-    elif bv >= 10000000:
-        return "Platinum Star"
-    elif bv >= 5000000:
-        return "Gilded Gold"
-    elif bv >= 2500000:
-        return "Gold Star"
-    elif bv >= 1000000:
-        return "Shine Silver (Advanced)"
-    elif bv >= 500000:
-        return "Shine Silver"
-    elif bv >= 250000:
-        return "Triple Star / Silver Star"
-    elif bv >= 100000:
-        return "Double Star"
-    elif bv >= 50000:
-        return "1st Star"
+        return ("Top Tier", 10000000, 3)
+
+    # 10 Cr
+    if bv >= 100000000:
+        return ("Triple Diamond", 5000000, 4)
+
+    # 5 Cr
+    if bv >= 50000000:
+        return ("Double Diamond", 2000000, 6)
+
+    # 2.5 Cr
+    if bv >= 25000000:
+        return ("Diamond Star", 1000000, 8)
+
+    # 1 Cr
+    if bv >= 10000000:
+        return ("Mono Platinum", 500000, 10)
+
+    # 50 Lakh
+    if bv >= 5000000:
+        return ("Platinum Star", 200000, 12)
+
+    # 25 Lakh
+    if bv >= 2500000:
+        return ("Gilded Gold", 100000, 10)
+
+    # 10 Lakh
+    if bv >= 1000000:
+        return ("Gold Star", 50000, 8)
+
+    # 5 Lakh
+    if bv >= 500000:
+        return ("Shine Silver", 25000, 6)
+
+    # 2.5 Lakh
+    if bv >= 250000:
+        return ("Triple Star", 10000, 5)
+
+    # 1 Lakh
+    if bv >= 100000:
+        return ("Double Star", 5000, 4)
+
+    # 50,000
+    if bv >= 50000:
+        return ("1st Star", 3000, 3)
 
     return None
 

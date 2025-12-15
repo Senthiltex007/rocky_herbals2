@@ -1,5 +1,5 @@
 {% load static %}
-<!-- DEBUG: PROJECT TEMPLATE -->
+<!-- DEBUG: APP TEMPLATE -->
 
 <li>
 
@@ -51,14 +51,14 @@
 
         <!-- LEFT CHILD -->
         {% if member.left_child %}
-            {% include "tree_node.html" with member=member.left_child %}
+            {% include "herbalapp/tree_node.html" with member=member.left_child %}
         {% else %}
             <li><a class="add-btn" href="/member/add/{{ member.id }}/left/">+ Add Left</a></li>
         {% endif %}
 
         <!-- RIGHT CHILD -->
         {% if member.right_child %}
-            {% include "tree_node.html" with member=member.right_child %}
+            {% include "herbalapp/tree_node.html" with member=member.right_child %}
         {% else %}
             <li><a class="add-btn" href="/member/add/{{ member.id }}/right/">+ Add Right</a></li>
         {% endif %}
