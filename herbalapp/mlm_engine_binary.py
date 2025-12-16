@@ -1,3 +1,6 @@
+from django.utils import timezone
+
+
 def calculate_member_binary_income_for_day(
     left_joins_today: int,
     right_joins_today: int,
@@ -54,6 +57,9 @@ def calculate_member_binary_income_for_day(
     # -------------------------------
     # Eligibility ONLY from 1:2 or 2:1, NOT 1:1
     # This can happen only once in member lifetime.
+    # NOTE: This engine only returns new_binary_eligible flag.
+    # Saving binary_eligible_date must be done OUTSIDE this function,
+    # where the Member instance is available.
     if not binary_eligible:
         # Check if today’s combined L/R (with CF) qualifies for 1:2 or 2:1
         if (L >= 1 and R >= 2) or (L >= 2 and R >= 1):
@@ -63,9 +69,8 @@ def calculate_member_binary_income_for_day(
             # Deduct the eligibility pattern from L and R.
             # IMPORTANT: We must preserve as many total pairs as possible.
             # Strategy: Prefer the pattern that leaves the larger min(L, R) afterwards.
-            # However, since you did NOT specify a preference order, we use a clean rule:
-            # - If both 1:2 and 2:1 are possible, choose the one where the side with more
-            #   members spends 2, to make sides more balanced.
+            # If both 1:2 and 2:1 are possible, choose the one where the side with more
+            # members spends 2, to make sides more balanced.
 
             if L >= 2 and R >= 2:
                 # Both 1:2 and 2:1 possible; choose based on which side is heavier
@@ -119,6 +124,7 @@ def calculate_member_binary_income_for_day(
                 "left_cf_after": left_cf_after,
                 "right_cf_after": right_cf_after,
                 "total_income": total_income,
+                # Sponsor / rank handled outside
             }
 
     # -------------------------------
@@ -181,6 +187,12 @@ def calculate_member_binary_income_for_day(
     # 8. Total income for the day
     # -------------------------------
     total_income = eligibility_income + binary_income + flashout_income
+
+    # NOTE:
+    # - Sponsor income is NOT calculated here, because this function
+    #   doesn't know the Member or sponsor object.
+    # - Sponsor logic (including ONE-TIME 1:1 achievement) is handled
+    #   in the engine runner where Member and sponsor are available.
 
     return {
         "new_binary_eligible": new_binary_eligible,  # bool

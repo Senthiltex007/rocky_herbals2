@@ -55,10 +55,10 @@ urlpatterns = [
     path('cart/add/<int:product_id>/', views.add_to_cart, name='add_to_cart'),
     path('cart/remove/<int:product_id>/', views.remove_from_cart, name='remove_from_cart'),
     path('checkout/', views.checkout, name='checkout'),
+    path("income/", views.income_report, name="income_page"),
 
     # ===================== COMMISSION / INCOME =====================
     path('commission/credit/<str:member_id>/', views.credit_commission, name='credit_commission'),
-    path("income/", views.income_view, name="income_page"),
     path("income/export/", views.export_income_excel, name="export_income_excel"),
     path('export-income/', views.export_members_income, name='export_income'),
     path("income_report/", views.income_report, name="income_report"),

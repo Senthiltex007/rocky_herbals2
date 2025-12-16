@@ -66,14 +66,23 @@
         <label>Pincode</label>
         <input type="text" name="pincode">
 
-        <!-- Placement auto-filled from parent -->
+        <!-- ✅ Placement auto-filled -->
         <label>Placement ID (Under Which Member?)</label>
         <input type="text" name="placement_id" value="{{ placement_member_id }}" readonly required>
 
+        <!-- ✅ Position (Left / Right) -->
+        <label>Position</label>
+        <input type="text" name="side" value="{{ side }}" readonly>
+
+        <!-- ✅ Sponsor -->
         <label>Sponsor ID (Income Goes To)</label>
         <input type="text" name="sponsor_id" placeholder="rocky001" required>
 
-        <!-- ✅ New Avatar Upload -->
+        <!-- ✅ Joined Date -->
+        <label>Joined Date</label>
+        <input type="text" name="joined_date" value="{{ today_date }}" readonly>
+
+        <!-- ✅ Avatar Upload -->
         <label>Avatar (Optional)</label>
         <input type="file" name="avatar" accept="image/*">
 

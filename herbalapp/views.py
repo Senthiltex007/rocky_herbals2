@@ -1075,76 +1075,6 @@ def edit_sponsor(request, member_id):
             return ___redirect('member_tree_modern', auto_id=member.member_id)
 
     return ___render(request, 'edit_sponsor.html', {'member': member})
-
-
-# ======================================================
-# INCOME PAGE WITH FILTERS (FINAL VERSION)
-# ======================================================
-from django.db.models import Sum, F, Q
-from django.utils.dateparse import parse_date
-
-def income_view(request):
-
-    incomes = Income.objects.all()
-
-    # ✅ Filters
-    member_id = request.GET.get("member_id")
-    name = request.GET.get("name")
-    date_from = request.GET.get("from")
-    date_to = request.GET.get("to")
-    min_income = request.GET.get("min")
-    max_income = request.GET.get("max")
-
-    # ✅ Apply filters safely
-    if member_id:
-        incomes = incomes.filter(member__member_id__icontains=member_id)
-
-    if name:
-        incomes = incomes.filter(member__name__icontains=name)
-
-    if date_from:
-        incomes = incomes.filter(created_at__date__gte=parse_date(date_from))
-
-    if date_to:
-        incomes = incomes.filter(created_at__date__lte=parse_date(date_to))
-
-    if min_income:
-        incomes = incomes.filter(
-            (F('binary_income') + F('sponsor_income') + F('salary_income') + F('flash_out_bonus')) >= float(min_income)
-        )
-
-    if max_income:
-        incomes = incomes.filter(
-            (F('binary_income') + F('sponsor_income') + F('salary_income') + F('flash_out_bonus')) <= float(max_income)
-        )
-
-    # ✅ Annotate total income per row
-    incomes = incomes.annotate(
-        total_income = (
-            F('binary_income') +
-            F('sponsor_income') +
-            F('salary_income') +
-            F('flash_out_bonus')
-        )
-    )
-
-    # ✅ Grand total
-    total_income_all = incomes.aggregate(
-        total=Sum(
-            F('binary_income') +
-            F('sponsor_income') +
-            F('salary_income') +
-            F('flash_out_bonus')
-        )
-    )['total'] or 0
-
-    context = {
-        "incomes": incomes,
-        "total_income_all": total_income_all,
-    }
-
-    return render(request, "income_report.html", context)
-
 # ======================================================
 # EXPORT INCOME TO EXCEL (multi-sheet + charts)
 # ======================================================
@@ -1589,6 +1519,7 @@ def member_register(request):
     return render(request, "member_register.html")
 
 
+from datetime import date
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from .models import Member
@@ -1598,39 +1529,43 @@ def add_member_under_parent(request, parent_id, position):
 
     parent = get_object_or_404(Member, id=parent_id)
 
+    # ✅ Normalize position
     position = position.lower()
     if position not in ["left", "right"]:
         messages.error(request, "Invalid position selected.")
         return redirect("member_list")
 
-    if position == "left" and parent.left_child is not None:
+    # ✅ Check if slot is free
+    if position == "left" and parent.left_child:
         messages.error(request, f"{parent.name} already has a LEFT child.")
         return redirect("member_list")
 
-    if position == "right" and parent.right_child is not None:
+    if position == "right" and parent.right_child:
         messages.error(request, f"{parent.name} already has a RIGHT child.")
         return redirect("member_list")
 
-    # ✅ Safe auto Rocky ID generator
+    # ✅ Auto-generate Rocky ID
     all_ids = Member.objects.values_list("member_id", flat=True)
     max_num = 0
     for mid in all_ids:
         try:
             num = int(mid.replace("rocky", ""))
-            if num > max_num:
-                max_num = num
+            max_num = max(max_num, num)
         except:
             pass
-    auto_member_id = f"rocky{max_num + 1:03d}"
 
+    new_member_id = f"rocky{max_num + 1:03d}"
+
+    # ✅ GET → Show form
     if request.method == "GET":
         return render(request, "add_member.html", {
-            "parent": parent,
-            "position": position,
-            "auto_member_id": auto_member_id,
+            "member_id": new_member_id,
+            "placement_member_id": parent.member_id,
+            "side": position,   # ✅ Show LEFT/RIGHT in form
+            "today_date": date.today().strftime("%Y-%m-%d"),
         })
 
-    # ✅ POST data
+    # ✅ POST → Save member
     name = request.POST.get("name")
     phone = request.POST.get("phone")
     email = request.POST.get("email")
@@ -1640,9 +1575,9 @@ def add_member_under_parent(request, parent_id, position):
     pincode = request.POST.get("pincode")
     sponsor_id = request.POST.get("sponsor_id")
 
-    # ✅ Avatar file (IMPORTANT)
     avatar = request.FILES.get("avatar")
 
+    # ✅ Validate sponsor
     sponsor = None
     if sponsor_id:
         sponsor = Member.objects.filter(member_id=sponsor_id).first()
@@ -1650,8 +1585,9 @@ def add_member_under_parent(request, parent_id, position):
             messages.error(request, "Invalid Sponsor ID.")
             return redirect(request.path)
 
-    # ✅ Create new member (avatar included)
+    # ✅ Create new member
     new_member = Member.objects.create(
+        member_id=new_member_id,
         name=name,
         phone=phone,
         email=email,
@@ -1662,9 +1598,11 @@ def add_member_under_parent(request, parent_id, position):
         sponsor=sponsor,
         parent=parent,
         side=position,
-        avatar=avatar,  # ✅ Correct
+        avatar=avatar,
+        joined_date=date.today(),   # ✅ Auto-set joined date
     )
 
+    # ✅ Attach child
     if position == "left":
         parent.left_child = new_member
     else:
@@ -1674,7 +1612,7 @@ def add_member_under_parent(request, parent_id, position):
 
     messages.success(
         request,
-        f"New member {name} added under {parent.name} on {position.upper()} side."
+        f"New member {new_member.member_id} added under {parent.name} on {position.upper()} side."
     )
 
     return redirect("member_list")
@@ -1684,10 +1622,11 @@ from django.shortcuts import render, redirect
 from django.contrib import messages
 from .models import Member
 from decimal import Decimal
+from datetime import date
 
 
 # ===============================================================
-# ADD MEMBER VIEW  (auto ID, placement, sponsor, binary + sponsor pay)
+# ✅ ADD MEMBER VIEW (Auto ID, Placement, Sponsor, Avatar, Joined Date)
 # ===============================================================
 def add_member_form(request):
 
@@ -1717,7 +1656,12 @@ def add_member_form(request):
         if parent:
             placement_member_id = parent.member_id
 
-    # ===================== ON SUBMIT =====================
+    # ✅ Pre-fill sponsor if ?sponsor= given
+    sponsor_code_prefill = request.GET.get("sponsor") or ""
+
+    # ===============================================================
+    # ✅ POST REQUEST — SAVE MEMBER
+    # ===============================================================
     if request.method == "POST":
 
         member_id = request.POST.get('member_id')
@@ -1726,28 +1670,31 @@ def add_member_form(request):
 
         # ✅ Validate member_id uniqueness
         if Member.objects.filter(member_id=member_id).exists():
-            return render(request, "add_member.html", {
+            return render(request, "herbalapp/add_member.html", {
                 "error": "❌ Member ID already exists!",
                 "member_id": new_member_id,
-                "placement_id": placement_member_id
+                "placement_member_id": placement_member_id,
+                "today_date": date.today().strftime("%Y-%m-%d"),
             })
 
         # ✅ Validate placement
         placement = Member.objects.filter(member_id=placement_code).first()
         if not placement:
-            return render(request, "add_member.html", {
+            return render(request, "herbalapp/add_member.html", {
                 "error": "❌ Placement ID not found",
                 "member_id": new_member_id,
-                "placement_id": placement_member_id
+                "placement_member_id": placement_member_id,
+                "today_date": date.today().strftime("%Y-%m-%d"),
             })
 
         # ✅ Validate sponsor
         sponsor = Member.objects.filter(member_id=sponsor_code).first()
         if not sponsor:
-            return render(request, "add_member.html", {
+            return render(request, "herbalapp/add_member.html", {
                 "error": "❌ Sponsor ID not found",
                 "member_id": new_member_id,
-                "placement_id": placement_member_id
+                "placement_member_id": placement_member_id,
+                "today_date": date.today().strftime("%Y-%m-%d"),
             })
 
         # ✅ Auto Left → Right allocation
@@ -1756,10 +1703,11 @@ def add_member_form(request):
         elif not placement.right_child:
             side = "right"
         else:
-            return render(request, "add_member.html", {
+            return render(request, "herbalapp/add_member.html", {
                 "error": "❌ Both legs are filled!",
                 "member_id": new_member_id,
-                "placement_id": placement_member_id
+                "placement_member_id": placement_member_id,
+                "today_date": date.today().strftime("%Y-%m-%d"),
             })
 
         # ✅ Create Member
@@ -1774,8 +1722,15 @@ def add_member_form(request):
             pincode=request.POST.get('pincode'),
             parent=placement,
             sponsor=sponsor,
-            side=side
+            side=side,
+            joined_date=date.today(),   # ✅ Auto-set joined date
         )
+
+        # ✅ Avatar upload
+        avatar_file = request.FILES.get("avatar")
+        if avatar_file:
+            new.avatar = avatar_file
+            new.save()
 
         # ✅ Attach Child
         if side == "left":
@@ -1785,15 +1740,22 @@ def add_member_form(request):
         placement.save()
 
         # ✅ Run full income engine (binary + sponsor + CF + salary + rank)
-        run_binary_on_new_join(new)
+        try:
+            run_binary_on_new_join(new)
+        except:
+            pass  # safe fallback
 
         return redirect("/tree/")
 
-    return render(request, "add_member.html", {
+    # ===============================================================
+    # ✅ GET REQUEST — SHOW FORM
+    # ===============================================================
+    return render(request, "herbalapp/add_member.html", {
         "member_id": new_member_id,
-        "placement_member_id": placement_member_id
+        "placement_member_id": placement_member_id,
+        "sponsor_prefill": sponsor_code_prefill,
+        "today_date": date.today().strftime("%Y-%m-%d"),
     })
-
 
 from django.shortcuts import render, get_object_or_404
 from herbalapp.models import Member, DailyIncomeReport
