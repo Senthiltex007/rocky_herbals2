@@ -1,10 +1,15 @@
 # herbalapp/models.py
+from collections import deque
+from decimal import Decimal
+
 from django.db import models, transaction
 from django.db.models import Sum
 from django.utils import timezone
-from decimal import Decimal
-from collections import deque
 
+from herbalapp.mlm_engine_binary import (
+    calculate_member_binary_income_for_day,
+    determine_rank_from_bv,
+)
 
 # ==========================================================
 # AUTO ID GENERATOR (Legacy fallback)
@@ -40,28 +45,6 @@ class RockCounter(models.Model):
     def __str__(self):
         return f"{self.name}:{self.last}"
 
-# ==========================================================
-# AUTO COUNTER FOR ROCKY IDs
-# ==========================================================
-class RockCounter(models.Model):
-    name = models.CharField(max_length=50, unique=True)
-    last = models.PositiveIntegerField(default=0)
-
-    def __str__(self):
-        return f"{self.name}:{self.last}"
-
-# herbalapp/models.py (Member extract only)
-
-from decimal import Decimal
-from collections import deque
-
-from django.db import models, transaction
-from django.utils import timezone
-
-from herbalapp.mlm_engine_binary import (
-    calculate_member_binary_income_for_day,
-    determine_rank_from_bv,
-)
 
 # ==========================================================
 # MEMBER MODEL (MAIN GENEALOGY TREE)
@@ -81,11 +64,11 @@ class Member(models.Model):
     activation_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     is_active = models.BooleanField(default=False)
 
-    total_bv = models.IntegerField(default=0)  # can be used as cached field if needed
-    rank = models.CharField(max_length=100, default="", blank=True)  # legacy, kept for compatibility
+    total_bv = models.IntegerField(default=0)
+    rank = models.CharField(max_length=100, default="", blank=True)
 
-    total_left_bv = models.IntegerField(default=0)   # optional cache
-    total_right_bv = models.IntegerField(default=0)  # optional cache
+    total_left_bv = models.IntegerField(default=0)
+    total_right_bv = models.IntegerField(default=0)
 
     # -------------------------
     # IDENTIFICATION / ADDRESS
@@ -98,130 +81,60 @@ class Member(models.Model):
     pincode = models.CharField(max_length=10, null=True, blank=True)
 
     # -------------------------
-    # BINARY TREE (PARENT & CHILDREN)
+    # MLM RELATIONSHIP
     # -------------------------
-    parent = models.ForeignKey(
-        'self',
-        null=True,
-        blank=True,
-        on_delete=models.SET_NULL,
-        related_name='children'
-    )
-
-    # side = left / right under parent (binary tree)
-    side = models.CharField(
-        max_length=5,
-        choices=[('left', 'Left'), ('right', 'Right')],
-        null=True,
-        blank=True
-    )
-
-    # Binary pointers
-    left_child = models.OneToOneField(
-        'self',
-        null=True,
-        blank=True,
-        on_delete=models.SET_NULL,
-        related_name='left_of'
-    )
-    right_child = models.OneToOneField(
-        'self',
-        null=True,
-        blank=True,
-        on_delete=models.SET_NULL,
-        related_name='right_of'
-    )
-
-    # -------------------------
-    # SPONSOR TREE
-    # -------------------------
+    # Direct sponsor (Add member form-ல sponsor_id யாரோ அவர்)
     sponsor = models.ForeignKey(
-        'self',
+        "self",
         null=True,
         blank=True,
         on_delete=models.SET_NULL,
-        related_name='sponsored_members'
+        related_name="direct_downlines",
     )
 
-    # -------------------------
-    # OPTIONAL: PLACEMENT TREE
-    # (Kept only if you really use it; otherwise can be removed)
-    # -------------------------
-    placement = models.ForeignKey(
-        'self',
+    # Placement (binary tree left/right)
+    left_member = models.OneToOneField(
+        "self",
         null=True,
         blank=True,
         on_delete=models.SET_NULL,
-        related_name='placement_downline'
+        related_name="placed_on_left_of",
+    )
+    right_member = models.OneToOneField(
+        "self",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="placed_on_right_of",
     )
 
-    # -------------------------
-    # PACKAGE / RANK
-    # -------------------------
-    package = models.CharField(
+    # Node side relative to its upline (for BV / tree rendering)
+    side = models.CharField(
         max_length=10,
-        choices=[('Gold', 'Gold'), ('Silver', 'Silver'), ('Bronze', 'Bronze')],
-        default='Bronze'
+        null=True,
+        blank=True,
+        choices=[("left", "Left"), ("right", "Right")],
     )
-    current_rank = models.CharField(max_length=50, null=True, blank=True)
-    rank_assigned_at = models.DateTimeField(null=True, blank=True)
 
     # -------------------------
-    # ACCOUNT FIELDS
+    # BINARY ENGINE STATE
     # -------------------------
-    joined_date = models.DateField(default=timezone.now)
-    active = models.BooleanField(default=True)
-
-    # -------------------------
-    # BV / RANK REWARD FIELDS
-    # (Repurchase BV only)
-    # -------------------------
-    bv = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
-    rank_reward = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
-
-    # -------------------------
-    # WALLETS
-    # -------------------------
-    main_wallet = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal('0.00'))
-    repurchase_wallet = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal('0.00'))
-    flash_wallet = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal('0.00'))
-
-    # -------------------------
-    # INCOME / COUNTERS
-    # -------------------------
-    binary_pairs = models.IntegerField(default=0)
-    binary_income = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
-    parent_bonus = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
-    sponsor_income = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
-
-    # Flash bonus (from binary flashouts)
-    flash_bonus = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
-
-    # Stock commission (district / taluk / pincode)
-    stock_commission = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
-
-    # Salary income (from rank)
-    salary = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
-
-    # -------------------------
-    # BINARY ELIGIBILITY + CARRY FORWARD
-    # -------------------------
-    binary_eligible = models.BooleanField(default=False)
-    binary_eligible_date = models.DateTimeField(null=True, blank=True)
-
     left_cf = models.IntegerField(default=0)
     right_cf = models.IntegerField(default=0)
 
-    left_join_count = models.IntegerField(default=0)
-    right_join_count = models.IntegerField(default=0)
+    # Lifetime eligibility (1:2 or 2:1)
+    binary_eligible = models.BooleanField(default=False)
+    binary_eligible_date = models.DateTimeField(null=True, blank=True)
 
-    left_new_today = models.IntegerField(default=0)
-    right_new_today = models.IntegerField(default=0)
+    # Lifetime first 1:1 pair completed?
+    has_completed_first_pair = models.BooleanField(default=False)
 
     # -------------------------
-    # STOCK POINT LEVEL (for commission)
-    # district / taluk / pincode / None
+    # META / STOCK LEVEL
     # -------------------------
+    joined_date = models.DateTimeField(default=timezone.now)
+
+    # Stock point level (for commission)
     level = models.CharField(
         max_length=20,
         null=True,
@@ -230,12 +143,9 @@ class Member(models.Model):
             ("district", "District Stock Point"),
             ("taluk", "Taluk Gallery"),
             ("pincode", "Pincode Home Shoppe"),
-        ]
+        ],
     )
 
-    # -------------------------
-    # STRING REPRESENTATION
-    # -------------------------
     def __str__(self):
         return f"{self.auto_id or self.member_id or self.id} - {self.name}"
 
@@ -265,10 +175,10 @@ class Member(models.Model):
     # SIMPLE HELPERS
     # ==========================================================
     def has_left(self):
-        return self.left_child is not None
+        return self.left_member is not None
 
     def has_right(self):
-        return self.right_child is not None
+        return self.right_member is not None
 
     # ==========================================================
     # PYRAMID TREE (JSON) - for UI
@@ -281,8 +191,9 @@ class Member(models.Model):
                 "auto_id": member.auto_id,
                 "name": member.name,
                 "side": member.side,
-                "package": member.package,
-                "children": [build(member.left_child), build(member.right_child)],
+                # package UI-க்காக activation_amount-ஐ package ஆக காட்டுகிறோம்
+                "package": str(member.activation_amount),
+                "children": [build(member.left_member), build(member.right_member)],
             }
 
         return build(self)
@@ -356,10 +267,10 @@ class Member(models.Model):
                 elif member.side == 'right':
                     right_bv += Decimal(member_bv)
 
-            if member.left_child:
-                queue.append(member.left_child)
-            if member.right_child:
-                queue.append(member.right_child)
+            if member.left_member:
+                queue.append(member.left_member)
+            if member.right_member:
+                queue.append(member.right_member)
 
         total_bv = Decimal(self_bv) + left_bv + right_bv
 
@@ -377,7 +288,7 @@ class Member(models.Model):
     def get_bv_counts(self):
         """
         Simple left/right BV from immediate children.
-        Uses calculate_bv() starting at left_child and right_child.
+        Uses calculate_bv() starting at left_member and right_member.
         """
         def resolve_bv(root_member):
             if not root_member:
@@ -387,8 +298,8 @@ class Member(models.Model):
                    Decimal(data.get("left_bv", Decimal('0.00'))) + \
                    Decimal(data.get("right_bv", Decimal('0.00')))
 
-        left_bv = resolve_bv(self.left_child)
-        right_bv = resolve_bv(self.right_child)
+        left_bv = resolve_bv(self.left_member)
+        right_bv = resolve_bv(self.right_member)
         return (left_bv, right_bv)
 
     # ==========================================================
@@ -402,8 +313,6 @@ class Member(models.Model):
     # STOCK COMMISSION TOTAL
     # ==========================================================
     def get_commission_total(self):
-        from django.db.models import Sum
-
         district_total = Commission.objects.filter(
             member=self,
             commission_type="district"
@@ -438,6 +347,7 @@ class Member(models.Model):
             return
 
         title, monthly, months = result
+        # Instance attributes (not DB fields) – safe
         self.current_rank = title
         self.salary = Decimal(monthly)
         self.rank_reward = Decimal(monthly) * Decimal(months)
@@ -445,18 +355,23 @@ class Member(models.Model):
         self.save()
 
     # ==========================================================
-    # BINARY ENGINE WRAPPER (PER DAY)
+    # BINARY ENGINE WRAPPER (PER DAY) – NEW ENGINE COMPATIBLE
     # ==========================================================
     def run_binary_engine_for_day(self, left_joins_today: int, right_joins_today: int):
         """
-        Wraps calculate_member_binary_income_for_day for this member.
+        Wraps calculate_member_binary_income_for_day for this member (new engine).
         Updates:
-        - binary_eligible
+        - binary_eligible / binary_eligible_date
+        - has_completed_first_pair
         - left_cf / right_cf
-        - binary_income
-        - flash_bonus
         Logs into DailyIncomeReport.
         """
+        from herbalapp.models import DailyIncomeReport  # local import to avoid cycles
+
+        # CF snapshot
+        left_cf_before = self.left_cf
+        right_cf_before = self.right_cf
+
         result = calculate_member_binary_income_for_day(
             left_joins_today=left_joins_today,
             right_joins_today=right_joins_today,
@@ -465,27 +380,32 @@ class Member(models.Model):
             binary_eligible=self.binary_eligible,
         )
 
-        self.binary_eligible = result["new_binary_eligible"]
+        # Eligibility update
+        if result["new_binary_eligible"] and not self.binary_eligible:
+            self.binary_eligible = True
+            self.binary_eligible_date = timezone.now()
+
+        # First 1:1 pair flag
+        if result["binary_pairs"] > 0 and not self.has_completed_first_pair:
+            self.has_completed_first_pair = True
+
+        # CF update
         self.left_cf = result["left_cf_after"]
         self.right_cf = result["right_cf_after"]
 
-        self.binary_income += Decimal(result["binary_income"])
-        self.flash_bonus += Decimal(result["flashout_income"])
-        self.binary_pairs += int(result["binary_pairs_paid"])
-
         self.save()
 
-        DailyIncomeReport.objects.create(
+        # Daily report (no flashout / washout in new engine → keep 0)
+        report, created = DailyIncomeReport.objects.get_or_create(
             member=self,
-            binary_income=result["binary_income"],
-            flash_bonus=result["flashout_income"],
-            sponsor_income=Decimal('0.00'),  # sponsor income handled separately
-            salary=Decimal('0.00'),
-            stock_commission=Decimal('0.00'),
-            total_income=result["total_income"],
+            date=date.today(),
+            defaults={
+                "eligibility_income": 0,
+                "binary_income": 0,
+                "sponsor_income": 0,
+                "total_income": 0,
+            }
         )
-
-        return result
 
 
 # ==========================================================
@@ -510,9 +430,6 @@ class Payment(models.Model):
 # ==========================================================
 # INCOME MODEL (Corrected & Production‑Ready)
 # ==========================================================
-from decimal import Decimal
-from django.db import models
-
 class Income(models.Model):
     member = models.ForeignKey(Member, on_delete=models.CASCADE)
     date = models.DateField(auto_now_add=True)
@@ -523,13 +440,26 @@ class Income(models.Model):
     binary_income = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
     sponsor_income = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
 
-    # ✅ Correct name (matches your binary engine + Member.flash_bonus)
+    # Correct name (matches your plan)
     flash_bonus = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
 
     salary_income = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
 
     def __str__(self):
         return f"Income for {self.member.name} on {self.date}"
+
+
+# ==========================================================
+# SPONSOR INCOME MODEL
+# ==========================================================
+class SponsorIncome(models.Model):
+    sponsor = models.ForeignKey(Member, on_delete=models.CASCADE, related_name="sponsor_incomes")
+    child = models.ForeignKey(Member, on_delete=models.CASCADE, related_name="child_sponsor_incomes")
+    amount = models.DecimalField(max_digits=12, decimal_places=2)
+    date = models.DateField(default=timezone.now)
+
+    def __str__(self):
+        return f"Sponsor {self.sponsor.member_id} from {self.child.member_id} - {self.amount}"
 
 
 # ==========================================================
@@ -555,9 +485,6 @@ class Commission(models.Model):
 # ==========================================================
 # PRODUCT MODEL
 # ==========================================================
-from decimal import Decimal
-from django.db import models
-
 class Product(models.Model):
     name = models.CharField(max_length=200)
     description = models.TextField(blank=True)
@@ -566,7 +493,7 @@ class Product(models.Model):
     image = models.ImageField(upload_to='products/', blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
-    # 🔹 Add this new field here
+    # Product code like RH001, RH002...
     product_id = models.CharField(max_length=10, unique=True, editable=False, null=True, blank=True)
 
     def save(self, *args, **kwargs):
@@ -660,11 +587,11 @@ class RankReward(models.Model):
     member = models.ForeignKey(Member, on_delete=models.CASCADE, related_name="rank_rewards")
     rank_title = models.CharField(max_length=50)
 
-    left_bv_snapshot = models.BigIntegerField()    # BV count at rank achieved time
+    left_bv_snapshot = models.BigIntegerField()
     right_bv_snapshot = models.BigIntegerField()
 
-    monthly_income = models.BigIntegerField()      # Example 5000/10000/25000/50k etc
-    duration_months = models.IntegerField()        # 12, 24, 36 months (plan based)
+    monthly_income = models.BigIntegerField()
+    duration_months = models.IntegerField()
 
     start_date = models.DateField(default=timezone.now)
     months_paid = models.IntegerField(default=0)
@@ -677,9 +604,9 @@ class RankReward(models.Model):
             self.save(update_fields=["active"])
             return False
 
-        # Add payout to main wallet
+        # Add payout to main wallet (dynamic attribute if field not declared)
         self.member.main_wallet = getattr(self.member, "main_wallet", Decimal('0.00')) + Decimal(self.monthly_income)
-        self.member.save(update_fields=["main_wallet"])
+        self.member.save()
 
         # Log payout
         RankPayoutLog.objects.create(
@@ -711,49 +638,33 @@ class RankPayoutLog(models.Model):
         return f"{self.member.auto_id} - {self.rank_reward.rank_title} - {self.amount} on {self.paid_on}"
 
 
-# ==========================================================
-# DAILY INCOME REPORT TABLE (Version-2 Engine Compatible)
-# ==========================================================
-from decimal import Decimal
-from django.db import models
-
 class DailyIncomeReport(models.Model):
     member = models.ForeignKey(Member, on_delete=models.CASCADE)
     date = models.DateField()
 
-    # Join counts
     left_joins = models.IntegerField(default=0)
     right_joins = models.IntegerField(default=0)
 
-    # Carry forward before/after
     left_cf_before = models.IntegerField(default=0)
     right_cf_before = models.IntegerField(default=0)
     left_cf_after = models.IntegerField(default=0)
     right_cf_after = models.IntegerField(default=0)
 
-    # Binary income
     binary_pairs_paid = models.IntegerField(default=0)
     binary_income = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
 
-    # Flashout income
     flashout_units = models.IntegerField(default=0)
     flashout_wallet_income = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
 
-    # Washout
     washed_pairs = models.IntegerField(default=0)
 
-    # BV snapshots (repurchase only)
     total_left_bv = models.BigIntegerField(default=0)
     total_right_bv = models.BigIntegerField(default=0)
 
-    # Salary + rank
     salary_income = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
     rank_title = models.CharField(max_length=100, null=True, blank=True)
 
-    # Sponsor income
     sponsor_income = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
-
-    # Total income
     total_income = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal('0.00'))
 
     class Meta:

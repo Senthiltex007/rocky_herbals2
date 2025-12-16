@@ -2,10 +2,79 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Rocky Sri Herbals - Income Report</title>
-<link rel="stylesheet" href="/static/css/bootstrap.min.css">
+
+<!-- ✅ Bootstrap CDN (no 404, fastest load) -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+
+<!-- ✅ Local custom CSS (safe even if empty) -->
 <link rel="stylesheet" href="/static/css/style.css">
+
+<!-- ✅ Favicon (no 404) -->
 <link rel="icon" type="image/x-icon" href="/static/favicon.ico?v=2">
+
+<!-- ✅ Page Title -->
+<title>Rocky Sri Herbals</title>
+
+<!-- ✅ Inline CSS for all reports -->
+<style>
+body {
+    background-color: #f8f9fa;
+    padding: 20px;
+    font-family: "Segoe UI", sans-serif;
+}
+
+/* Page title */
+.page-title {
+    font-size: 28px;
+    font-weight: 700;
+    color: #198754;
+    margin-bottom: 20px;
+}
+
+/* Table header */
+.table thead th {
+    background-color: #198754;
+    color: white;
+    text-align: center;
+}
+
+/* Table rows */
+.table tbody td {
+    vertical-align: middle;
+    text-align: center;
+}
+
+/* Hover effect */
+.table tbody tr:hover {
+    background-color: #eef6f0;
+}
+
+/* Card styling */
+.report-card {
+    background: white;
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+
+/* Date input box */
+.date-box {
+    max-width: 220px;
+}
+
+/* Buttons */
+.btn-green {
+    background-color: #198754;
+    color: white;
+    font-weight: 600;
+}
+.btn-green:hover {
+    background-color: #146c43;
+    color: white;
+}
+</style>
+
+</head>
 
 <style>
 .hero-banner{width:100%;height:400px;object-fit:cover;}

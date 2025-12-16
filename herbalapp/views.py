@@ -1786,8 +1786,10 @@ from django.shortcuts import render
 import datetime
 from herbalapp.models import DailyIncomeReport
 
-
 def income_report(request):
+    import datetime
+    from herbalapp.models import Member, DailyIncomeReport
+    from herbalapp.utils.binary_income import process_member_binary_income
 
     date_str = request.GET.get("date")
 
@@ -1805,6 +1807,11 @@ def income_report(request):
     else:
         target_date = datetime.date.today()
 
+    # ✅ IMPORTANT: Run income engine BEFORE showing report
+    members = Member.objects.all().order_by("member_id")
+    for m in members:
+        process_member_binary_income(m)
+
     # ✅ Fetch reports for the selected date
     reports = DailyIncomeReport.objects.filter(date=target_date).order_by("member__member_id")
 
@@ -1813,6 +1820,8 @@ def income_report(request):
         "reports": reports,
         "count": reports.count(),
     })
+
+
 
 from django.shortcuts import render, get_object_or_404
 from django.db.models import Value

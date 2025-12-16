@@ -10,190 +10,221 @@ FLASH_UNIT_VALUE = Decimal('1000.00')  # each flashout unit credited to repurcha
 FLASH_UNIT_PAIR = 5                    # pairs per flashout unit (5:5)
 FLASH_UNIT_DAILY_MAX = 9               # max flashout units per member per day
 
-def _add_daily_report(member: Member, date, binary=Decimal('0.00'), sponsor=Decimal('0.00'),
-                      flash=Decimal('0.00'), salary=Decimal('0.00'), stock=Decimal('0.00')):
-    """Helper: create or update DailyIncomeReport for member/date and update total_income."""
+
+def _add_daily_report(
+    member: Member,
+    date,
+    binary: Decimal = Decimal("0.00"),
+    sponsor: Decimal = Decimal("0.00"),
+    flash: Decimal = Decimal("0.00"),
+    salary: Decimal = Decimal("0.00"),
+    stock: Decimal = Decimal("0.00"),  # model-ல் இதுக்கு field இல்லை; ignore பண்ணுவோம்
+):
+    """
+    Helper: create or update DailyIncomeReport for member/date மற்றும் total_income update செய்யும்.
+    உன் model fields க்கு ஏற்ப map பண்ணிருக்கேன்:
+
+    - binary_income
+    - sponsor_income
+    - flashout_wallet_income  (old name flash_bonus இல்லை)
+    - salary_income           (old name salary இல்லை)
+    - total_income
+    """
     report, created = DailyIncomeReport.objects.get_or_create(
         member=member,
         date=date,
         defaults={
-            'binary_income': Decimal('0.00'),
-            'sponsor_income': Decimal('0.00'),
-            'flash_bonus': Decimal('0.00'),
-            'salary': Decimal('0.00'),
-            'stock_commission': Decimal('0.00'),
-            'total_income': Decimal('0.00'),
-        }
+            "left_joins": 0,
+            "right_joins": 0,
+            "left_cf_before": 0,
+            "right_cf_before": 0,
+            "left_cf_after": 0,
+            "right_cf_after": 0,
+            "binary_pairs_paid": 0,
+            "binary_income": Decimal("0.00"),
+            "flashout_units": 0,
+            "flashout_wallet_income": Decimal("0.00"),
+            "washed_pairs": 0,
+            "total_left_bv": 0,
+            "total_right_bv": 0,
+            "salary_income": Decimal("0.00"),
+            "rank_title": "",
+            "sponsor_income": Decimal("0.00"),
+            "total_income": Decimal("0.00"),
+        },
     )
 
-    # Add amounts
+    # amounts சேர்க்கும்
     if binary:
         report.binary_income += binary
+
     if sponsor:
         report.sponsor_income += sponsor
-    if flash:
-        report.flash_bonus += flash
-    if salary:
-        report.salary += salary
-    if stock:
-        report.stock_commission += stock
 
-    # Recompute total (simple sum of columns we track)
+    # ⚠️ உன் model இப்படி தான்:
+    # flashout_wallet_income  ← flashout income
+    if flash:
+        report.flashout_wallet_income += flash
+
+    # salary_income field க்கு map பண்ணணும்
+    if salary:
+        report.salary_income += salary
+
+    # stock_commission என்ற field நீ model-ல வைத்திருக்கல, அதனால் stock ஐ ignore பண்ணுறோம்.
+
+    # total_income = binary + sponsor + flashout_wallet_income + salary
     report.total_income = (
-        report.binary_income + report.sponsor_income + report.flash_bonus +
-        report.salary + report.stock_commission
+        report.binary_income
+        + report.sponsor_income
+        + report.flashout_wallet_income
+        + report.salary_income
     )
+
     report.save()
     return report
+
 
 def _credit_sponsor_for_binary(earner: Member, binary_amount: Decimal, date):
     """
     Sponsor income rule:
-    - If earner has a sponsor (earner.sponsor), and that sponsor is binary_eligible,
-      credit the sponsor the same amount as sponsor_income (binary part only).
-    - Update sponsor.sponsor_income and DailyIncomeReport for sponsor.
+    - earner-க்கு sponsor இருந்தா, sponsor.binary_eligible == True இருந்தா மட்டும்
+      sponsor-க்கு binary_amount அளவுக்கு sponsor_income கொடுக்கணும்.
+    - sponsor.sponsor_income (Member field) + DailyIncomeReport sponsor_income update ஆகும்.
     """
     if not earner.sponsor or binary_amount <= 0:
-        return Decimal('0.00')
+        return Decimal("0.00")
 
     sponsor = earner.sponsor
 
     # Sponsor must be eligible for binary income (rule)
     if not sponsor.binary_eligible:
-        return Decimal('0.00')
+        return Decimal("0.00")
 
-    # Credit sponsor
-    sponsor.sponsor_income = (sponsor.sponsor_income or Decimal('0.00')) + binary_amount
-    sponsor.save(update_fields=['sponsor_income'])
+    # Credit sponsor profile total sponsor_income
+    sponsor.sponsor_income = (sponsor.sponsor_income or Decimal("0.00")) + binary_amount
+    sponsor.save(update_fields=["sponsor_income"])
 
-    # Update daily report for sponsor
+    # Daily report-ல் sponsor_income update
     _add_daily_report(sponsor, date, sponsor=binary_amount)
 
     return binary_amount
 
+
 def process_member_binary_income(member: Member):
     """
-    Main function to process binary income, flashout (repurchase), sponsor credit,
-    carry-forward, and daily report.
+    Main function:
+    - binary income
+    - flashout (repurchase wallet)
+    - sponsor credit
+    - carry-forward
+    - DailyIncomeReport update
 
-    Rules implemented (as per spec):
+    Rules:
     - One-time eligibility: 1:2 or 2:1 (if not eligible yet)
     - After eligible: daily 1:1 pairs => ₹500 per pair
     - Daily binary cap: 5 pairs (₹2,500)
-    - Carry-forward: unmatched members on heavier side are carried forward to next day
-    - Flashout: matched pairs beyond the daily paid binary pairs -> groups of 5 pairs
-                form flashout units. Each flashout unit credit = ₹1,000 to repurchase_wallet.
-                Flashout units capped to 9/day. Excess units washout (no credit).
-    - Sponsor income: when a member receives binary payout (binary_amount > 0),
-      their sponsor receives the same amount as sponsor_income **only if sponsor.binary_eligible == True**.
+    - Carry-forward: heavier side unmatched counts carry forward
+    - Flashout: binary cap-க்கு மேல் உள்ள pairs → 5:5 groups → repurchase wallet
     """
 
     today = timezone.now().date()
-    income_binary = Decimal('0.00')
-    income_flash = Decimal('0.00')
-    sponsor_credit = Decimal('0.00')
+    income_binary = Decimal("0.00")
+    income_flash = Decimal("0.00")
+    sponsor_credit = Decimal("0.00")
 
-    # compute totals (new joins today + carry-forwards)
+    # இன்று new joins + பழைய carry forward
     left_total = (member.left_new_today or 0) + (member.left_cf or 0)
     right_total = (member.right_new_today or 0) + (member.right_cf or 0)
 
     # ---------- ONE-TIME ELIGIBILITY CHECK ----------
     if not member.binary_eligible:
-        # requirement: at least 1:2 or 2:1 to unlock (based on counts present now)
+        # requirement: at least 1:2 or 2:1
         if (left_total >= 1 and right_total >= 2) or (left_total >= 2 and right_total >= 1):
-            # One-time credit for initial achievement: give 1 pair worth immediately
-            # (As per spec: when they pass, they get 1 pair immediately)
+            # One-time achievement bonus: 1 pair amount
             income_binary += PAIR_AMOUNT
 
             member.binary_eligible = True
             member.binary_eligible_date = timezone.now()
-            # After giving initial achievement pair, reduce counts by 1 pair (1 left + 1 right)
-            # But be careful: only reduce if both sides have at least 1.
+
+            # 1 pair consume (1 left + 1 right) if both sides >= 1
             if left_total >= 1 and right_total >= 1:
                 left_total -= 1
                 right_total -= 1
 
-            member.save(update_fields=['binary_eligible', 'binary_eligible_date'])
+            member.save(update_fields=["binary_eligible", "binary_eligible_date"])
 
     # ---------- DAILY BINARY PAIR PAYMENT ----------
     if member.binary_eligible:
         matched_pairs_total = min(left_total, right_total)
 
-        # Payable binary pairs (respect daily cap)
+        # daily cap respect பண்ணி payable pairs
         payable_pairs = min(matched_pairs_total, DAILY_MAX_PAIRS)
         income_binary += Decimal(payable_pairs) * PAIR_AMOUNT
 
-        # reduce matched pairs used for binary payment
+        # binary payout க்கு use பண்ணிய pairs remove பண்ணு
         left_total -= payable_pairs
         right_total -= payable_pairs
 
     # ---------- FLASHOUT (repurchase) ----------
-    # matched pairs left after binary payment -> form flash units (groups of 5 pairs)
     matched_pairs_after_binary = min(left_total, right_total)
     flash_units = matched_pairs_after_binary // FLASH_UNIT_PAIR
 
     if flash_units > 0:
-        # cap daily flash units
         usable_units = min(flash_units, FLASH_UNIT_DAILY_MAX)
         income_flash = Decimal(usable_units) * FLASH_UNIT_VALUE
 
-        # apply flash unit consumption from both sides
         consumed_pairs_for_flash = usable_units * FLASH_UNIT_PAIR
         left_total -= consumed_pairs_for_flash
         right_total -= consumed_pairs_for_flash
-
-        # Excess units beyond daily cap are washout (ignored)
     else:
         usable_units = 0
 
-    # ---------- CARRY FORWARD (unmatched members stay on their side) ----------
-    # left_total and right_total now represent remaining unmatched members after binary+flash consumption
-    # These are carried forward to next day as integer counts.
-    # NOTE: these should be integers (counts of members), ensure no negatives.
+    # ---------- CARRY FORWARD ----------
     new_left_cf = max(int(left_total), 0)
     new_right_cf = max(int(right_total), 0)
 
     # ---------- PERSISTENT ACCOUNT UPDATES ----------
-    # Update member carry-forward counters and binary_income field
+    # Member.binary_income total
     if income_binary > 0:
-        # Add to member's binary_income total field
-        member.binary_income = (member.binary_income or Decimal('0.00')) + income_binary
+        member.binary_income = (member.binary_income or Decimal("0.00")) + income_binary
 
-    # credit flash to repurchase_wallet (repurchase only - not cash)
+    # repurchase_wallet = flashout income
     if income_flash > 0:
-        member.repurchase_wallet = (member.repurchase_wallet or Decimal('0.00')) + income_flash
+        member.repurchase_wallet = (member.repurchase_wallet or Decimal("0.00")) + income_flash
 
-    # update carry forwards
+    # carry forward update
     member.left_cf = new_left_cf
     member.right_cf = new_right_cf
 
-    # Reset today's new counters after processing (since we've consumed them)
+    # இன்று new counts reset (processed already)
     member.left_new_today = 0
     member.right_new_today = 0
 
-    # Save member changes
-    member.save(update_fields=[
-        'binary_income', 'repurchase_wallet', 'left_cf', 'right_cf',
-        'left_new_today', 'right_new_today'
-    ])
+    member.save(
+        update_fields=[
+            "binary_income",
+            "repurchase_wallet",
+            "left_cf",
+            "right_cf",
+            "left_new_today",
+            "right_new_today",
+        ]
+    )
 
     # ---------- DAILY REPORT ----------
-    # record binary + flash into DailyIncomeReport for this member
     _add_daily_report(member, today, binary=income_binary, flash=income_flash)
 
     # ---------- SPONSOR CREDIT ----------
-    # Credit sponsor same amount as binary_income (only binary part) if sponsor eligible
     if income_binary > 0:
         sponsor_credit = _credit_sponsor_for_binary(member, income_binary, today)
 
-    # Return a breakdown (Decimal amounts)
     return {
-        'binary_income': income_binary,
-        'flashout_income': income_flash,
-        'sponsor_income_credit': sponsor_credit,
-        'left_cf': member.left_cf,
-        'right_cf': member.right_cf,
-        'binary_eligible': member.binary_eligible,
-        'flash_units_used': usable_units if 'usable_units' in locals() else 0,
+        "binary_income": income_binary,
+        "flashout_income": income_flash,
+        "sponsor_income_credit": sponsor_credit,
+        "left_cf": member.left_cf,
+        "right_cf": member.right_cf,
+        "binary_eligible": member.binary_eligible,
+        "flash_units_used": usable_units,
     }
 

@@ -1,5 +1,8 @@
+# herbalapp/forms.py
+
 from django import forms
 from .models import Member, Product
+
 
 class MemberForm(forms.ModelForm):
     class Meta:
@@ -9,18 +12,26 @@ class MemberForm(forms.ModelForm):
             'email',
             'phone',
             'aadhar_number',
-            'package',
             'avatar',
             'district',
             'taluk',
-            'pincode'
+            'pincode',
+            'sponsor',      # ✅ Added (important for MLM)
+            'side',         # ✅ Added (left/right placement)
         ]
-        # NOTE:
-        # 'parent' and 'side' removed — these will be assigned in the view
+        widgets = {
+            'side': forms.Select(choices=[('left', 'Left'), ('right', 'Right')]),
+        }
 
 
 class ProductForm(forms.ModelForm):
     class Meta:
         model = Product
-        fields = ["name", "mrp", "bv_value", "description", "image"]
+        fields = [
+            "name",
+            "mrp",
+            "bv_value",
+            "description",
+            "image"
+        ]
 

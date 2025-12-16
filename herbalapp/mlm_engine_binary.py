@@ -9,203 +9,118 @@ def calculate_member_binary_income_for_day(
     binary_eligible: bool,
 ):
     """
-    Core MLM binary engine for ONE MEMBER for ONE DAY.
+    Rocky Herbals – Binary Engine (1:2 / 2:1 eligibility + unlimited 1:1 after eligibility)
 
-    Implements ALL rules:
-    - Lifetime eligibility from 1:2 or 2:1 (NOT 1:1)
-    - One-time eligibility bonus = 500
-    - After eligibility: only 1:1 pairs
-    - Daily binary income max: 5 pairs (5 * 500 = 2500)
-    - After 5 pairs: flashout bonuses (5 pairs = 1 flashout = 1000)
-    - Max 9 flashout bonuses per day (9 * 1000 = 9000)
-    - Extra pairs (above binary + flashout) → washout (lost)
-    - Carry forward: leftover single side counts (not forming pairs) stay forever
+    Rules (தமிழில் சுருக்கம்):
+    - Lifetime eligibility: ONLY 1:2 அல்லது 2:1; 1:1-க்கு eligibility கிடையாது.
+    - Eligibility bonus: ₹500 (ஒரு முறை மட்டும்).
+    - Eligibility வந்த பிறகு: unlimited 1:1 pairs, எந்த daily limit இல்லை.
+    - Flashout, washout எதுவும் இல்லை.
+    - Carry forward: leftover single side counts (L அல்லது R) மட்டும் அவர்கள் CF-ஆக சேமிக்கப்படும்.
+    - Sponsor income: இந்த function sponsor income கணக்கே பண்ணாது;
+      ஆனா sponsor கணக்குக்கு தேவையான child total-ஐ return பண்ணும்.
     """
 
-    # -------------------------------
-    # 0. Plan configuration constants
-    # -------------------------------
-    PAIR_VALUE = 500                 # ₹500 per 1:1 pair
-    ELIGIBILITY_BONUS = 500          # One-time bonus on 1:2 or 2:1
-    DAILY_BINARY_PAIR_LIMIT = 5      # Max 5 pairs/day for binary income
-    FLASHOUT_GROUP_SIZE = 5          # 5 pairs → 1 flashout
-    FLASHOUT_VALUE = 1000            # ₹1000 per flashout
-    MAX_DAILY_FLASHOUTS = 9          # Max 9 flashouts/day
+    PAIR_VALUE = 500          # ஒவ்வொரு 1:1 pair க்கும் ₹500
+    ELIGIBILITY_BONUS = 500   # 1:2 அல்லது 2:1 மூலம் வரும் eligibility bonus
 
-    # -------------------------------
-    # 1. Compute total available legs
-    # -------------------------------
-    # Today’s total effective left & right counts including CF
+    # ---------------------------------
+    # 1. இன்று available ஆன மொத்த left/right
+    # ---------------------------------
     L = left_joins_today + left_cf_before
     R = right_joins_today + right_cf_before
 
-    # Prepare outputs
     new_binary_eligible = binary_eligible
     eligibility_income = 0
+    became_eligible_today = False  # sponsor & report க்கு பயன்படும் flag
 
-    binary_pairs_paid = 0
-    binary_income = 0
-
-    flashout_pairs_used = 0
-    flashout_units = 0
-    flashout_income = 0
-
-    washed_pairs = 0
-
-    # -------------------------------
+    # ---------------------------------
     # 2. Lifetime eligibility check
-    # -------------------------------
-    # Eligibility ONLY from 1:2 or 2:1, NOT 1:1
-    # This can happen only once in member lifetime.
-    # NOTE: This engine only returns new_binary_eligible flag.
-    # Saving binary_eligible_date must be done OUTSIDE this function,
-    # where the Member instance is available.
+    # ---------------------------------
     if not binary_eligible:
-        # Check if today’s combined L/R (with CF) qualifies for 1:2 or 2:1
+        # 1:2 or 2:1 pattern மட்டும் பார்க்கணும்
         if (L >= 1 and R >= 2) or (L >= 2 and R >= 1):
             new_binary_eligible = True
+            became_eligible_today = True
             eligibility_income = ELIGIBILITY_BONUS
 
-            # Deduct the eligibility pattern from L and R.
-            # IMPORTANT: We must preserve as many total pairs as possible.
-            # Strategy: Prefer the pattern that leaves the larger min(L, R) afterwards.
-            # If both 1:2 and 2:1 are possible, choose the one where the side with more
-            # members spends 2, to make sides more balanced.
-
+            # Eligibility க்கு பயன்படுத்தும் pattern-ஐ deduct பண்ணணும்
+            # இரண்டு pattern-மும் possible ஆ இருந்தா, balance better ஆகும் மாதிரி choose பண்ணணும்.
             if L >= 2 and R >= 2:
-                # Both 1:2 and 2:1 possible; choose based on which side is heavier
                 if L > R:
-                    # Use 2:1 (spend 2 from left, 1 from right)
+                    # Left heavy -> 2:1 use
                     L -= 2
                     R -= 1
                 else:
-                    # Use 1:2 (spend 1 from left, 2 from right)
+                    # Right heavy அல்லது equal -> 1:2 use
                     L -= 1
                     R -= 2
             else:
-                # Only one pattern possible, pick that
+                # ஒரு pattern மட்டும்தான் possible
                 if L >= 1 and R >= 2:
                     # 1:2 eligibility
                     L -= 1
                     R -= 2
-                elif L >= 2 and R >= 1:
+                else:
                     # 2:1 eligibility
                     L -= 2
                     R -= 1
-                # No else, because we already checked the OR condition above
         else:
-            # Not yet eligible → ALL PAIRS TODAY ARE WASHOUT
-            # IMPORTANT:
-            # - Pairs formed today, while not eligible, are lost (washout)
-            # - Single-side excess remains as CF.
-            potential_pairs_today = min(L, R)
-            washed_pairs = potential_pairs_today
-
-            # Remove washed pairs from both sides
-            L -= washed_pairs
-            R -= washed_pairs
-
-            # Remaining L/R become CF
+            # இன்னும் eligible இல்ல; ஜோடி அமைக்க அனுமதி இல்லை.
+            # எந்த pairs-மும் binary income க்கு use ஆகாது; ஆனால் washout இல்லை,
+            # full L/R carry forward ஆகும்.
             left_cf_after = L
             right_cf_after = R
-
-            # No binary income, no flashout, no eligibility bonus
-            total_income = 0
-
             return {
-                "new_binary_eligible": new_binary_eligible,
-                "eligibility_income": eligibility_income,
-                "binary_pairs_paid": 0,
+                "new_binary_eligible": new_binary_eligible,   # இன்னும் False
+                "became_eligible_today": False,               # இன்று eligibility வந்ததில்லை
+                "eligibility_income": 0,
+                "binary_pairs": 0,
                 "binary_income": 0,
-                "flashout_units": 0,
-                "flashout_pairs_used": 0,
-                "flashout_income": 0,
-                "washed_pairs": washed_pairs,
                 "left_cf_after": left_cf_after,
                 "right_cf_after": right_cf_after,
-                "total_income": total_income,
-                # Sponsor / rank handled outside
+                "total_income": 0,
+                # கீழே இதிலிருந்து sponsor calculation செய்யலாம்:
+                "child_total_for_sponsor": 0,
             }
 
-    # -------------------------------
-    # 3. After eligibility: only 1:1 pairs count
-    # -------------------------------
-    # At this point, member is eligible (either already, or became so above).
-    # All remaining pairs form 1:1 pairs.
-    total_pairs_available = min(L, R)
+    # ---------------------------------
+    # 3. Eligibility வந்த பிறகு: unlimited 1:1 binary
+    # ---------------------------------
+    # இங்க வரும்போது member already eligible அல்லது இப்போதான் eligible ஆகியிருக்கிறார்.
+    total_pairs = min(L, R)           # எல்லா 1:1 pairs-மும் allowed
+    binary_income = total_pairs * PAIR_VALUE
 
-    # -------------------------------
-    # 4. First layer: Binary income (max 5 pairs)
-    # -------------------------------
-    binary_pairs_paid = min(total_pairs_available, DAILY_BINARY_PAIR_LIMIT)
-    binary_income = binary_pairs_paid * PAIR_VALUE
+    # பயன்படுத்திய pairs-ஐ deduct பண்ணு
+    L -= total_pairs
+    R -= total_pairs
 
-    pairs_remaining_after_binary = total_pairs_available - binary_pairs_paid
-
-    # Remove used pairs from L & R
-    L -= binary_pairs_paid
-    R -= binary_pairs_paid
-
-    # -------------------------------
-    # 5. Second layer: Flashout bonuses
-    # -------------------------------
-    # Each flashout consumes FLASHOUT_GROUP_SIZE pairs
-    # Max MAX_DAILY_FLASHOUTS per day
-    possible_flashout_units = pairs_remaining_after_binary // FLASHOUT_GROUP_SIZE
-    flashout_units = min(possible_flashout_units, MAX_DAILY_FLASHOUTS)
-
-    flashout_pairs_used = flashout_units * FLASHOUT_GROUP_SIZE
-    flashout_income = flashout_units * FLASHOUT_VALUE
-
-    pairs_remaining_after_flashout = pairs_remaining_after_binary - flashout_pairs_used
-
-    # Remove flashout pairs from L & R
-    L -= flashout_pairs_used
-    R -= flashout_pairs_used
-
-    # -------------------------------
-    # 6. Third layer: Washout
-    # -------------------------------
-    # Any remaining full pairs (1:1) after:
-    # - 5 binary pairs
-    # - up to 9 flashout units
-    # are WASHOUT (lost).
-    washed_pairs = pairs_remaining_after_flashout
-
-    # Remove washed pairs from L & R
-    L -= washed_pairs
-    R -= washed_pairs
-
-    # -------------------------------
-    # 7. Carry forward
-    # -------------------------------
-    # Leftover single side members (L or R) stay as CF.
+    # ---------------------------------
+    # 4. Carry forward
+    # ---------------------------------
     left_cf_after = L
     right_cf_after = R
 
-    # -------------------------------
-    # 8. Total income for the day
-    # -------------------------------
-    total_income = eligibility_income + binary_income + flashout_income
+    # ---------------------------------
+    # 5. Total income (child க்கு)
+    # ---------------------------------
+    total_income = eligibility_income + binary_income
 
-    # NOTE:
-    # - Sponsor income is NOT calculated here, because this function
-    #   doesn't know the Member or sponsor object.
-    # - Sponsor logic (including ONE-TIME 1:1 achievement) is handled
-    #   in the engine runner where Member and sponsor are available.
+    # Sponsor engine க்கு முக்கியமான data:
+    #   child_total_for_sponsor = eligibility_income + binary_income
+    # Sponsor logic (parent flag check + income credit) outer layer-ல செய்யணும்.
+    child_total_for_sponsor = total_income
 
     return {
-        "new_binary_eligible": new_binary_eligible,  # bool
-        "eligibility_income": eligibility_income,    # ₹
-        "binary_pairs_paid": binary_pairs_paid,      # count
-        "binary_income": binary_income,              # ₹
-        "flashout_units": flashout_units,            # count of 1000₹ units
-        "flashout_pairs_used": flashout_pairs_used,  # pairs used for flashout
-        "flashout_income": flashout_income,          # ₹
-        "washed_pairs": washed_pairs,                # pairs lost
-        "left_cf_after": left_cf_after,              # count
-        "right_cf_after": right_cf_after,            # count
-        "total_income": total_income,                # ₹
+        "new_binary_eligible": new_binary_eligible,     # bool
+        "became_eligible_today": became_eligible_today, # இன்று eligibility வந்ததா?
+        "eligibility_income": eligibility_income,       # ₹
+        "binary_pairs": total_pairs,                    # இன்று 1:1 pairs count
+        "binary_income": binary_income,                 # ₹
+        "left_cf_after": left_cf_after,                 # CF L
+        "right_cf_after": right_cf_after,               # CF R
+        "total_income": total_income,                   # இன்று child க்கு மொத்த income
+        "child_total_for_sponsor": child_total_for_sponsor,  # sponsor க்கு base amount
     }
 
 
