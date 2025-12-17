@@ -1,5 +1,5 @@
 {% load static %}
-<!-- DEBUG: PROJECT TEMPLATE -->
+<!-- DEBUG: PROJECT TEMPLATE (ACTIVE FILE) -->
 
 <li>
 
@@ -36,31 +36,31 @@
 
     <!-- ✅ ADD BUTTONS -->
     <div>
-        {% if not member.left_child %}
-            <a class="add-btn" href="/member/add/{{ member.id }}/left/">+ Add Left</a>
+        {% if not member.left_member %}
+            <a class="add-btn" href="{% url 'add_member' member.id 'left' %}">+ Add Left</a>
         {% endif %}
 
-        {% if not member.right_child %}
-            <a class="add-btn" href="/member/add/{{ member.id }}/right/">+ Add Right</a>
+        {% if not member.right_member %}
+            <a class="add-btn" href="{% url 'add_member' member.id 'right' %}">+ Add Right</a>
         {% endif %}
     </div>
 
-    <!-- ✅ CHILDREN -->
-    {% if member.left_child or member.right_child %}
+    <!-- ✅ CHILDREN (RECURSIVE) -->
+    {% if member.left_member or member.right_member %}
     <ul>
 
         <!-- LEFT CHILD -->
-        {% if member.left_child %}
-            {% include "tree_node.html" with member=member.left_child %}
+        {% if member.left_member %}
+            {% include "tree_node.html" with member=member.left_member %}
         {% else %}
-            <li><a class="add-btn" href="/member/add/{{ member.id }}/left/">+ Add Left</a></li>
+            <li><a class="add-btn" href="{% url 'add_member' member.id 'left' %}">+ Add Left</a></li>
         {% endif %}
 
         <!-- RIGHT CHILD -->
-        {% if member.right_child %}
-            {% include "tree_node.html" with member=member.right_child %}
+        {% if member.right_member %}
+            {% include "tree_node.html" with member=member.right_member %}
         {% else %}
-            <li><a class="add-btn" href="/member/add/{{ member.id }}/right/">+ Add Right</a></li>
+            <li><a class="add-btn" href="{% url 'add_member' member.id 'right' %}">+ Add Right</a></li>
         {% endif %}
 
     </ul>

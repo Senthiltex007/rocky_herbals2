@@ -10,7 +10,6 @@ FLASH_UNIT_VALUE = Decimal('1000.00')  # each flashout unit credited to repurcha
 FLASH_UNIT_PAIR = 5                    # pairs per flashout unit (5:5)
 FLASH_UNIT_DAILY_MAX = 9               # max flashout units per member per day
 
-
 def _add_daily_report(
     member: Member,
     date,
@@ -109,7 +108,6 @@ def _credit_sponsor_for_binary(earner: Member, binary_amount: Decimal, date):
 
     return binary_amount
 
-
 def process_member_binary_income(member: Member):
     """
     Main function:
@@ -118,13 +116,6 @@ def process_member_binary_income(member: Member):
     - sponsor credit
     - carry-forward
     - DailyIncomeReport update
-
-    Rules:
-    - One-time eligibility: 1:2 or 2:1 (if not eligible yet)
-    - After eligible: daily 1:1 pairs => ₹500 per pair
-    - Daily binary cap: 5 pairs (₹2,500)
-    - Carry-forward: heavier side unmatched counts carry forward
-    - Flashout: binary cap-க்கு மேல் உள்ள pairs → 5:5 groups → repurchase wallet
     """
 
     today = timezone.now().date()
@@ -154,6 +145,7 @@ def process_member_binary_income(member: Member):
             member.save(update_fields=["binary_eligible", "binary_eligible_date"])
 
     # ---------- DAILY BINARY PAIR PAYMENT ----------
+    payable_pairs = 0
     if member.binary_eligible:
         matched_pairs_total = min(left_total, right_total)
 
@@ -168,6 +160,7 @@ def process_member_binary_income(member: Member):
     # ---------- FLASHOUT (repurchase) ----------
     matched_pairs_after_binary = min(left_total, right_total)
     flash_units = matched_pairs_after_binary // FLASH_UNIT_PAIR
+    usable_units = 0
 
     if flash_units > 0:
         usable_units = min(flash_units, FLASH_UNIT_DAILY_MAX)
@@ -176,12 +169,15 @@ def process_member_binary_income(member: Member):
         consumed_pairs_for_flash = usable_units * FLASH_UNIT_PAIR
         left_total -= consumed_pairs_for_flash
         right_total -= consumed_pairs_for_flash
-    else:
-        usable_units = 0
 
     # ---------- CARRY FORWARD ----------
+    # CF after binary + flashout
     new_left_cf = max(int(left_total), 0)
     new_right_cf = max(int(right_total), 0)
+
+    # previous CF before this run
+    prev_left_cf = member.left_cf or 0
+    prev_right_cf = member.right_cf or 0
 
     # ---------- PERSISTENT ACCOUNT UPDATES ----------
     # Member.binary_income total
@@ -195,6 +191,10 @@ def process_member_binary_income(member: Member):
     # carry forward update
     member.left_cf = new_left_cf
     member.right_cf = new_right_cf
+
+    # ---------- SAVE JOIN COUNTS BEFORE RESET ----------
+    left_joins_today = member.left_new_today or 0
+    right_joins_today = member.right_new_today or 0
 
     # இன்று new counts reset (processed already)
     member.left_new_today = 0
@@ -211,8 +211,40 @@ def process_member_binary_income(member: Member):
         ]
     )
 
-    # ---------- DAILY REPORT ----------
-    _add_daily_report(member, today, binary=income_binary, flash=income_flash)
+    # ---------- DAILY REPORT FULL UPDATE ----------
+    report = _add_daily_report(
+        member,
+        today,
+        binary=income_binary,
+        flash=income_flash,
+    )
+
+    # Joins
+    report.left_joins = left_joins_today
+    report.right_joins = right_joins_today
+
+    # CF before = previous CF + today's joins
+    report.left_cf_before = prev_left_cf + left_joins_today
+    report.right_cf_before = prev_right_cf + right_joins_today
+
+    # CF after = new CF
+    report.left_cf_after = new_left_cf
+    report.right_cf_after = new_right_cf
+
+    # Binary pairs paid
+    report.binary_pairs_paid = payable_pairs
+
+    # Flashout units
+    report.flashout_units = usable_units
+
+    # Washed pairs (unused flash units)
+    report.washed_pairs = max(flash_units - usable_units, 0)
+
+    # BV totals
+    report.total_left_bv = member.total_left_bv or 0
+    report.total_right_bv = member.total_right_bv or 0
+
+    report.save()
 
     # ---------- SPONSOR CREDIT ----------
     if income_binary > 0:
@@ -227,4 +259,5 @@ def process_member_binary_income(member: Member):
         "binary_eligible": member.binary_eligible,
         "flash_units_used": usable_units,
     }
+
 

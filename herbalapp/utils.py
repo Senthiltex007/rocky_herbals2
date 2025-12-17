@@ -3,22 +3,22 @@
 from .models import Member, Commission
 
 # ----------------------------------------------------
-# ✅ Sponsor Check-Match Income (still valid)
+# ✅ Sponsor Check-Match Income (DISABLED for new engine)
 # ----------------------------------------------------
+# New MLM engine handles sponsor income ONLY when
+# a child becomes eligible (1:2 or 2:1).
+# Sponsor income is created in:
+#   run_binary_engine_for_day() → SponsorIncome.objects.create()
+#
+# This function is kept ONLY for backward compatibility.
+# It now returns 0 to avoid double income.
+
 def calculate_sponsor_income(member):
-    sponsor_income = 0
-    directs = member.sponsored_members.all()
-
-    for d in directs:
-        latest_income = d.incomes.order_by("-id").first()
-        if latest_income:
-            sponsor_income += latest_income.binary_income
-
-    return sponsor_income
+    return 0
 
 
 # ----------------------------------------------------
-# ✅ District / Taluk / Pincode Commission
+# ✅ District / Taluk / Pincode Commission (unchanged)
 # ----------------------------------------------------
 def calculate_commission(payment):
     member = payment.member
@@ -50,7 +50,7 @@ def calculate_commission(payment):
 
 
 # ----------------------------------------------------
-# ✅ Auto-ID Generator
+# ✅ Auto-ID Generator (unchanged)
 # ----------------------------------------------------
 def generate_auto_id():
     last_member = Member.objects.order_by("-id").first()

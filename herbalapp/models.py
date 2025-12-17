@@ -69,6 +69,13 @@ class Member(models.Model):
 
     total_left_bv = models.IntegerField(default=0)
     total_right_bv = models.IntegerField(default=0)
+    left_new_today = models.IntegerField(default=0)
+    right_new_today = models.IntegerField(default=0)
+
+    left_cf = models.IntegerField(default=0)   # carry forward
+    right_cf = models.IntegerField(default=0)
+    binary_income = models.IntegerField(default=0)
+    repurchase_wallet = models.IntegerField(default=0)
 
     # -------------------------
     # IDENTIFICATION / ADDRESS
@@ -132,7 +139,8 @@ class Member(models.Model):
     # -------------------------
     # META / STOCK LEVEL
     # -------------------------
-    joined_date = models.DateTimeField(default=timezone.now)
+    from datetime import date
+    joined_date = models.DateField(default=date.today)
 
     # Stock point level (for commission)
     level = models.CharField(
@@ -359,54 +367,158 @@ class Member(models.Model):
     # ==========================================================
     def run_binary_engine_for_day(self, left_joins_today: int, right_joins_today: int):
         """
-        Wraps calculate_member_binary_income_for_day for this member (new engine).
-        Updates:
-        - binary_eligible / binary_eligible_date
-        - has_completed_first_pair
-        - left_cf / right_cf
-        Logs into DailyIncomeReport.
-        """
-        from herbalapp.models import DailyIncomeReport  # local import to avoid cycles
+        Rocky Herbals – FINAL DAILY ENGINE WRAPPER (CORRECTED)
 
-        # CF snapshot
+        Handles:
+            ✅ Binary pairs, CF before/after
+            ✅ Eligibility + first pair tracking
+            ✅ Sponsor bonus (one-time, on first paid pair)
+            ✅ Flashout → repurchase_wallet
+            ✅ Rank title & monthly salary
+            ✅ BV snapshot (left/right)
+            ✅ DailyIncomeReport (binary + sponsor + salary)
+
+        NOTE:
+        - Sponsor bonus is given ONCE, when the FIRST paid pair happens (has_completed_first_pair flips).
+        - DailyIncomeReport.sponsor_income is ALWAYS read from SponsorIncome table (no missed credit).
+        """
+
+        from datetime import date
+        from decimal import Decimal
+        from django.db.models import Sum
+        from django.utils import timezone
+        from herbalapp.models import DailyIncomeReport, SponsorIncome
+        from herbalapp.mlm_engine_binary import calculate_member_binary_income_for_day, determine_rank_from_bv
+
+        # ---- 0. Snapshot current state ----
         left_cf_before = self.left_cf
         right_cf_before = self.right_cf
+        was_first_pair_completed_before = self.has_completed_first_pair
 
+        # ---- 1. Run core binary engine ----
         result = calculate_member_binary_income_for_day(
             left_joins_today=left_joins_today,
             right_joins_today=right_joins_today,
-            left_cf_before=self.left_cf,
-            right_cf_before=self.right_cf,
+            left_cf_before=left_cf_before,
+            right_cf_before=right_cf_before,
             binary_eligible=self.binary_eligible,
         )
 
-        # Eligibility update
-        if result["new_binary_eligible"] and not self.binary_eligible:
+        # Expected keys in result:
+        #   left_cf_after, right_cf_after,
+        #   binary_pairs, binary_income,
+        #   repurchase_wallet_bonus,
+        #   flashout_units, washed_pairs,
+        #   new_binary_eligible, became_eligible_today
+
+        # ---- 2. Eligibility flags ----
+        if result.get("new_binary_eligible") and not self.binary_eligible:
             self.binary_eligible = True
             self.binary_eligible_date = timezone.now()
 
-        # First 1:1 pair flag
-        if result["binary_pairs"] > 0 and not self.has_completed_first_pair:
+        # First paid pair in lifetime?
+        if result.get("binary_pairs", 0) > 0 and not self.has_completed_first_pair:
             self.has_completed_first_pair = True
 
-        # CF update
-        self.left_cf = result["left_cf_after"]
-        self.right_cf = result["right_cf_after"]
+        # ---- 3. Update CF + binary income + repurchase wallet ----
+        self.left_cf = result.get("left_cf_after", left_cf_before)
+        self.right_cf = result.get("right_cf_after", right_cf_before)
+
+        binary_income_today = int(result.get("binary_income", 0) or 0)
+        self.binary_income = (self.binary_income or 0) + binary_income_today
+
+        repurchase_bonus_today = int(result.get("repurchase_wallet_bonus", 0) or 0)
+        self.repurchase_wallet = (self.repurchase_wallet or 0) + repurchase_bonus_today
 
         self.save()
 
-        # Daily report (no flashout / washout in new engine → keep 0)
+        # ---- 4. Sponsor income (one-time, on first paid pair) ----
+        sponsor_bonus_today = 0
+
+        # Give sponsor bonus when:
+        #   - this member has a sponsor
+        #   - at least one binary pair was paid TODAY
+        #   - BEFORE today, first pair was NOT completed
+        if (
+            self.sponsor
+            and result.get("binary_pairs", 0) > 0
+            and not was_first_pair_completed_before
+        ):
+            SponsorIncome.objects.create(
+                sponsor=self.sponsor,
+                child=self,
+                amount=Decimal("500.00"),
+                date=date.today(),
+            )
+            sponsor_bonus_today = 500  # for log/understanding only (not used directly in report)
+
+        # ---- 5. Rank & Monthly Salary (based on matched repurchase BV) ----
+        rank_title = ""
+        monthly_salary = 0
+
+        bv_data = self.calculate_bv()  # {self_bv, left_bv, right_bv, total_bv, matched_bv}
+        matched_bv = int(bv_data.get("matched_bv", 0))
+
+        rank_info = determine_rank_from_bv(matched_bv)
+        if rank_info:
+            rank_title, monthly_salary, months = rank_info
+            self.rank = rank_title
+            # if you have rank_monthly_salary field, update it:
+            if hasattr(self, "rank_monthly_salary"):
+                self.rank_monthly_salary = monthly_salary
+            self.save()
+
+        # ---- 6. Daily Income Report (create/update) ----
         report, created = DailyIncomeReport.objects.get_or_create(
             member=self,
             date=date.today(),
-            defaults={
-                "eligibility_income": 0,
-                "binary_income": 0,
-                "sponsor_income": 0,
-                "total_income": 0,
-            }
+            defaults={}
         )
 
+        # Basic joins & CF movement
+        report.left_joins = left_joins_today
+        report.right_joins = right_joins_today
+
+        report.left_cf_before = left_cf_before
+        report.right_cf_before = right_cf_before
+        report.left_cf_after = self.left_cf
+        report.right_cf_after = self.right_cf
+
+        # Binary payout
+        report.binary_pairs_paid = result.get("binary_pairs", 0)
+        report.binary_income = Decimal(binary_income_today)
+
+        # Flashout → repurchase wallet
+        report.flashout_units = result.get("flashout_units", 0)
+        report.flashout_wallet_income = Decimal(repurchase_bonus_today)
+
+        # Washed pairs
+        report.washed_pairs = result.get("washed_pairs", 0)
+
+        # BV snapshots
+        report.total_left_bv = int(bv_data.get("left_bv", 0))
+        report.total_right_bv = int(bv_data.get("right_bv", 0))
+
+        # ✅ ALWAYS PULL SPONSOR INCOME FROM TABLE (no more 0.00 issues)
+        today_sponsor_income = SponsorIncome.objects.filter(
+            sponsor=self,
+            date=date.today()
+        ).aggregate(total=Sum('amount'))['total'] or 0
+
+        report.sponsor_income = Decimal(today_sponsor_income)
+
+        # Salary & rank
+        report.salary_income = Decimal(monthly_salary)
+        report.rank_title = rank_title
+
+        # Total income = binary + sponsor + salary
+        report.total_income = (
+            report.binary_income +
+            report.sponsor_income +
+            report.salary_income
+        )
+
+        report.save()
 
 # ==========================================================
 # PAYMENT MODEL

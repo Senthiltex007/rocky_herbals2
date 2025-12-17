@@ -1525,6 +1525,12 @@ from django.contrib import messages
 from .models import Member
 
 
+from datetime import date
+from django.shortcuts import render, redirect, get_object_or_404
+from django.contrib import messages
+from .models import Member
+
+
 def add_member_under_parent(request, parent_id, position):
 
     parent = get_object_or_404(Member, id=parent_id)
@@ -1536,13 +1542,13 @@ def add_member_under_parent(request, parent_id, position):
         return redirect("member_list")
 
     # ✅ Check if slot is free
-    if position == "left" and parent.left_child:
-        messages.error(request, f"{parent.name} already has a LEFT child.")
-        return redirect("member_list")
+    if position == "left" and parent.left_member:
+        messages.error(request, "Left position already filled.")
+        return redirect("dynamic_tree", member_id=parent.member_id)
 
-    if position == "right" and parent.right_child:
-        messages.error(request, f"{parent.name} already has a RIGHT child.")
-        return redirect("member_list")
+    if position == "right" and parent.right_member:
+        messages.error(request, "Right position already filled.")
+        return redirect("dynamic_tree", member_id=parent.member_id)
 
     # ✅ Auto-generate Rocky ID
     all_ids = Member.objects.values_list("member_id", flat=True)
@@ -1561,7 +1567,7 @@ def add_member_under_parent(request, parent_id, position):
         return render(request, "add_member.html", {
             "member_id": new_member_id,
             "placement_member_id": parent.member_id,
-            "side": position,   # ✅ Show LEFT/RIGHT in form
+            "side": position,
             "today_date": date.today().strftime("%Y-%m-%d"),
         })
 
@@ -1596,17 +1602,22 @@ def add_member_under_parent(request, parent_id, position):
         district=district,
         pincode=pincode,
         sponsor=sponsor,
-        parent=parent,
         side=position,
         avatar=avatar,
-        joined_date=date.today(),   # ✅ Auto-set joined date
+        joined_date=date.today(),
     )
 
-    # ✅ Attach child
+    # ✅ Attach child to correct slot
     if position == "left":
-        parent.left_child = new_member
+        parent.left_member = new_member
     else:
-        parent.right_child = new_member
+        parent.right_member = new_member
+
+    # ✅ CRITICAL: Update today's join counters (binary engine input)
+    if position == "left":
+        parent.left_new_today += 1
+    else:
+        parent.right_new_today += 1
 
     parent.save()
 
@@ -1615,7 +1626,7 @@ def add_member_under_parent(request, parent_id, position):
         f"New member {new_member.member_id} added under {parent.name} on {position.upper()} side."
     )
 
-    return redirect("member_list")
+    return redirect("dynamic_tree", member_id=parent.member_id)
 
 # ===================== IMPORTS =====================
 from django.shortcuts import render, redirect
@@ -1760,65 +1771,107 @@ def add_member_form(request):
 from django.shortcuts import render, get_object_or_404
 from herbalapp.models import Member, DailyIncomeReport
 
-
 def income_chart(request, member_id):
 
     # ✅ Load member safely using business member_id
     member = get_object_or_404(Member, member_id=member_id)
 
-    # ✅ Correct filter (ForeignKey → member__member_id)
+    # ✅ Fetch all reports for this member
     reports = DailyIncomeReport.objects.filter(
         member__member_id=member_id
-    ).order_by('date')
+    ).order_by("date")
 
+    # ✅ Prepare chart data
     dates = [str(r.date) for r in reports]
-    salary = [float(r.salary or 0) for r in reports]
+
+    # ✅ Monthly salary (from rank) is stored as salary_income
+    salary_income = [float(r.salary_income or 0) for r in reports]
+
+    # ✅ Total cash income (eligibility + binary + sponsor + salary)
     total_income = [float(r.total_income or 0) for r in reports]
 
     return render(request, "income_chart.html", {
         "member": member,
         "dates": dates,
-        "salary": salary,
+        "salary": salary_income,
         "total_income": total_income,
     })
 
 from django.shortcuts import render
-import datetime
-from herbalapp.models import DailyIncomeReport
+from datetime import datetime, date
+from herbalapp.models import Member, DailyIncomeReport
 
 def income_report(request):
-    import datetime
-    from herbalapp.models import Member, DailyIncomeReport
-    from herbalapp.utils.binary_income import process_member_binary_income
-
-    date_str = request.GET.get("date")
+    """
+    Rocky Herbals – Final Income Report View
+    Fully aligned with the NEW MLM ENGINE:
+        - Eligibility Income
+        - Binary Income
+        - Flashout Units
+        - Flashout → Repurchase Wallet
+        - Washed Pairs
+        - Carry Forward (Before & After)
+        - Sponsor Income
+        - Rank Title
+        - Monthly Salary (display only)
+        - Total BV Left/Right
+        - Total Cash Income
+    """
 
     # ✅ Parse date safely
+    date_str = request.GET.get("date")
+    target_date = None
+
     if date_str:
         for fmt in ("%Y-%m-%d", "%d-%m-%Y"):
             try:
-                target_date = datetime.datetime.strptime(date_str, fmt).date()
+                target_date = datetime.strptime(date_str, fmt).date()
                 break
             except ValueError:
-                target_date = None
+                pass
 
-        if target_date is None:
-            target_date = datetime.date.today()
-    else:
-        target_date = datetime.date.today()
-
-    # ✅ IMPORTANT: Run income engine BEFORE showing report
-    members = Member.objects.all().order_by("member_id")
-    for m in members:
-        process_member_binary_income(m)
+    if target_date is None:
+        target_date = date.today()
 
     # ✅ Fetch reports for the selected date
-    reports = DailyIncomeReport.objects.filter(date=target_date).order_by("member__member_id")
+    reports = DailyIncomeReport.objects.filter(
+        date=target_date
+    ).select_related("member").order_by("member__member_id")
+
+    # ✅ Lifetime totals for the logged-in member
+    member = None
+    lifetime_binary = 0
+    lifetime_repurchase = 0
+    rank_title = ""
+    monthly_salary = 0
+    total_left_bv = 0
+    total_right_bv = 0
+
+    if request.user.is_authenticated:
+        try:
+            member = Member.objects.get(user=request.user)
+            lifetime_binary = member.binary_income or 0
+            lifetime_repurchase = member.repurchase_wallet or 0
+            rank_title = getattr(member, "rank", "")
+            monthly_salary = getattr(member, "rank_monthly_salary", 0)
+            total_left_bv = getattr(member, "total_left_bv", 0)
+            total_right_bv = getattr(member, "total_right_bv", 0)
+        except Member.DoesNotExist:
+            pass
 
     return render(request, "income_report.html", {
         "today": target_date,
         "reports": reports,
         "count": reports.count(),
+
+        # Lifetime values for the logged-in member
+        "member": member,
+        "lifetime_binary_income": lifetime_binary,
+        "lifetime_repurchase_wallet": lifetime_repurchase,
+        "rank_title": rank_title,
+        "monthly_salary": monthly_salary,
+        "total_left_bv": total_left_bv,
+        "total_right_bv": total_right_bv,
     })
 
 

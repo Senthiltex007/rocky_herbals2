@@ -30,18 +30,20 @@ urlpatterns = [
     path('members/login/', views.member_login, name='member_login'),
     path('members/register/', views.member_register, name='member_register'),
 
-    # ADD MEMBER ROUTES
+    # ===================== ADD MEMBER ROUTES =====================
     path('member/add/', views.add_member_form, name='add_member_form'),
-    path('member/add/<str:parent_id>/<str:position>/', views.add_member_under_parent, name='add_member'),
+    path('member/add/<str:parent_id>/<str:position>/', 
+         views.add_member_under_parent, 
+         name='add_member'),
 
-    # EDIT / DELETE MEMBER
+    # ===================== EDIT / DELETE MEMBER =====================
     path('member/edit/<str:member_id>/', views.edit_member, name='edit_member'),
     path('member/edit-sponsor/<str:member_id>/', views.edit_sponsor, name='edit_sponsor'),
     path('member/delete/<str:member_id>/', views.delete_member, name='delete_member'),
     path('member/replace/<str:member_id>/', views.replace_member, name='replace_member'),
     path('member/<str:member_id>/bv/', views.member_bv, name='member_bv'),
 
-    # MEMBER DETAIL POPUP (JSON)
+    # ===================== MEMBER DETAIL POPUP (JSON) =====================
     path('member/detail-json/<str:member_id>/', views.member_detail_json, name='member_detail_json'),
     path('member/detail/<str:member_id>/', views.member_detail_json, name='member_detail_legacy'),
 
@@ -64,7 +66,7 @@ urlpatterns = [
     path("income_report/", views.income_report, name="income_report"),
     path("income_chart/<str:member_id>/", views.income_chart, name="income_chart"),
 
-    # ===================== RANK / SALARY REPORTS (NEW) =====================
+    # ===================== RANK / SALARY REPORTS =====================
     path("rank-report/", views.rank_report, name="rank_report"),
     path("salary-report/", views.salary_report, name="salary_report"),
     path("member/<str:member_id>/rank/", views.member_rank_detail, name="member_rank_detail"),
