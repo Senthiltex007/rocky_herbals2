@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container mt-4">
+
+  <!-- Tree Structure -->
+  <div class="card mb-4">
+    <div class="card-header bg-dark text-white">
+      Genealogy Tree for {{ root.auto_id }} - {{ root.name }}
+    </div>
+    <div class="card-body">
+      <pre>{{ tree_str }}</pre>
+    </div>
+  </div>
+
+  <!-- Subtree Counts -->
+  <div class="card mb-4">
+    <div class="card-header bg-success text-white">
+      Subtree Counts
+    </div>
+    <div class="card-body">
+      <span class="badge bg-primary">Left: {{ left_count }}</span>
+      <span class="badge bg-warning">Right: {{ right_count }}</span>
+    </div>
+  </div>
+
+  <!-- Income Debug -->
+  <div class="card mb-4">
+    <div class="card-header bg-info text-white">
+      Income Debug
+    </div>
+    <div class="card-body">
+      <table class="table table-bordered">
+        <tr>
+          <th>Binary Pairs</th>
+          <td>{{ pairs }}</td>
+        </tr>
+        <tr>
+          <th>Binary Income</th>
+          <td>₹{{ binary_income }}</td>
+        </tr>
+        <tr>
+          <th>Sponsor Income</th>
+          <td>₹{{ sponsor_income }}</td>
+        </tr>
+        <tr>
+          <th>Flashout Deducted</th>
+          <td>₹{{ flashout }}</td>
+        </tr>
+      </table>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+

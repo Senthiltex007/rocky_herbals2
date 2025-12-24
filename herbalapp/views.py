@@ -12,6 +12,7 @@ from django.http import HttpResponse, JsonResponse
 from django.urls import reverse
 from django.views.decorators.csrf import csrf_exempt
 from django.db.models import Sum
+from herbalapp.utils.tree_json import build_tree_json
 
 import csv
 import openpyxl
@@ -413,11 +414,11 @@ def member_list(request):
 @login_required
 def delete_member(request, member_id):
 
-    # ✅ Support both numeric PK and business member_id
+    # ✅ Support both numeric PK and auto_id (rocky001)
     if str(member_id).isdigit():
-        member = get_object_or_404(Member, id=member_id)
+        member = get_object_or_404(Member, id=int(member_id))
     else:
-        member = get_object_or_404(Member, member_id=member_id)
+        member = get_object_or_404(Member, auto_id=member_id)
 
     # ✅ Prevent deleting members who have children
     if member.left_child or member.right_child:
@@ -439,49 +440,73 @@ def delete_member(request, member_id):
     # ✅ Delete member
     member.delete()
 
-    messages.success(request, f"✅ {member.name} deleted successfully!")
+    messages.success(
+        request,
+        f"✅ {member.name} ({member.auto_id}) deleted successfully!"
+    )
     return redirect("member_list")
+
+
+from django.contrib.auth.decorators import login_required
+from django.shortcuts import render, redirect, get_object_or_404
+from django.contrib import messages
+from .models import Member
 
 
 @login_required
 def replace_member(request, member_id):
-    member = get_object_or_404(Member, id=member_id)
+
+    # ✅ Support numeric id OR auto_id (rocky001)
+    if str(member_id).isdigit():
+        member = get_object_or_404(Member, id=int(member_id))
+    else:
+        member = get_object_or_404(Member, auto_id=member_id)
 
     if request.method == "POST":
         new_parent_id = request.POST.get("new_parent")
         new_side = request.POST.get("side")
 
-        new_parent = get_object_or_404(Member, id=new_parent_id)
-        if new_parent.id == member.id:
-            messages.error(request, "A member cannot be their own parent!")
-            return redirect("replace_member", member_id=member.id)
+        # ✅ Resolve new parent (numeric OR auto_id)
+        if str(new_parent_id).isdigit():
+            new_parent = get_object_or_404(Member, id=int(new_parent_id))
+        else:
+            new_parent = get_object_or_404(Member, auto_id=new_parent_id)
 
+        # ❌ Cannot be own parent
+        if new_parent.id == member.id:
+            messages.error(request, "❌ A member cannot be their own parent!")
+            return redirect("replace_member", member_id=member.auto_id)
+
+        # 🔁 Downline check
         def is_downline(root, target):
             if not root:
                 return False
             if root.id == target.id:
                 return True
-            left, right = _get_children(root)
-            return is_downline(left, target) or is_downline(right, target)
+            return (
+                is_downline(root.left_child, target)
+                or is_downline(root.right_child, target)
+            )
 
         if is_downline(member, new_parent):
-            messages.error(request, "Cannot move under own downline!")
-            return redirect("replace_member", member_id=member.id)
+            messages.error(request, "❌ Cannot move under own downline!")
+            return redirect("replace_member", member_id=member.auto_id)
 
+        # ❌ Invalid side
         if new_side not in ["L", "R"]:
-            messages.error(request, "Invalid side!")
-            return redirect("replace_member", member_id=member.id)
+            messages.error(request, "❌ Invalid side! Use L or R")
+            return redirect("replace_member", member_id=member.auto_id)
 
-        # Ensure side empty
-        left, right = _get_children(new_parent)
-        if new_side == "L" and left:
-            messages.error(request, "Left side occupied!")
-            return redirect("replace_member", member_id=member.id)
-        if new_side == "R" and right:
-            messages.error(request, "Right side occupied!")
-            return redirect("replace_member", member_id=member.id)
+        # ❌ Side occupied check
+        if new_side == "L" and new_parent.left_child:
+            messages.error(request, "❌ Left side already occupied!")
+            return redirect("replace_member", member_id=member.auto_id)
 
-        # Detach from old parent
+        if new_side == "R" and new_parent.right_child:
+            messages.error(request, "❌ Right side already occupied!")
+            return redirect("replace_member", member_id=member.auto_id)
+
+        # 🔓 Detach from old parent
         old_parent = member.parent
         if old_parent:
             if old_parent.left_child_id == member.id:
@@ -490,9 +515,10 @@ def replace_member(request, member_id):
                 old_parent.right_child = None
             old_parent.save()
 
-        # Attach to new parent
+        # 🔗 Attach to new parent
         member.parent = new_parent
         member.side = new_side
+
         if new_side == "L":
             new_parent.left_child = member
         else:
@@ -501,10 +527,12 @@ def replace_member(request, member_id):
         new_parent.save()
         member.save()
 
-        messages.success(request, "Member moved successfully!")
+        messages.success(request, "✅ Member moved successfully!")
         return redirect("member_list")
 
-    all_members = Member.objects.exclude(id=member_id)
+    # ✅ Exclude current member from dropdown
+    all_members = Member.objects.exclude(id=member.id)
+
     return render(request, "replace_member.html", {
         "member": member,
         "members": all_members
@@ -679,7 +707,7 @@ def credit_commission(request, member_id):
     if str(member_id).isdigit():
         member = get_object_or_404(Member, id=member_id)
     else:
-        member = get_object_or_404(Member, member_id=member_id)
+        member = get_object_or_404(Member, auto_id=member_id)
 
     messages.success(request, f"✅ Commission credited for {member.name}")
     return redirect("member_list")
@@ -856,9 +884,12 @@ def _normalize_member_id(member_id):
     return member_id
 
 
+from django.shortcuts import render, get_object_or_404
+from .models import Member
+
 def member_tree_root(request):
     """Show tree starting from rocky001."""
-    root = get_object_or_404(Member, member_id="rocky001")
+    root = get_object_or_404(Member, auto_id="rocky001")
     return render(request, "herbalapp/dynamic_tree.html", {
         "root_member": root
     })
@@ -885,19 +916,45 @@ from django.urls import reverse
 from django.http import JsonResponse
 from .models import Member
 
+def build_tree(member):
+    """Return nested dict representing member tree"""
+    return {
+        'id': member.id,
+        'name': member.name,
+        'phone': member.phone,
+        'left': build_tree(member.left) if hasattr(member, 'left') and member.left else None,
+        'right': build_tree(member.right) if hasattr(member, 'right') and member.right else None,
+    }
+
+from django.shortcuts import render, get_object_or_404
+from herbalapp.models import Member
+from herbalapp.utils.tree import count_subtree
+from herbalapp.utils.tree_json import build_tree_json
 
 def dynamic_tree(request, member_id):
-    """Avatar-based dynamic tree for any member."""
-    member_id = _normalize_member_id(member_id)
-    if not member_id:
-        return render(request, "tree_not_found.html", {"member_id": member_id})
+    root = get_object_or_404(Member, auto_id=member_id)
 
-    member = get_object_or_404(Member, member_id=member_id)
+    left_count = count_subtree(root, "left")
+    right_count = count_subtree(root, "right")
 
-    # ✅ Always use the new avatar-based dynamic tree
-    return render(request, "herbalapp/dynamic_tree.html", {
-        "root_member": member
-    })
+    pairs = min(left_count, right_count)
+    binary_income = pairs * 500
+    sponsor_income = (left_count + right_count) * 100
+    flashout = (pairs - 10) * 500 if pairs > 10 else 0
+    binary_eligible = 500 if pairs >= 1 else 0
+
+    context = {
+        "root": root,
+        "tree_json": build_tree_json(root),   # ✅ dynamic JSON with clickable links
+        "left_count": left_count,
+        "right_count": right_count,
+        "pairs": pairs,
+        "binary_income": binary_income,
+        "sponsor_income": sponsor_income,
+        "flashout": flashout,
+        "binary_eligible": binary_eligible,
+    }
+    return render(request, "herbalapp/dynamic_tree.html", context)
 
 
 def place_member(request):
@@ -1460,7 +1517,7 @@ def member_bv(request, member_id):
     if str(member_id).isdigit():
         member = get_object_or_404(Member, id=int(member_id))
     else:
-        member = get_object_or_404(Member, member_id=member_id)
+        member = get_object_or_404(Member, auto_id=member_id)
 
     # ✅ Calculate BV safely
     bv_data = member.calculate_bv()  # returns dict: self_bv, left_bv, right_bv, total_bv
@@ -1519,262 +1576,140 @@ def member_register(request):
     return render(request, "member_register.html")
 
 
+# Optional MLM engine
+try:
+    from .mlm_engine_binary import run_binary_on_new_join
+except:
+    run_binary_on_new_join = None
+
 from datetime import date
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from .models import Member
-
-
-from datetime import date
-from django.shortcuts import render, redirect, get_object_or_404
-from django.contrib import messages
-from .models import Member
-
 
 def add_member_under_parent(request, parent_id, position):
-
     parent = get_object_or_404(Member, id=parent_id)
+    side = position.lower()
 
-    # ✅ Normalize position
-    position = position.lower()
-    if position not in ["left", "right"]:
-        messages.error(request, "Invalid position selected.")
-        return redirect("member_list")
+    # ❌ SLOT ALREADY FILLED CHECK
+    if Member.objects.filter(placement=parent, side=side).exists():
+        messages.error(request, f"{side.capitalize()} position already filled")
+        return redirect("dynamic_tree", member_id=parent.auto_id)
 
-    # ✅ Check if slot is free
-    if position == "left" and parent.left_member:
-        messages.error(request, "Left position already filled.")
-        return redirect("dynamic_tree", member_id=parent.member_id)
-
-    if position == "right" and parent.right_member:
-        messages.error(request, "Right position already filled.")
-        return redirect("dynamic_tree", member_id=parent.member_id)
-
-    # ✅ Auto-generate Rocky ID
-    all_ids = Member.objects.values_list("member_id", flat=True)
-    max_num = 0
-    for mid in all_ids:
-        try:
-            num = int(mid.replace("rocky", ""))
-            max_num = max(max_num, num)
-        except:
-            pass
-
-    new_member_id = f"rocky{max_num + 1:03d}"
-
-    # ✅ GET → Show form
-    if request.method == "GET":
-        return render(request, "add_member.html", {
-            "member_id": new_member_id,
-            "placement_member_id": parent.member_id,
-            "side": position,
-            "today_date": date.today().strftime("%Y-%m-%d"),
-        })
-
-    # ✅ POST → Save member
-    name = request.POST.get("name")
-    phone = request.POST.get("phone")
-    email = request.POST.get("email")
-    aadhar = request.POST.get("aadhar")
-    place = request.POST.get("place")
-    district = request.POST.get("district")
-    pincode = request.POST.get("pincode")
-    sponsor_id = request.POST.get("sponsor_id")
-
-    avatar = request.FILES.get("avatar")
-
-    # ✅ Validate sponsor
-    sponsor = None
-    if sponsor_id:
-        sponsor = Member.objects.filter(member_id=sponsor_id).first()
-        if not sponsor:
-            messages.error(request, "Invalid Sponsor ID.")
-            return redirect(request.path)
-
-    # ✅ Create new member
-    new_member = Member.objects.create(
-        member_id=new_member_id,
-        name=name,
-        phone=phone,
-        email=email,
-        aadhar=aadhar,
-        place=place,
-        district=district,
-        pincode=pincode,
-        sponsor=sponsor,
-        side=position,
-        avatar=avatar,
-        joined_date=date.today(),
-    )
-
-    # ✅ Attach child to correct slot
-    if position == "left":
-        parent.left_member = new_member
-    else:
-        parent.right_member = new_member
-
-    # ✅ CRITICAL: Update today's join counters (binary engine input)
-    if position == "left":
-        parent.left_new_today += 1
-    else:
-        parent.right_new_today += 1
-
-    parent.save()
-
-    messages.success(
-        request,
-        f"New member {new_member.member_id} added under {parent.name} on {position.upper()} side."
-    )
-
-    return redirect("dynamic_tree", member_id=parent.member_id)
-
-# ===================== IMPORTS =====================
-from django.shortcuts import render, redirect
-from django.contrib import messages
-from .models import Member
-from decimal import Decimal
-from datetime import date
-
-
-# ===============================================================
-# ✅ ADD MEMBER VIEW (Auto ID, Placement, Sponsor, Avatar, Joined Date)
-# ===============================================================
-def add_member_form(request):
-
-    # ✅ Safe auto-generate rocky ID
-    last = Member.objects.order_by('-member_id').first()
-    if last and last.member_id.startswith("rocky"):
-        try:
-            num = int(last.member_id.replace("rocky", ""))
-        except:
-            num = last.id
-        new_member_id = f"rocky{num+1:03d}"
-    else:
-        new_member_id = "rocky001"
-
-    # ✅ Pre-fill placement if ?parent= given
-    parent_code = request.GET.get("parent")
-    placement_member_id = ""
-
-    parent = None
-    if parent_code:
-        parent = Member.objects.filter(member_id=parent_code).first()
-        if not parent:
-            try:
-                parent = Member.objects.filter(id=int(parent_code)).first()
-            except:
-                parent = None
-        if parent:
-            placement_member_id = parent.member_id
-
-    # ✅ Pre-fill sponsor if ?sponsor= given
-    sponsor_code_prefill = request.GET.get("sponsor") or ""
-
-    # ===============================================================
-    # ✅ POST REQUEST — SAVE MEMBER
-    # ===============================================================
     if request.method == "POST":
+        sponsor_id = request.POST.get("sponsor_id")
+        sponsor = None
+        if sponsor_id:
+            try:
+                sponsor = Member.objects.get(auto_id=sponsor_id)
+            except Member.DoesNotExist:
+                sponsor = None
 
-        member_id = request.POST.get('member_id')
-        placement_code = request.POST.get('placement_id')
-        sponsor_code = request.POST.get('sponsor_id')
-
-        # ✅ Validate member_id uniqueness
-        if Member.objects.filter(member_id=member_id).exists():
-            return render(request, "herbalapp/add_member.html", {
-                "error": "❌ Member ID already exists!",
-                "member_id": new_member_id,
-                "placement_member_id": placement_member_id,
-                "today_date": date.today().strftime("%Y-%m-%d"),
-            })
-
-        # ✅ Validate placement
-        placement = Member.objects.filter(member_id=placement_code).first()
-        if not placement:
-            return render(request, "herbalapp/add_member.html", {
-                "error": "❌ Placement ID not found",
-                "member_id": new_member_id,
-                "placement_member_id": placement_member_id,
-                "today_date": date.today().strftime("%Y-%m-%d"),
-            })
-
-        # ✅ Validate sponsor
-        sponsor = Member.objects.filter(member_id=sponsor_code).first()
-        if not sponsor:
-            return render(request, "herbalapp/add_member.html", {
-                "error": "❌ Sponsor ID not found",
-                "member_id": new_member_id,
-                "placement_member_id": placement_member_id,
-                "today_date": date.today().strftime("%Y-%m-%d"),
-            })
-
-        # ✅ Auto Left → Right allocation
-        if not placement.left_child:
-            side = "left"
-        elif not placement.right_child:
-            side = "right"
-        else:
-            return render(request, "herbalapp/add_member.html", {
-                "error": "❌ Both legs are filled!",
-                "member_id": new_member_id,
-                "placement_member_id": placement_member_id,
-                "today_date": date.today().strftime("%Y-%m-%d"),
-            })
-
-        # ✅ Create Member
-        new = Member.objects.create(
-            member_id=member_id,
-            name=request.POST.get('name'),
-            phone=request.POST.get('phone'),
-            email=request.POST.get('email'),
-            aadhar=request.POST.get('aadhar'),
-            place=request.POST.get('place'),
-            district=request.POST.get('district'),
-            pincode=request.POST.get('pincode'),
-            parent=placement,
+        new_member = Member.objects.create(
+            name=request.POST.get("name"),
+            phone=request.POST.get("phone"),
+            email=request.POST.get("email"),
+            aadhar=request.POST.get("aadhar"),
+            place=request.POST.get("place"),
+            district=request.POST.get("district"),
+            pincode=request.POST.get("pincode"),
+            placement=parent,          # ✅ link to parent
+            side=side,                 # ✅ save side
             sponsor=sponsor,
-            side=side,
-            joined_date=date.today(),   # ✅ Auto-set joined date
+            joined_date=date.today(),
+            avatar=request.FILES.get("avatar")
         )
 
-        # ✅ Avatar upload
-        avatar_file = request.FILES.get("avatar")
-        if avatar_file:
-            new.avatar = avatar_file
-            new.save()
+        # ✅ Generate Rocky ID
+        new_member.auto_id = f"rocky{new_member.id:03d}"
+        new_member.save()
 
-        # ✅ Attach Child
+        # ✅ update parent’s left/right child if needed
         if side == "left":
-            placement.left_child = new
-        else:
-            placement.right_child = new
-        placement.save()
+            parent.left_member = new_member
+        elif side == "right":
+            parent.right_member = new_member
+        parent.save()
 
-        # ✅ Run full income engine (binary + sponsor + CF + salary + rank)
-        try:
-            run_binary_on_new_join(new)
-        except:
-            pass  # safe fallback
+        return redirect("dynamic_tree", member_id=parent.auto_id)
 
-        return redirect("/tree/")
-
-    # ===============================================================
-    # ✅ GET REQUEST — SHOW FORM
-    # ===============================================================
-    return render(request, "herbalapp/add_member.html", {
-        "member_id": new_member_id,
-        "placement_member_id": placement_member_id,
-        "sponsor_prefill": sponsor_code_prefill,
-        "today_date": date.today().strftime("%Y-%m-%d"),
+    # GET request → show form
+    return render(request, "herbalapp/add_member_form.html", {
+        "member_id": f"rocky{Member.objects.count()+1:03d}",
+        "parent": parent.auto_id,
+        "side": side,
     })
 
-from django.shortcuts import render, get_object_or_404
-from herbalapp.models import Member, DailyIncomeReport
+from datetime import date
+from django.shortcuts import render, redirect, get_object_or_404
+from django.contrib import messages
+from .models import Member, RockCounter
+
+def add_member_form(request, parent_id=None, side=None):
+    """
+    Add a new member under a parent with left/right side.
+    Handles sponsor ID and avatar upload.
+    """
+    # ================= AUTO ID =================
+    counter, created = RockCounter.objects.get_or_create(name="member_counter")
+    counter.last += 1
+    counter.save()
+    auto_id = f"rocky{counter.last:03d}"   # rocky001, rocky002 ...
+
+    parent = None
+    if parent_id:
+        parent = get_object_or_404(Member, id=parent_id)
+
+    # ================= SAVE =================
+    if request.method == "POST":
+        sponsor_id = request.POST.get("sponsor_id")  # field name from form
+        sponsor = None
+        if sponsor_id:
+            try:
+                sponsor = Member.objects.get(member_id=sponsor_id)
+            except Member.DoesNotExist:
+                sponsor = None
+
+        new_member = Member.objects.create(
+            member_id=auto_id,
+            name=request.POST.get("name"),
+            phone=request.POST.get("phone"),
+            email=request.POST.get("email"),
+            aadhar=request.POST.get("aadhar"),
+            place=request.POST.get("place"),
+            district=request.POST.get("district"),
+            pincode=request.POST.get("pincode"),
+            placement=parent,
+            side=side,
+            sponsor=sponsor,
+            joined_date=date.today(),
+            avatar=request.FILES.get("avatar")  # ✅ AVATAR
+        )
+
+        # Optional: link to parent’s left/right
+        if parent and side:
+            if side == "left":
+                parent.left_child = new_member
+            elif side == "right":
+                parent.right_child = new_member
+            parent.save()
+
+        messages.success(request, f"Member {new_member.member_id} added successfully")
+        return redirect("/tree/")   # ✅ redirect after adding
+
+    # ================= FORM =================
+    return render(request, "herbalapp/add_member_form.html", {
+        "member_id": auto_id,
+        "parent": parent,
+        "side": side,
+    })
+
+
 
 def income_chart(request, member_id):
 
     # ✅ Load member safely using business member_id
-    member = get_object_or_404(Member, member_id=member_id)
+    member = get_object_or_404(Member, auto_id=member_id)
 
     # ✅ Fetch all reports for this member
     reports = DailyIncomeReport.objects.filter(
@@ -1913,7 +1848,7 @@ def salary_report(request):
 # ✅ 3. Member Rank Detail Page
 # ---------------------------------------------------------
 def member_rank_detail(request, member_id):
-    member = get_object_or_404(Member, member_id=member_id)
+    member = get_object_or_404(Member, auto_id=member_id)
 
     # Null-safe BV
     left_bv = member.total_left_bv or 0
@@ -1928,4 +1863,58 @@ def member_rank_detail(request, member_id):
         "matched_bv": matched_bv,
         "rank_info": rank_info,
     })
+def genealogy_view(request, auto_id):
+    from herbalapp.utils.tree_income_debug import genealogy_tree_income_debug
+    from herbalapp.utils.tree import count_subtree, print_tree
+    from herbalapp.models import Member
+
+    root = Member.objects.get(auto_id=auto_id)
+    left_count = count_subtree(root, "left")
+    right_count = count_subtree(root, "right")
+
+    # Sample income logic
+    pairs = min(left_count, right_count)
+    binary_income = pairs * 500
+    sponsor_income = (left_count + right_count) * 100
+    flashout = (pairs - 10) * 500 if pairs > 10 else 0
+
+    context = {
+        "root": root,
+        "tree_str": print_tree(root),
+        "left_count": left_count,
+        "right_count": right_count,
+        "pairs": pairs,
+        "binary_income": binary_income,
+        "sponsor_income": sponsor_income,
+        "flashout": flashout,
+    }
+    return render(request, "genealogy_tree.html", context)
+
+from django.shortcuts import render
+from herbalapp.models import Member
+from herbalapp.utils.tree import count_subtree
+from herbalapp.utils.tree_json import build_tree_json
+
+def genealogy_visual_view(request, auto_id):
+    root = Member.objects.get(auto_id=auto_id)
+    left_count = count_subtree(root, "left")
+    right_count = count_subtree(root, "right")
+
+    # Sample income logic
+    pairs = min(left_count, right_count)
+    binary_income = pairs * 500
+    sponsor_income = (left_count + right_count) * 100
+    flashout = (pairs - 10) * 500 if pairs > 10 else 0
+
+    context = {
+        "root": root,
+        "tree_json": build_tree_json(root),  # ✅ dynamic JSON for Treant.js
+        "left_count": left_count,
+        "right_count": right_count,
+        "pairs": pairs,
+        "binary_income": binary_income,
+        "sponsor_income": sponsor_income,
+        "flashout": flashout,
+    }
+    return render(request, "genealogy_tree_visual.html", context)
 
