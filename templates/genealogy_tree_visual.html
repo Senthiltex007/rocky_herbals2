@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container mt-4">
+
+  <!-- Tree Diagram -->
+  <div class="card mb-4">
+    <div class="card-header bg-dark text-white">
+      Genealogy Tree Diagram for {{ root.auto_id }} - {{ root.name }}
+    </div>
+    <div class="card-body">
+      <div id="tree-simple"></div>
+    </div>
+  </div>
+
+  <!-- Subtree Counts -->
+  <div class="card mb-4">
+    <div class="card-header bg-success text-white">
+      Subtree Counts
+    </div>
+    <div class="card-body">
+      <span class="badge bg-primary">Left: {{ left_count }}</span>
+      <span class="badge bg-warning">Right: {{ right_count }}</span>
+    </div>
+  </div>
+
+  <!-- Income Debug -->
+  <div class="card mb-4">
+    <div class="card-header bg-info text-white">
+      Income Debug
+    </div>
+    <div class="card-body">
+      <table class="table table-bordered">
+        <tr><th>Binary Pairs</th><td>{{ pairs }}</td></tr>
+        <tr><th>Binary Income</th><td>₹{{ binary_income }}</td></tr>
+        <tr><th>Sponsor Income</th><td>₹{{ sponsor_income }}</td></tr>
+        <tr><th>Flashout Deducted</th><td>₹{{ flashout }}</td></tr>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<!-- Treant.js CSS + JS -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/treant-js/1.0/Treant.css" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/raphael/2.3.0/raphael.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/treant-js/1.0/Treant.min.js"></script>
+
+<!-- ✅ Dynamic JSON integration -->
+<script>
+  var simple_chart_config = {
+    chart: { container: "#tree-simple" },
+    nodeStructure: {{ tree_json|safe }}
+  };
+  new Treant(simple_chart_config);
+</script>
+{% endblock %}
+
