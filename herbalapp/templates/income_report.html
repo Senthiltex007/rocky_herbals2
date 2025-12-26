@@ -3,66 +3,50 @@
 <head>
 <meta charset="UTF-8">
 
-<!-- ✅ Bootstrap CDN (no 404, fastest load) -->
+<!-- ✅ Bootstrap CDN -->
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
 
-<!-- ✅ Local custom CSS (safe even if empty) -->
+<!-- ✅ Local custom CSS -->
 <link rel="stylesheet" href="/static/css/style.css">
 
-<!-- ✅ Favicon (no 404) -->
+<!-- ✅ Favicon -->
 <link rel="icon" type="image/x-icon" href="/static/favicon.ico?v=2">
 
-<!-- ✅ Page Title -->
 <title>Rocky Sri Herbals</title>
 
-<!-- ✅ Inline CSS for all reports -->
 <style>
 body {
     background-color: #f8f9fa;
     padding: 20px;
     font-family: "Segoe UI", sans-serif;
 }
-
-/* Page title */
 .page-title {
     font-size: 28px;
     font-weight: 700;
     color: #198754;
     margin-bottom: 20px;
 }
-
-/* Table header */
 .table thead th {
     background-color: #198754;
     color: white;
     text-align: center;
 }
-
-/* Table rows */
 .table tbody td {
     vertical-align: middle;
     text-align: center;
 }
-
-/* Hover effect */
 .table tbody tr:hover {
     background-color: #eef6f0;
 }
-
-/* Card styling */
 .report-card {
     background: white;
     border-radius: 8px;
     padding: 20px;
     box-shadow: 0 2px 8px rgba(0,0,0,0.08);
 }
-
-/* Date input box */
 .date-box {
     max-width: 220px;
 }
-
-/* Buttons */
 .btn-green {
     background-color: #198754;
     color: white;
@@ -72,11 +56,6 @@ body {
     background-color: #146c43;
     color: white;
 }
-</style>
-
-</head>
-
-<style>
 .hero-banner{width:100%;height:400px;object-fit:cover;}
 .logo{max-height:120px;margin-top:10px;}
 table th,table td{text-align:center;vertical-align:middle;}
@@ -95,7 +74,6 @@ footer p{text-align:center;padding:8px;background:black;color:white;margin:0;}
             <div class="carousel-item"><img src="/static/images/newbanner2.jpg" class="d-block w-100 hero-banner"></div>
             <div class="carousel-item"><img src="/static/images/newbanner3.jpg" class="d-block w-100 hero-banner"></div>
         </div>
-
         <button class="carousel-control-prev" type="button" data-bs-target="#heroCarousel" data-bs-slide="prev">
             <span class="carousel-control-prev-icon"></span>
         </button>
@@ -103,7 +81,6 @@ footer p{text-align:center;padding:8px;background:black;color:white;margin:0;}
             <span class="carousel-control-next-icon"></span>
         </button>
     </div>
-
     <div class="brand text-center">
         <img src="/static/images/newlogo.jpeg" class="logo" alt="Rocky Sri Herbals Logo">
     </div>
@@ -130,38 +107,38 @@ footer p{text-align:center;padding:8px;background:black;color:white;margin:0;}
   <button type="submit" class="btn btn-primary ms-2">Search</button>
 </form>
 
-{% if income_data %}
+{% if reports %}
 <div class="table-responsive">
 <table class="table table-bordered table-striped shadow-sm">
 <thead class="table-dark">
 <tr>
     <th>ID</th>
-    <th>Auto ID</th>
+    <th>Member ID</th>
     <th>Name</th>
-    <th>Joining Package</th>
-    <th>Binary Income</th>
-    <th>Sponsor Income</th>
-    <th>Flash Bonus</th>
-    <th>Salary</th>
-    <th>Repurchase Wallet</th>
-    <th>Wash Out Members</th>
-    <th>Total Income</th>
+    <th>Package</th>
+    <th>Binary Income (₹)</th>
+    <th>Sponsor Income (₹)</th>
+    <th>Flashout Wallet (₹)</th>
+    <th>Salary Income (₹)</th>
+    <th>Repurchase Wallet (₹)</th>
+    <th>Washout Pairs</th>
+    <th>Total Income (₹)</th>
 </tr>
 </thead>
 <tbody>
-{% for row in income_data %}
+{% for report in reports %}
 <tr>
-    <td>{{ row.member.id }}</td>
-    <td>{{ row.member.member_id }}</td>
-    <td>{{ row.member.name }}</td>
-    <td>{{ row.package }}</td>
-    <td>{{ row.binary }}</td>
-    <td>{{ row.sponsor }}</td>
-    <td>{{ row.flash }}</td>
-    <td>{{ row.salary }}</td>
-    <td>{{ row.repurchase_wallet }}</td>
-    <td>{{ row.wash_out_members }}</td>
-    <td><span class="badge bg-success fs-6">{{ row.total }}</span></td>
+    <td>{{ report.member.id }}</td>
+    <td>{{ report.member.member_id }}</td>
+    <td>{{ report.member.name }}</td>
+    <td>{{ report.package }}</td>
+    <td>{{ report.binary_income }}</td>
+    <td>{{ report.sponsor_income }}</td>
+    <td>{{ report.flashout_wallet_income }}</td>
+    <td>{{ report.salary_income }}</td>
+    <td>{{ report.repurchase_wallet }}</td>
+    <td>{{ report.washout_pairs }}</td>
+    <td><span class="badge bg-success fs-6">{{ report.total_income }}</span></td>
 </tr>
 {% endfor %}
 </tbody>

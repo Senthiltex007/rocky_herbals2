@@ -6,10 +6,6 @@ from django.db import models, transaction
 from django.db.models import Sum
 from django.utils import timezone
 
-from herbalapp.mlm_engine_binary import (
-    calculate_member_binary_income_for_day,
-    determine_rank_from_bv,
-)
 
 # ==========================================================
 # AUTO ID GENERATOR (Legacy fallback)
@@ -50,13 +46,27 @@ class RockCounter(models.Model):
 # MEMBER MODEL (MAIN GENEALOGY TREE)
 # ==========================================================
 class Member(models.Model):
+    auto_id = models.CharField(
+        max_length=20,
+        unique=True,
+        blank=True,
+        editable=False
+    )
+    name = models.CharField(max_length=200)
+    # other fields...
+    def save(self, *args, **kwargs):
+        if not self.auto_id:
+            with transaction.atomic():
+                counter, created = RockCounter.objects.get_or_create(name="member_counter")
+                counter.last += 1
+                self.auto_id = f"rocky{counter.last:03d}"
+                counter.save()
+        super().save(*args, **kwargs)
+
     # -------------------------
     # BASIC DETAILS
     # -------------------------
-    member_id = models.CharField(max_length=20, unique=True)
-    auto_id = models.CharField(max_length=20, unique=True, blank=True, null=True)
 
-    name = models.CharField(max_length=200)
     phone = models.CharField(max_length=20)
     email = models.EmailField(blank=True, null=True)
     avatar = models.ImageField(upload_to='avatars/', blank=True, null=True)
@@ -76,7 +86,7 @@ class Member(models.Model):
     right_cf = models.IntegerField(default=0)
     binary_income = models.IntegerField(default=0)
     repurchase_wallet = models.IntegerField(default=0)
-
+    binary_eligible_since = models.DateField(null=True, blank=True)
     # -------------------------
     # IDENTIFICATION / ADDRESS
     # -------------------------
@@ -122,6 +132,21 @@ class Member(models.Model):
         blank=True,
         choices=[("left", "Left"), ("right", "Right")],
     )
+    placement = models.ForeignKey(
+        "self",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="placements"
+    )
+
+    position = models.CharField(
+        max_length=10,
+        choices=[("left", "Left"), ("right", "Right")],
+        blank=True,
+        null=True
+    )
+
 
     # -------------------------
     # BINARY ENGINE STATE
@@ -155,29 +180,7 @@ class Member(models.Model):
     )
 
     def __str__(self):
-        return f"{self.auto_id or self.member_id or self.id} - {self.name}"
-
-    # ==========================================================
-    # AUTO ID GENERATOR (SAFE SEQUENCE with RockCounter)
-    # ==========================================================
-    def save(self, *args, **kwargs):
-        # MEMBER_ID (rocky001, rocky002...)
-        if not self.member_id:
-            with transaction.atomic():
-                counter, _ = RockCounter.objects.select_for_update().get_or_create(name='member')
-                counter.last += 1
-                self.member_id = f"rocky{counter.last:03d}"
-                counter.save()
-
-        # AUTO_ID (separate safe sequence)
-        if not self.auto_id:
-            with transaction.atomic():
-                counter, _ = RockCounter.objects.select_for_update().get_or_create(name='auto_id')
-                counter.last += 1
-                self.auto_id = f"rocky{counter.last:03d}"
-                counter.save()
-
-        super().save(*args, **kwargs)
+        return f"{self.auto_id or self.id} - {self.name}"
 
     # ==========================================================
     # SIMPLE HELPERS
@@ -363,96 +366,41 @@ class Member(models.Model):
         self.save()
 
     # ==========================================================
-    # BINARY ENGINE WRAPPER (PER DAY) – NEW ENGINE COMPATIBLE
+    # BINARY ENGINE WRAPPER (PER DAY) – JOIN COUNT ONLY
     # ==========================================================
     def run_binary_engine_for_day(self, left_joins_today: int, right_joins_today: int):
         """
-        Rocky Herbals – FINAL DAILY ENGINE WRAPPER (CORRECTED)
+        Rocky Herbals – FINAL DAILY ENGINE WRAPPER (BV cancelled for sponsor/binary/flashout)
 
         Handles:
             ✅ Binary pairs, CF before/after
             ✅ Eligibility + first pair tracking
-            ✅ Sponsor bonus (one-time, on first paid pair)
             ✅ Flashout → repurchase_wallet
-            ✅ Rank title & monthly salary
-            ✅ BV snapshot (left/right)
+            ✅ Rank title & monthly salary (BV only here)
             ✅ DailyIncomeReport (binary + sponsor + salary)
 
         NOTE:
-        - Sponsor bonus is given ONCE, when the FIRST paid pair happens (has_completed_first_pair flips).
-        - DailyIncomeReport.sponsor_income is ALWAYS read from SponsorIncome table (no missed credit).
+        - Sponsor/binary/flashout incomes are now join-count based (handled in signals.py).
+        - BV is used ONLY for rank reward + salary segment.
         """
 
         from datetime import date
         from decimal import Decimal
-        from django.db.models import Sum
         from django.utils import timezone
-        from herbalapp.models import DailyIncomeReport, SponsorIncome
-        from herbalapp.mlm_engine_binary import calculate_member_binary_income_for_day, determine_rank_from_bv
+        from herbalapp.models import DailyIncomeReport
 
         # ---- 0. Snapshot current state ----
         left_cf_before = self.left_cf
         right_cf_before = self.right_cf
-        was_first_pair_completed_before = self.has_completed_first_pair
 
-        # ---- 1. Run core binary engine ----
-        result = calculate_member_binary_income_for_day(
-            left_joins_today=left_joins_today,
-            right_joins_today=right_joins_today,
-            left_cf_before=left_cf_before,
-            right_cf_before=right_cf_before,
-            binary_eligible=self.binary_eligible,
-        )
+        # ---- 1. Update CF + binary income + repurchase wallet (join-count only) ----
+        self.left_cf = left_cf_before + left_joins_today
+        self.right_cf = right_cf_before + right_joins_today
 
-        # Expected keys in result:
-        #   left_cf_after, right_cf_after,
-        #   binary_pairs, binary_income,
-        #   repurchase_wallet_bonus,
-        #   flashout_units, washed_pairs,
-        #   new_binary_eligible, became_eligible_today
-
-        # ---- 2. Eligibility flags ----
-        if result.get("new_binary_eligible") and not self.binary_eligible:
-            self.binary_eligible = True
-            self.binary_eligible_date = timezone.now()
-
-        # First paid pair in lifetime?
-        if result.get("binary_pairs", 0) > 0 and not self.has_completed_first_pair:
-            self.has_completed_first_pair = True
-
-        # ---- 3. Update CF + binary income + repurchase wallet ----
-        self.left_cf = result.get("left_cf_after", left_cf_before)
-        self.right_cf = result.get("right_cf_after", right_cf_before)
-
-        binary_income_today = int(result.get("binary_income", 0) or 0)
-        self.binary_income = (self.binary_income or 0) + binary_income_today
-
-        repurchase_bonus_today = int(result.get("repurchase_wallet_bonus", 0) or 0)
-        self.repurchase_wallet = (self.repurchase_wallet or 0) + repurchase_bonus_today
-
+        # Binary income & flashout are now credited in signals.py → no BV logic here
         self.save()
 
-        # ---- 4. Sponsor income (one-time, on first paid pair) ----
-        sponsor_bonus_today = 0
-
-        # Give sponsor bonus when:
-        #   - this member has a sponsor
-        #   - at least one binary pair was paid TODAY
-        #   - BEFORE today, first pair was NOT completed
-        if (
-            self.sponsor
-            and result.get("binary_pairs", 0) > 0
-            and not was_first_pair_completed_before
-        ):
-            SponsorIncome.objects.create(
-                sponsor=self.sponsor,
-                child=self,
-                amount=Decimal("500.00"),
-                date=date.today(),
-            )
-            sponsor_bonus_today = 500  # for log/understanding only (not used directly in report)
-
-        # ---- 5. Rank & Monthly Salary (based on matched repurchase BV) ----
+        # ---- 2. Rank & Monthly Salary (based on matched repurchase BV) ----
         rank_title = ""
         monthly_salary = 0
 
@@ -463,12 +411,11 @@ class Member(models.Model):
         if rank_info:
             rank_title, monthly_salary, months = rank_info
             self.rank = rank_title
-            # if you have rank_monthly_salary field, update it:
             if hasattr(self, "rank_monthly_salary"):
                 self.rank_monthly_salary = monthly_salary
             self.save()
 
-        # ---- 6. Daily Income Report (create/update) ----
+        # ---- 3. Daily Income Report (create/update) ----
         report, created = DailyIncomeReport.objects.get_or_create(
             member=self,
             date=date.today(),
@@ -484,28 +431,23 @@ class Member(models.Model):
         report.left_cf_after = self.left_cf
         report.right_cf_after = self.right_cf
 
-        # Binary payout
-        report.binary_pairs_paid = result.get("binary_pairs", 0)
-        report.binary_income = Decimal(binary_income_today)
+        # Binary payout → credited in signals.py, keep snapshot only
+        report.binary_pairs_paid = 0
+        report.binary_income = Decimal(self.binary_income or 0)
 
-        # Flashout → repurchase wallet
-        report.flashout_units = result.get("flashout_units", 0)
-        report.flashout_wallet_income = Decimal(repurchase_bonus_today)
+        # Flashout → credited in signals.py, keep snapshot only
+        report.flashout_units = 0
+        report.flashout_wallet_income = Decimal(self.repurchase_wallet or 0)
 
-        # Washed pairs
-        report.washed_pairs = result.get("washed_pairs", 0)
+        # Washed pairs → not BV-based anymore
+        report.washed_pairs = 0
 
-        # BV snapshots
+        # BV snapshots (for rank reward only)
         report.total_left_bv = int(bv_data.get("left_bv", 0))
         report.total_right_bv = int(bv_data.get("right_bv", 0))
 
-        # ✅ ALWAYS PULL SPONSOR INCOME FROM TABLE (no more 0.00 issues)
-        today_sponsor_income = SponsorIncome.objects.filter(
-            sponsor=self,
-            date=date.today()
-        ).aggregate(total=Sum('amount'))['total'] or 0
-
-        report.sponsor_income = Decimal(today_sponsor_income)
+        # Sponsor income → credited in signals.py
+        report.sponsor_income = Decimal(0)
 
         # Salary & rank
         report.salary_income = Decimal(monthly_salary)
@@ -571,7 +513,7 @@ class SponsorIncome(models.Model):
     date = models.DateField(default=timezone.now)
 
     def __str__(self):
-        return f"Sponsor {self.sponsor.member_id} from {self.child.member_id} - {self.amount}"
+        return f"Sponsor {self.sponsor.auto_id} from {self.child.auto_id} - {self.amount}"
 
 
 # ==========================================================
@@ -666,10 +608,18 @@ class IncomeRecord(models.Model):
     member = models.ForeignKey(Member, on_delete=models.CASCADE)
     amount = models.DecimalField(max_digits=12, decimal_places=2)
     type = models.CharField(max_length=100)
-    created_at = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateTimeField(default=timezone.now)  # ✅ changed
 
     def __str__(self):
         return f"{self.member.name} - {self.type} - {self.amount}"
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["member", "type", "created_at"],
+                name="uniq_member_type_created_at"
+            )
+        ]
 
 
 class CommissionRecord(models.Model):
@@ -750,6 +700,10 @@ class RankPayoutLog(models.Model):
         return f"{self.member.auto_id} - {self.rank_reward.rank_title} - {self.amount} on {self.paid_on}"
 
 
+from decimal import Decimal
+from django.db import models
+from herbalapp.models import Member
+
 class DailyIncomeReport(models.Model):
     member = models.ForeignKey(Member, on_delete=models.CASCADE)
     date = models.DateField()
@@ -777,6 +731,10 @@ class DailyIncomeReport(models.Model):
     rank_title = models.CharField(max_length=100, null=True, blank=True)
 
     sponsor_income = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
+    
+    # ✅ New field for eligibility bonus
+    eligibility_income = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
+
     total_income = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal('0.00'))
 
     class Meta:
@@ -784,4 +742,21 @@ class DailyIncomeReport(models.Model):
 
     def __str__(self):
         return f"Daily Report for {self.member.name} on {self.date}"
+
+from django.db import models
+
+class AuditDailyReport(models.Model):
+    date = models.DateField()
+    processed_members = models.IntegerField()
+    total_binary_income = models.DecimalField(max_digits=12, decimal_places=2)
+    total_sponsor_income = models.DecimalField(max_digits=12, decimal_places=2)
+    flashout_units = models.IntegerField()
+    washout_pairs = models.IntegerField()
+
+    class Meta:
+        verbose_name = "Audit Daily Report"
+        verbose_name_plural = "Audit Daily Reports"
+
+    def __str__(self):
+        return f"Audit Report {self.date} ({self.processed_members} members)"
 

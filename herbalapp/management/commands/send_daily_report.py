@@ -1,7 +1,7 @@
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 from django.core.mail import EmailMessage
-from herbalapp.models import Member, DailyIncomeReport
+from herbalapp.run_daily_engine import run_daily_engine
 import openpyxl
 from io import BytesIO
 
@@ -10,60 +10,40 @@ class Command(BaseCommand):
 
     def handle(self, *args, **kwargs):
         today = timezone.now().date()
-        reports = []
-        for member in Member.objects.all():
-            income = member.calculate_full_income()
-            report = DailyIncomeReport.objects.create(
-                date=today,
-                member=member,
-                binary_income=income["binary_income"],
-                flash_bonus=income["flash_bonus"],
-                sponsor_income=income["sponsor_income"],
-                salary=income["salary"],
-                stock_commission=income["stock_commission"],
-                total_income=income["total_income_all"],
-            )
-            reports.append(report)
+        summary = run_daily_engine(today)
 
-        # Create Excel workbook
         wb = openpyxl.Workbook()
         ws = wb.active
         ws.title = "Daily Income Report"
 
-        # Header
         ws.append([
-            "Member ID", "Name", "Joining Package",
-            "Binary Income", "Flash Bonus", "Sponsor Income",
-            "Salary", "Stock Commission", "Total Income"
+            "Date", "Processed Members", "Total Binary Income",
+            "Total Sponsor Income", "Flashout Units", "Washout Pairs"
+        ])
+        ws.append([
+            summary["date"],
+            summary["processed_members"],
+            summary["total_binary_income"],
+            summary["total_sponsor_income"],
+            summary["flashout_units"],
+            summary["washout_pairs"],
         ])
 
-        # Data rows
-        for r in reports:
-            ws.append([
-                r.member.auto_id,
-                r.member.name,
-                r.member.package,
-                r.binary_income,
-                r.flash_bonus,
-                r.sponsor_income,
-                r.salary,
-                r.stock_commission,
-                r.total_income,
-            ])
-
-        # Save to memory
         output = BytesIO()
         wb.save(output)
         output.seek(0)
 
-        # Prepare mail
         email = EmailMessage(
             subject=f"Rocky Herbals Daily Income Report - {today}",
-            body="Please find attached the daily income report.",
+            body="Please find attached the daily income summary report.",
             from_email="rockysriherbals@gmail.com",
             to=["rockysriherbals@gmail.com"],
         )
-        email.attach(f"daily_income_{today}.xlsx", output.read(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        email.attach(
+            f"daily_income_{today}.xlsx",
+            output.read(),
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
         email.send()
 
         self.stdout.write(self.style.SUCCESS("Daily report generated and mailed with Excel attachment"))

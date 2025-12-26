@@ -21,6 +21,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'herbalapp.apps.HerbalappConfig',
+    'django_extensions',   # ✅ Added for runscript support
 ]
 
 MIDDLEWARE = [
@@ -54,11 +55,14 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'rocky_herbals2.wsgi.application'
 
-# ✅ SQLite database
+# ✅ SQLite database with WAL + timeout
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
         'NAME': BASE_DIR / 'db.sqlite3',
+        'OPTIONS': {
+            'timeout': 30,  # wait up to 30s before "database is locked"
+        },
     }
 }
 
@@ -90,8 +94,6 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / "media"
 
-# ✅ ✅ TEMPORARY DEMO FIX — Disable login redirect
-# Django normally redirects to /accounts/login/ when a page requires login.
-# For demo mode, we override it to root so no redirect happens.
+# ✅ TEMPORARY DEMO FIX — Disable login redirect
 LOGIN_URL = '/'
 

@@ -1,5 +1,3 @@
-# rocky_herbals/urls.py
-
 from django.contrib import admin
 from django.urls import path
 from django.conf import settings
@@ -25,6 +23,9 @@ urlpatterns = [
     path('tree/modern/<str:auto_id>/', views.member_tree_modern, name='member_tree_modern'),
     path('pyramid/<str:member_id>/', views.pyramid_view, name='pyramid_view'),
 
+    # ===================== GENEALOGY TREE INCOME DEBUG =====================
+    path('genealogy/<str:auto_id>/', views.genealogy_view, name='genealogy_tree'),
+
     # ===================== MEMBER ROUTES =====================
     path('members/', views.member_list, name='member_list'),
     path('members/login/', views.member_login, name='member_login'),
@@ -32,9 +33,11 @@ urlpatterns = [
 
     # ===================== ADD MEMBER ROUTES =====================
     path('member/add/', views.add_member_form, name='add_member_form'),
-    path('member/add/<str:parent_id>/<str:position>/', 
-         views.add_member_under_parent, 
-         name='add_member'),
+    path(
+        'member/add/<int:parent_id>/<str:position>/',
+        views.add_member_under_parent,
+        name='member_add_under_parent'   # ✅ Correct name
+    ),
 
     # ===================== EDIT / DELETE MEMBER =====================
     path('member/edit/<str:member_id>/', views.edit_member, name='edit_member'),
@@ -70,6 +73,7 @@ urlpatterns = [
     path("rank-report/", views.rank_report, name="rank_report"),
     path("salary-report/", views.salary_report, name="salary_report"),
     path("member/<str:member_id>/rank/", views.member_rank_detail, name="member_rank_detail"),
+    path("genealogy/visual/<str:auto_id>/", views.genealogy_visual_view, name="genealogy_visual"),
 ]
 
 # ===================== STATIC / MEDIA =====================

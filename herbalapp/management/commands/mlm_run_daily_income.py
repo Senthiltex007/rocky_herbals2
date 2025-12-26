@@ -1,8 +1,11 @@
+# herbalapp/management/commands/mlm_run_daily_income.py
+
 from django.core.management.base import BaseCommand
 from django.utils import timezone
+import datetime
 
 from herbalapp.models import Member
-from herbalapp.mlm_sponsor_runner import run_daily_binary_and_sponsor
+from herbalapp.mlm_engine_binary import calculate_member_binary_income_for_day
 
 
 def get_today_joins_for_member(member, date):
@@ -42,18 +45,23 @@ class Command(BaseCommand):
             if left_joins_today == 0 and right_joins_today == 0:
                 continue
 
-            result = run_daily_binary_and_sponsor(
-                member,
+            # Direct call to final engine
+            result = calculate_member_binary_income_for_day(
                 left_joins_today=left_joins_today,
                 right_joins_today=right_joins_today,
+                left_cf_before=0,
+                right_cf_before=0,
+                binary_eligible=member.binary_eligible,
+                member=member,
+                run_date=run_date
             )
 
             self.stdout.write(
                 f"Member {member.member_id} → "
-                f"bin_pairs={result['child_result']['binary_pairs']} | "
-                f"bin_income={result['child_result']['binary_income']} | "
-                f"elig={result['child_result']['eligibility_income']} | "
-                f"sponsor_income={result['sponsor_income']}"
+                f"bin_pairs={result['binary_pairs']} | "
+                f"bin_income={result['binary_income']} | "
+                f"elig={result['eligibility_income']} | "
+                f"sponsor_income={result['child_total_for_sponsor']}"
             )
 
         self.stdout.write(self.style.SUCCESS("✅ MLM daily income run completed."))
