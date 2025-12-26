@@ -1601,6 +1601,12 @@ def add_member_under_parent(request, parent_id, position):
         sponsor = None
         if sponsor_id:
             try:
+                sponsor = Member.objects.get(auto_id=sponsor_id)   # ✅ FIXED
+            except Member.DoesNotExist:
+                sponsor = None
+
+        if sponsor_id:
+            try:
                 sponsor = Member.objects.get(auto_id=sponsor_id)
             except Member.DoesNotExist:
                 sponsor = None
@@ -1671,19 +1677,28 @@ def add_member_form(request, parent_id=None, side=None):
                 sponsor = None
 
         new_member = Member.objects.create(
-            member_id=auto_id,
-            name=request.POST.get("name"),
-            phone=request.POST.get("phone"),
-            email=request.POST.get("email"),
-            aadhar=request.POST.get("aadhar"),
-            place=request.POST.get("place"),
-            district=request.POST.get("district"),
-            pincode=request.POST.get("pincode"),
-            placement=parent,
-            side=side,
-            sponsor=sponsor,
-            joined_date=date.today(),
-            avatar=request.FILES.get("avatar")  # ✅ AVATAR
+                member_id=auto_id,
+                name=request.POST.get("name"),
+                phone=request.POST.get("phone"),
+                email=request.POST.get("email"),
+                aadhar=request.POST.get("aadhar"),
+                place=request.POST.get("place"),
+                district=request.POST.get("district"),
+                pincode=request.POST.get("pincode"),
+                placement=parent,
+                side=side,
+                sponsor=sponsor,
+                joined_date=date.today(),
+                avatar=request.FILES.get("avatar"),
+                # ✅ Engine defaults
+                left_cf=0,
+                right_cf=0,
+                binary_income=0,
+                repurchase_wallet=0,
+                binary_eligible=False,
+                binary_eligible_date=None,
+                left_new_today=0,
+                right_new_today=0,
         )
 
         # Optional: link to parent’s left/right

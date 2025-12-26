@@ -1,49 +1,42 @@
-# herbalapp/signals.py
-# ----------------------------------------------------------
-# ✅ All old signals disabled for NEW MLM ENGINE
-# ✅ Auto-trigger binary + sponsor engine when NEW member joins
-# ----------------------------------------------------------
-
-print("✅ signals.py loaded — all legacy signals disabled (new MLM engine active)")
-
 from django.db.models.signals import post_save
 from django.dispatch import receiver
-from datetime import date
+from django.utils import timezone
 from herbalapp.models import Member
+from herbalapp.mlm_engine_binary import calculate_member_binary_income_for_day
 
 @receiver(post_save, sender=Member)
-def auto_trigger_engine(sender, instance, created, **kwargs):
-    """
-    ✅ This runs ONLY when a NEW member is created.
-    ✅ It automatically triggers the binary engine for the sponsor.
-    ✅ Sponsor income, binary income, and DailyIncomeReport update instantly.
-    ✅ Buyer NEVER needs to run engine manually.
-    """
-
+def trigger_engine_on_new_member(sender, instance, created, **kwargs):
     if not created:
-        return  # Only run for NEW members
+        return
 
-    new_member = instance
-    sponsor = new_member.sponsor
+    member = instance
+    run_date = timezone.now().date()
 
-    if not sponsor:
-        return  # Root member or no sponsor → nothing to do
-
-    # ✅ Count today's left/right joins for sponsor (CORRECTED)
-    left_joins = (
-        sponsor.left_member.get_new_members_today_count()
-        if sponsor.left_member else 0
+    result = calculate_member_binary_income_for_day(
+        member.left_joins_today(),
+        member.right_joins_today(),
+        member.cf_left,
+        member.cf_right,
+        member.binary_eligible,
+        member,
+        run_date
     )
 
-    right_joins = (
-        sponsor.right_member.get_new_members_today_count()
-        if sponsor.right_member else 0
+    if result["new_binary_eligible"] and not member.binary_eligible:
+        member.binary_eligible = True
+
+    member.lifetime_pairs += result["binary_pairs"]
+    member.cf_left = result["left_cf_after"]
+    member.cf_right = result["right_cf_after"]
+
+    # ✅ Use update() to avoid recursion
+    Member.objects.filter(pk=member.pk).update(
+        binary_eligible=member.binary_eligible,
+        lifetime_pairs=member.lifetime_pairs,
+        cf_left=member.cf_left,
+        cf_right=member.cf_right
     )
 
-    # ✅ Run engine for sponsor instantly
-    try:
-        sponsor.run_binary_engine_for_day(left_joins, right_joins)
-        print(f"✅ Auto-engine triggered for sponsor: {sponsor.member_id}")
-    except Exception as e:
-        print(f"❌ Engine auto-trigger failed for {sponsor.member_id}: {e}")
+    print(f"⚡ Signal Triggered: Engine run for {member.member_id} on {run_date}")
+    print(f"   Binary income={result['binary_income']}, Sponsor mirrored={result['child_total_for_sponsor']}")
 
