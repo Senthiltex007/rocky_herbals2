@@ -3,10 +3,18 @@
 from django.contrib import admin
 from django.utils.html import format_html
 from .models import (
-    Member, Product, Payment, Income, Commission,
-    Order, SponsorIncome, DailyIncomeReport,
-    RankReward, RankPayoutLog, IncomeRecord,
-    CommissionRecord, BonusRecord, RockCounter
+    Member,
+    IncomeRecord,
+    BonusRecord,
+    Order,
+    Payment,
+    Income,
+    SponsorIncome,
+    Commission,
+    DailyIncomeReport,
+    RankReward,
+    RankPayoutLog,
+    RockCounter,
 )
 
 # ==========================================================
@@ -26,7 +34,6 @@ class MemberAdmin(admin.ModelAdmin):
         "right_cf",
         "joined_date",
     )
-
     search_fields = ("auto_id", "name", "phone", "email")
     list_filter = ("side", "binary_eligible", "has_completed_first_pair", "district", "taluk", "pincode")
     ordering = ("id",)
@@ -35,15 +42,6 @@ class MemberAdmin(admin.ModelAdmin):
     def auto_id_display(self, obj):
         return format_html("<strong>{}</strong>", obj.auto_id)
     auto_id_display.short_description = "Auto ID"
-
-
-# ==========================================================
-# ✅ PRODUCT ADMIN
-# ==========================================================
-@admin.register(Product)
-class ProductAdmin(admin.ModelAdmin):
-    list_display = ["product_id", "name", "mrp", "bv_value", "created_at"]
-    search_fields = ["product_id", "name"]
 
 
 # ==========================================================
@@ -95,7 +93,7 @@ class CommissionAdmin(admin.ModelAdmin):
 
 
 # ==========================================================
-# ✅ DAILY INCOME REPORT ADMIN
+# ✅ DAILY INCOME REPORT ADMIN (minimal change: only eligibility_income added)
 # ==========================================================
 @admin.register(DailyIncomeReport)
 class DailyIncomeReportAdmin(admin.ModelAdmin):
@@ -105,6 +103,7 @@ class DailyIncomeReportAdmin(admin.ModelAdmin):
         "left_joins",
         "right_joins",
         "binary_pairs_paid",
+        "eligibility_income",   # ✅ added
         "binary_income",
         "sponsor_income",
         "total_income",
@@ -133,14 +132,33 @@ class RankPayoutLogAdmin(admin.ModelAdmin):
 
 
 # ==========================================================
-# ✅ DIRECT REGISTRATIONS
+# ✅ INCOME RECORD ADMIN (new: explicit admin with eligibility field)
 # ==========================================================
-admin.site.register(IncomeRecord)
-admin.site.register(CommissionRecord)
+@admin.register(IncomeRecord)
+class IncomeRecordAdmin(admin.ModelAdmin):
+    list_display = [
+        "member",
+        "type",
+        "amount",
+        "eligibility_income",   # ✅ added
+        "binary_income",
+        "sponsor_income",
+        "wallet_income",
+        "salary_income",
+        "total_income",
+        "created_at",
+    ]
+    search_fields = ["member__name", "member__auto_id"]
+    list_filter = ["type", "created_at"]
+
+
+# ==========================================================
+# ✅ DIRECT REGISTRATIONS (unchanged)
+# ==========================================================
 admin.site.register(BonusRecord)
 admin.site.register(RockCounter)
 
-# ✅ Admin Branding
+# ✅ Admin Branding (unchanged)
 admin.site.site_header = "🌿 Rocky Herbals Administration"
 admin.site.site_title = "Rocky Herbals Admin"
 admin.site.index_title = "Welcome to Rocky Herbals Dashboard"

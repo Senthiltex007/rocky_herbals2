@@ -1,0 +1,30 @@
+<li>
+    <div class="avatar-circle" onclick="info(
+        '{{ parent.name }}',
+        '{{ parent.auto_id }}',
+        '{{ parent.rank|default:'' }}',
+        '{{ parent.left_bv|default:0 }}',
+        '{{ parent.right_bv|default:0 }}'
+    )">
+        <div>{{ parent.name }}</div>
+        <small>{{ parent.auto_id }}</small>
+    </div>
+
+    {% if not parent.left_member %}
+        <a class="add-btn" href="{% url 'member_add_under_parent' parent.id 'left' %}">+ Add Left</a>
+    {% endif %}
+    {% if not parent.right_member %}
+        <a class="add-btn" href="{% url 'member_add_under_parent' parent.id 'right' %}">+ Add Right</a>
+    {% endif %}
+
+    {% with children=parent.get_children %}
+        {% if children %}
+            <ul>
+                {% for child in children %}
+                    {% include "herbalapp/modern_child_circle.html" with parent=child %}
+                {% endfor %}
+            </ul>
+        {% endif %}
+    {% endwith %}
+</li>
+

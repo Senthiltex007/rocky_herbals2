@@ -1,27 +1,109 @@
-{% extends "base.html" %}
 {% load static %}
-{% block content %}
-<div class="tree">
-  <ul>
-    {% include "herbalapp/tree_node.html" with member=root_member %}
-  </ul>
-</div>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Dynamic Tree</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<style>
-.tree ul { padding-top:20px; position:relative; display:flex; justify-content:center; }
-.tree li { position:relative; list-style:none; padding:20px 5px 0 5px; text-align:center; display:inline-block; vertical-align:top; }
-.tree li::before, .tree li::after { content:''; position:absolute; top:0; border-top:3px solid #1976d2; width:50%; height:20px; }
-.tree li::before { left:-50%; border-right:3px solid #1976d2; }
-.tree li::after { right:-50%; border-left:3px solid #1976d2; }
-.tree li:only-child::before, .tree li:only-child::after { display:none; }
-.tree li:first-child::before, .tree li:last-child::after { border:none; }
-.tree li ul::before { content:''; position:absolute; top:0; left:50%; transform:translateX(-50%); width:0; height:20px; border-left:3px solid #1976d2; }
-.member { background:none; border:none; box-shadow:none; padding:0; }
-.avatar { width:60px; height:60px; border-radius:50%; border:3px solid #1976d2; object-fit:cover; }
-.info { font-size:14px; margin-top:5px; }
-.actions { margin-top:5px; }
-.add-btn { font-size:12px; padding:2px 6px; border:1px solid #1976d2; border-radius:4px; color:#1976d2; text-decoration:none; }
-.add-btn:hover { background-color:#e3f2fd; }
-</style>
-{% endblock %}
+    <style>
+        .tree {
+            width: 100%;
+            overflow-x: auto;
+            padding-bottom: 20px;
+        }
+        .tree > ul {
+            padding-top: 20px;
+            position: relative;
+            display: inline-block;
+            white-space: nowrap;
+        }
+        .tree ul {
+            padding-top: 20px;
+            position: relative;
+        }
+        .tree li {
+            display: inline-block;
+            vertical-align: top;
+            text-align: center;
+            list-style: none;
+            position: relative;
+            padding: 20px 10px 0 10px;
+        }
+
+        /* Thick connector lines */
+        .tree li::before,
+        .tree li::after {
+            content: "";
+            position: absolute;
+            top: 0;
+            width: 50%;
+            height: 20px;
+            border-top: 3px solid #444;
+        }
+        .tree li::before {
+            left: -50%;
+            border-right: 3px solid #444;
+        }
+        .tree li::after {
+            right: -50%;
+            border-left: 3px solid #444;
+        }
+        .tree li:only-child::before,
+        .tree li:only-child::after {
+            display: none;
+        }
+        .tree li > ul::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 50%;
+            height: 20px;
+            border-left: 3px solid #444;
+        }
+
+        /* Member styling — no box */
+        .member {
+            display: inline-block;
+            text-align: center;
+            padding: 0;
+            background: transparent;
+            border: none;
+            box-shadow: none;
+        }
+        .avatar {
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: none;
+        }
+        .info {
+            font-size: 12px;
+            margin-top: 4px;
+        }
+        .actions {
+            margin-top: 4px;
+        }
+        .add-btn {
+            font-size: 12px;
+            color: #2b6ef2;
+            text-decoration: none;
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+        .add-btn:hover {
+            background: rgba(43, 110, 242, 0.1);
+        }
+    </style>
+</head>
+<body>
+    <h2 style="text-align:center; margin-top:20px;">Dynamic Tree</h2>
+    <div class="tree">
+        <ul>
+            {% include "herbalapp/tree_node.html" with member=root_member %}
+        </ul>
+    </div>
+</body>
+</html>
 

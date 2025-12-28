@@ -45,15 +45,20 @@ class RockCounter(models.Model):
 # ==========================================================
 # MEMBER MODEL (MAIN GENEALOGY TREE)
 # ==========================================================
+from django.db import models, transaction
+from django.utils import timezone
+
 class Member(models.Model):
+    # -------------------------
+    # AUTO ID GENERATION
+    # -------------------------
     auto_id = models.CharField(
         max_length=20,
         unique=True,
         blank=True,
         editable=False
     )
-    name = models.CharField(max_length=200)
-    # other fields...
+
     def save(self, *args, **kwargs):
         if not self.auto_id:
             with transaction.atomic():
@@ -66,30 +71,10 @@ class Member(models.Model):
     # -------------------------
     # BASIC DETAILS
     # -------------------------
-
+    name = models.CharField(max_length=200)
     phone = models.CharField(max_length=20)
     email = models.EmailField(blank=True, null=True)
     avatar = models.ImageField(upload_to='avatars/', blank=True, null=True)
-
-    activation_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
-    is_active = models.BooleanField(default=False)
-
-    total_bv = models.IntegerField(default=0)
-    rank = models.CharField(max_length=100, default="", blank=True)
-
-    total_left_bv = models.IntegerField(default=0)
-    total_right_bv = models.IntegerField(default=0)
-    left_new_today = models.IntegerField(default=0)
-    right_new_today = models.IntegerField(default=0)
-
-    left_cf = models.IntegerField(default=0)   # carry forward
-    right_cf = models.IntegerField(default=0)
-    binary_income = models.IntegerField(default=0)
-    repurchase_wallet = models.IntegerField(default=0)
-    binary_eligible_since = models.DateField(null=True, blank=True)
-    # -------------------------
-    # IDENTIFICATION / ADDRESS
-    # -------------------------
     aadhar = models.CharField(max_length=20, blank=True, null=True)
     aadhar_number = models.CharField(max_length=20, null=True, blank=True)
     place = models.CharField(max_length=100, blank=True, null=True)
@@ -97,10 +82,12 @@ class Member(models.Model):
     taluk = models.CharField(max_length=100, null=True, blank=True)
     pincode = models.CharField(max_length=10, null=True, blank=True)
 
+    activation_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    is_active = models.BooleanField(default=False)
+
     # -------------------------
     # MLM RELATIONSHIP
     # -------------------------
-    # Direct sponsor (Add member form-ல sponsor_id யாரோ அவர்)
     sponsor = models.ForeignKey(
         "self",
         null=True,
@@ -109,7 +96,14 @@ class Member(models.Model):
         related_name="direct_downlines",
     )
 
-    # Placement (binary tree left/right)
+    placement = models.ForeignKey(
+        "self",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="placements"
+    )
+
     left_member = models.OneToOneField(
         "self",
         null=True,
@@ -125,27 +119,62 @@ class Member(models.Model):
         related_name="placed_on_right_of",
     )
 
-    # Node side relative to its upline (for BV / tree rendering)
     side = models.CharField(
         max_length=10,
         null=True,
         blank=True,
         choices=[("left", "Left"), ("right", "Right")],
     )
-    placement = models.ForeignKey(
-        "self",
-        null=True,
-        blank=True,
-        on_delete=models.SET_NULL,
-        related_name="placements"
-    )
-
     position = models.CharField(
         max_length=10,
         choices=[("left", "Left"), ("right", "Right")],
         blank=True,
         null=True
     )
+
+    # -------------------------
+    # INCOME / RANK DETAILS
+    # -------------------------
+    rank_monthly_salary = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    sponsor_income = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    flashout_units = models.IntegerField(default=0)
+    washed_pairs = models.IntegerField(default=0)
+    repurchase_wallet_balance = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    total_bv = models.IntegerField(default=0)
+    rank = models.CharField(max_length=100, default="", blank=True)
+    lifetime_pairs = models.IntegerField(default=0)
+    total_left_bv = models.IntegerField(default=0)
+    total_right_bv = models.IntegerField(default=0)
+    left_new_today = models.IntegerField(default=0)
+    right_new_today = models.IntegerField(default=0)
+    left_cf = models.IntegerField(default=0)
+    right_cf = models.IntegerField(default=0)
+    binary_income = models.IntegerField(default=0)
+    repurchase_wallet = models.IntegerField(default=0)
+    binary_eligible_since = models.DateField(null=True, blank=True)
+    binary_eligible = models.BooleanField(default=False)
+    binary_eligible_date = models.DateTimeField(null=True, blank=True)
+    has_completed_first_pair = models.BooleanField(default=False)
+
+    # -------------------------
+    # ENGINE COMPATIBILITY
+    # -------------------------
+    @property
+    def parent(self):
+        """Alias for placement, so engine code using child.parent works."""
+        return self.placement
+
+    def calculate_full_income(self, run_date=None):
+        """Wrapper to call binary engine and return income dict."""
+        return calculate_member_binary_income_for_day(
+            self.left_new_today,
+            self.right_new_today,
+            self.left_cf,
+            self.right_cf,
+            self.binary_eligible,
+            self,
+            run_date or timezone.now().date()
+        )
 
 
     # -------------------------
@@ -601,14 +630,41 @@ class Order(models.Model):
         return f"Order #{self.id} - {self.member.name}"
 
 
+from django.db import models
+from django.utils import timezone
+
 # ==========================================================
-# RECORD MODELS
+# INCOME RECORD (DAILY REPORT)
 # ==========================================================
 class IncomeRecord(models.Model):
-    member = models.ForeignKey(Member, on_delete=models.CASCADE)
+    member = models.ForeignKey("Member", on_delete=models.CASCADE)
+
+    # ✅ Core fields
     amount = models.DecimalField(max_digits=12, decimal_places=2)
     type = models.CharField(max_length=100)
-    created_at = models.DateTimeField(default=timezone.now)  # ✅ changed
+    created_at = models.DateTimeField(default=timezone.now)
+
+    # ✅ Report fields
+    left_joins = models.IntegerField(default=0)
+    right_joins = models.IntegerField(default=0)
+
+    left_cf_before = models.IntegerField(default=0)
+    right_cf_before = models.IntegerField(default=0)
+    left_cf_after = models.IntegerField(default=0)
+    right_cf_after = models.IntegerField(default=0)
+
+    binary_pairs = models.IntegerField(default=0)
+    binary_income = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    sponsor_income = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    flashout_units = models.IntegerField(default=0)
+    wallet_income = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    washed_pairs = models.IntegerField(default=0)
+
+    # ✅ Eligibility bonus
+    eligibility_income = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+
+    salary_income = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    total_income = models.DecimalField(max_digits=10, decimal_places=2, default=0)
 
     def __str__(self):
         return f"{self.member.name} - {self.type} - {self.amount}"
@@ -620,16 +676,6 @@ class IncomeRecord(models.Model):
                 name="uniq_member_type_created_at"
             )
         ]
-
-
-class CommissionRecord(models.Model):
-    member = models.ForeignKey(Member, on_delete=models.CASCADE)
-    level = models.CharField(max_length=20)
-    amount = models.DecimalField(max_digits=12, decimal_places=2)
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    def __str__(self):
-        return f"{self.member.name} - Level {self.level}"
 
 
 class BonusRecord(models.Model):
@@ -700,9 +746,6 @@ class RankPayoutLog(models.Model):
         return f"{self.member.auto_id} - {self.rank_reward.rank_title} - {self.amount} on {self.paid_on}"
 
 
-from decimal import Decimal
-from django.db import models
-from herbalapp.models import Member
 
 class DailyIncomeReport(models.Model):
     member = models.ForeignKey(Member, on_delete=models.CASCADE)
