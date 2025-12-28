@@ -1,0 +1,21 @@
+<!-- nano herbalapp/templates/herbalapp/tree_not_found.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Tree Not Found</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+</head>
+<body class="container mt-5 text-center">
+  <div class="alert alert-danger shadow-sm">
+    <h2 class="fw-bold">❌ Tree Not Found</h2>
+    <p>The member with ID <strong>{{ auto_id }}</strong> could not be found in the genealogy tree.</p>
+  </div>
+
+  <div class="mt-4">
+    <a href="{% url 'member_tree_root' %}" class="btn btn-primary">Back to Tree Root</a>
+    <a href="{% url 'member_list' %}" class="btn btn-secondary">View Members List</a>
+  </div>
+</body>
+</html>
+

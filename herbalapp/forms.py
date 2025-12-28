@@ -5,7 +5,7 @@ class MemberForm(forms.ModelForm):
     class Meta:
         model = Member
         fields = [
-            "name", "email", "phone", "aadhar_number", "avatar",
+            "name", "phone", "aadhar_number", "avatar",
             "district", "taluk", "pincode", "placement", "sponsor",
             "side", "position", "joined_date",
         ]

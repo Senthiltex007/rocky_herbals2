@@ -1,0 +1,54 @@
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Genealogy Tree</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background-color: #f7f7f7; }
+        .container { text-align: center; }
+        .node { display: inline-block; margin: 20px; padding: 15px; background: #fff; border: 1px solid #ccc; border-radius: 8px; }
+        .node h2 { margin: 0; }
+        .actions { margin-top: 10px; }
+        .actions a { margin: 0 5px; text-decoration: none; color: #007bff; }
+        .actions a:hover { text-decoration: underline; }
+        .alert { margin: 10px auto; padding: 10px; border-radius: 5px; max-width: 400px; }
+        .alert-danger { background-color: #f8d7da; color: #721c24; }
+        .alert-success { background-color: #d4edda; color: #155724; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>Dynamic Tree</h1>
+
+    <!-- ✅ Messages -->
+    {% if messages %}
+      {% for message in messages %}
+        <div class="alert {% if message.tags %}alert-{{ message.tags }}{% endif %}">
+          {{ message }}
+        </div>
+      {% endfor %}
+    {% endif %}
+
+    <!-- ✅ Root Node -->
+    <div class="node">
+        <h2>{{ root_member.name }}</h2>
+        <p>ID: {{ root_member.auto_id }}</p>
+        <p>BV: {{ root_member.bv|default:"0.00" }}</p>
+
+        <div class="actions">
+            {% if not root_member.left_member %}
+              <a href="{% url 'add_member_under_parent' root_member.auto_id 'left' %}">+ Add Left</a>
+            {% else %}
+              <p>Left: {{ root_member.left_member.name }} ({{ root_member.left_member.auto_id }})</p>
+            {% endif %}
+
+            {% if not root_member.right_member %}
+              <a href="{% url 'add_member_under_parent' root_member.auto_id 'right' %}">+ Add Right</a>
+            {% else %}
+              <p>Right: {{ root_member.right_member.name }} ({{ root_member.right_member.auto_id }})</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+</body>
+</html>
+

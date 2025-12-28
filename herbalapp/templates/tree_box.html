@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Genealogy Tree Box</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+<style>
+.tree-box {
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    padding: 12px;
+    text-align: center;
+    background: #f9f9f9;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    width: 200px;
+    margin: 10px auto;
+    transition: transform .15s ease-in-out;
+}
+.tree-box:hover { transform: translateY(-2px); }
+.tree-box img.avatar {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    margin-bottom: 8px;
+    object-fit: cover;
+    border: 2px solid #198754;
+}
+.tree-box .auto-id {
+    font-weight: 700;
+    color: #198754;
+    font-size: 16px;
+}
+.tree-box .name {
+    font-size: 14px;
+    margin-bottom: 4px;
+}
+.tree-box .package {
+    font-size: 12px;
+    color: #555;
+}
+.badge-wrap { line-height: 1.8; }
+.connector-v {
+    width: 2px;
+    background: #198754;
+    margin: 0 auto;
+}
+</style>
+</head>
+<body>
+
+<div class="tree-box">
+    <!-- Avatar -->
+    <img src="{{ member.avatar_url|default:'/static/images/avatar_default.png' }}" class="avatar" alt="Member Avatar">
+
+    <!-- Auto ID -->
+    <div class="auto-id">{{ member.auto_id }}</div>
+
+    <!-- Name -->
+    <div class="name">{{ member.name }}</div>
+
+    <!-- Package -->
+    <div class="package">{{ member.package }}</div>
+
+    <!-- Income Summary -->
+    <div class="badge-wrap mt-2">
+        <span class="badge bg-success">Binary: {{ member.binary_income }}</span><br>
+        <span class="badge bg-primary">Sponsor: {{ member.sponsor_income }}</span><br>
+        <span class="badge bg-warning text-dark">Flashout: {{ member.flashout }}</span>
+    </div>
+
+    <!-- Actions -->
+    <div class="mt-2">
+        <a href="/tree/{{ member.auto_id }}/" class="btn btn-sm btn-outline-success">Open subtree</a>
+        <a href="/member/edit/{{ member.auto_id }}/" class="btn btn-sm btn-outline-secondary">Edit</a>
+    </div>
+</div>
+
+<!-- Example connector (optional) -->
+<div class="connector-v" style="height:40px;"></div>
+
+</body>
+</html>
+

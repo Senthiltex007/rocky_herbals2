@@ -4,7 +4,7 @@
 {% block content %}
 <div class="container mt-4">
 
-    <h2 class="text-center mb-4">Daily Income Report – {{ today }}</h2>
+    <h2 class="text-center mb-4">Daily Income Report – {{ today|date:"d-m-Y" }}</h2>
 
     <!-- ✅ Date Filter -->
     <form method="get" class="mb-4 d-flex gap-2 align-items-center">
@@ -21,28 +21,22 @@
                 <th>#</th>
                 <th>Member ID</th>
                 <th>Name</th>
-
                 <th>Left Joins</th>
                 <th>Right Joins</th>
-
                 <th>Left CF Before</th>
                 <th>Right CF Before</th>
                 <th>Left CF After</th>
                 <th>Right CF After</th>
-
                 <th>Pairs Paid</th>
                 <th>Binary Income (₹)</th>
                 <th>Sponsor Income (₹)</th>
-
                 <th>Flashout Units</th>
                 <th>Wallet Income (₹)</th>
                 <th>Washed Pairs</th>
-
                 <th>Total Left BV</th>
                 <th>Total Right BV</th>
                 <th>Salary Income (₹)</th>
                 <th>Rank</th>
-
                 <th>Total Income (₹)</th>
             </tr>
         </thead>
@@ -51,30 +45,24 @@
             {% for r in reports %}
             <tr>
                 <td>{{ forloop.counter }}</td>
-                <td>{{ r.member.member_id }}</td>
+                <td>{{ r.member.auto_id }}</td>
                 <td>{{ r.member.name }}</td>
-
                 <td>{{ r.left_joins }}</td>
                 <td>{{ r.right_joins }}</td>
-
                 <td>{{ r.left_cf_before }}</td>
                 <td>{{ r.right_cf_before }}</td>
                 <td>{{ r.left_cf_after }}</td>
                 <td>{{ r.right_cf_after }}</td>
-
-                <td>{{ r.binary_pairs_paid }}</td>
+                <td>{{ r.binary_pairs }}</td>
                 <td>{{ r.binary_income }}</td>
                 <td>{{ r.sponsor_income }}</td>
-
                 <td>{{ r.flashout_units }}</td>
-                <td>{{ r.flashout_wallet_income }}</td>
+                <td>{{ r.wallet_income }}</td>
                 <td>{{ r.washed_pairs }}</td>
-
-                <td>{{ r.total_left_bv }}</td>
-                <td>{{ r.total_right_bv }}</td>
+                <td>{{ r.member.total_left_bv }}</td>
+                <td>{{ r.member.total_right_bv }}</td>
                 <td>{{ r.salary_income }}</td>
-                <td>{{ r.rank_title }}</td>
-
+                <td>{{ r.member.rank }}</td>
                 <td><strong>{{ r.total_income }}</strong></td>
             </tr>
             {% empty %}
@@ -88,6 +76,4 @@
     </table>
 </div>
 {% endblock %}
-
-
 

@@ -1,0 +1,28 @@
+<!-- templates/member_form.html -->
+<form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+
+    <!-- Show Member ID (readonly, auto-generated) -->
+    {% if member and member.pk %}
+        <p><strong>Member ID:</strong> {{ member.auto_id }}</p>
+    {% else %}
+        <p><strong>Member ID:</strong> (will be auto-generated after save)</p>
+    {% endif %}
+
+    <!-- Other form fields -->
+    <p><strong>Name:</strong> {{ form.name }}</p>
+    <p><strong>Phone Number:</strong> {{ form.phone }}</p>
+    <p><strong>Email:</strong> {{ form.email }}</p>
+    <p><strong>Aadhar Number:</strong> {{ form.aadhar }}</p>
+    <p><strong>Place:</strong> {{ form.place }}</p>
+    <p><strong>District:</strong> {{ form.district }}</p>
+    <p><strong>Pincode:</strong> {{ form.pincode }}</p>
+    <p><strong>Parent:</strong> {{ form.parent }}</p>
+    <p><strong>Sponsor ID:</strong> {{ form.sponsor }}</p>
+    <p><strong>Avatar (Profile Photo):</strong> {{ form.avatar }}</p>
+    <p><strong>Side (Left/Right):</strong> {{ form.side }}</p>
+
+    <button type="submit">Save Member</button>
+    <a href="{% url 'members_list' %}">Back to Members List</a>
+</form>
+

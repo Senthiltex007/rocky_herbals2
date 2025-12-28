@@ -1,21 +1,23 @@
 {% load static %}
-<li class="tree-node">
+<li>
   <div class="member">
     <img src="{% if member.avatar %}{{ member.avatar.url }}{% else %}{% static 'default-avatar.png' %}{% endif %}"
          class="avatar" />
     <div class="info">
       <strong>{{ member.name }}</strong><br>
       ID: {{ member.auto_id }}<br>
-      BV: {{ member.total_left_bv }}/{{ member.total_right_bv }}
+      BV: {{ member.total_left_bv|default:"0" }}/{{ member.total_right_bv|default:"0" }}
     </div>
     <div class="actions">
-      {% if member.id %}
+      {% if member.auto_id %}
         {% if not member.left_member %}
-          <a class="add-btn" href="{% url 'member_add_under_parent' member.id 'left' %}">+ Add Left</a>
+          <a class="add-btn" href="{% url 'add_member_under_parent' member.auto_id 'left' %}">+ Add Left</a>
         {% endif %}
         {% if not member.right_member %}
-          <a class="add-btn" href="{% url 'member_add_under_parent' member.id 'right' %}">+ Add Right</a>
+          <a class="add-btn" href="{% url 'add_member_under_parent' member.auto_id 'right' %}">+ Add Right</a>
         {% endif %}
+      {% else %}
+        <span class="add-btn">No ID</span>
       {% endif %}
     </div>
   </div>
