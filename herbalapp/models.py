@@ -132,6 +132,9 @@ class Member(models.Model):
         null=True
     )
 
+    def __str__(self):
+        return f"{self.auto_id} - {self.name}"
+
     # -------------------------
     # INCOME / RANK DETAILS
     # -------------------------
@@ -636,15 +639,18 @@ from django.utils import timezone
 # ==========================================================
 # INCOME RECORD (DAILY REPORT)
 # ==========================================================
+from django.db import models
+from django.utils import timezone
+
 class IncomeRecord(models.Model):
     member = models.ForeignKey("Member", on_delete=models.CASCADE)
 
-    # ✅ Core fields
-    amount = models.DecimalField(max_digits=12, decimal_places=2)
+    date = models.DateField(default=timezone.now)
+
+    amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     type = models.CharField(max_length=100)
     created_at = models.DateTimeField(default=timezone.now)
 
-    # ✅ Report fields
     left_joins = models.IntegerField(default=0)
     right_joins = models.IntegerField(default=0)
 
@@ -656,26 +662,27 @@ class IncomeRecord(models.Model):
     binary_pairs = models.IntegerField(default=0)
     binary_income = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     sponsor_income = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+
     flashout_units = models.IntegerField(default=0)
     wallet_income = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     washed_pairs = models.IntegerField(default=0)
 
-    # ✅ Eligibility bonus
     eligibility_income = models.DecimalField(max_digits=12, decimal_places=2, default=0)
-
     salary_income = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     total_income = models.DecimalField(max_digits=10, decimal_places=2, default=0)
 
     def __str__(self):
-        return f"{self.member.name} - {self.type} - {self.amount}"
+        return f"{self.member.auto_id} - {self.type} - {self.amount}"
 
+    # ✅ THIS IS THE ONLY CORRECT PLACE
     class Meta:
         constraints = [
             models.UniqueConstraint(
-                fields=["member", "type", "created_at"],
-                name="uniq_member_type_created_at"
+                fields=["member", "type", "date"],
+                name="uniq_member_type_date"
             )
         ]
+
 
 
 class BonusRecord(models.Model):
@@ -789,12 +796,16 @@ class DailyIncomeReport(models.Model):
 from django.db import models
 
 class AuditDailyReport(models.Model):
-    date = models.DateField()
+    date = models.DateField(unique=True)
     processed_members = models.IntegerField()
     total_binary_income = models.DecimalField(max_digits=12, decimal_places=2)
     total_sponsor_income = models.DecimalField(max_digits=12, decimal_places=2)
     flashout_units = models.IntegerField()
     washout_pairs = models.IntegerField()
+
+    # ✅ Add missing fields
+    total_eligibility_income = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    total_wallet_income = models.DecimalField(max_digits=12, decimal_places=2, default=0)
 
     class Meta:
         verbose_name = "Audit Daily Report"
