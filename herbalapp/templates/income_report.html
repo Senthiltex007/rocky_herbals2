@@ -1,149 +1,61 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
+{% extends "base.html" %}
+{% block content %}
+<div class="container mt-4">
+  <h3>Daily Income Report – {{ run_date }}</h3>
 
-<!-- ✅ Bootstrap CDN -->
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
-<link rel="stylesheet" href="/static/css/style.css">
-<link rel="icon" type="image/x-icon" href="/static/favicon.ico?v=2">
+  <!-- Debug line to show how many records are passed -->
+  <p>Total records: {{ members|length }}</p>
 
-<title>Rocky Sri Herbals</title>
-
-<style>
-body {background-color:#f8f9fa;padding:20px;font-family:"Segoe UI",sans-serif;}
-.page-title {font-size:28px;font-weight:700;color:#198754;margin-bottom:20px;}
-.table thead th {background-color:#198754;color:white;text-align:center;}
-.table tbody td {vertical-align:middle;text-align:center;}
-.table tbody tr:hover {background-color:#eef6f0;}
-.report-card {background:white;border-radius:8px;padding:20px;box-shadow:0 2px 8px rgba(0,0,0,0.08);}
-.date-box {max-width:220px;}
-.btn-green {background-color:#198754;color:white;font-weight:600;}
-.btn-green:hover {background-color:#146c43;color:white;}
-.hero-banner{width:100%;height:400px;object-fit:cover;}
-.logo{max-height:120px;margin-top:10px;}
-table th,table td{text-align:center;vertical-align:middle;}
-nav a{color:white;padding:10px;text-decoration:none;}
-nav{background:black;display:flex;gap:20px;justify-content:center;}
-footer p{text-align:center;padding:8px;background:black;color:white;margin:0;}
-</style>
-</head>
-<body>
-
-<header>
-    <div id="heroCarousel" class="carousel slide" data-bs-ride="carousel">
-        <div class="carousel-inner">
-            <div class="carousel-item active"><img src="/static/images/newbanner.jpg" class="d-block w-100 hero-banner"></div>
-            <div class="carousel-item"><img src="/static/images/newbanner2.jpg" class="d-block w-100 hero-banner"></div>
-            <div class="carousel-item"><img src="/static/images/newbanner3.jpg" class="d-block w-100 hero-banner"></div>
-        </div>
-        <button class="carousel-control-prev" type="button" data-bs-target="#heroCarousel" data-bs-slide="prev">
-            <span class="carousel-control-prev-icon"></span>
-        </button>
-        <button class="carousel-control-next" type="button" data-bs-target="#heroCarousel" data-bs-slide="next">
-            <span class="carousel-control-next-icon"></span>
-        </button>
-    </div>
-    <div class="brand text-center">
-        <img src="/static/images/newlogo.jpeg" class="logo" alt="Rocky Sri Herbals Logo">
-    </div>
-</header>
-
-<nav>
-    <a href="/">Home</a>
-    <a href="/products/">Products</a>
-    <a href="/tree/">Genealogy Tree</a>
-    <a href="/about/">About</a>
-    <a href="/contact/">Contact</a>
-</nav>
-
-<main>
-<div class="container mt-5">
-
-<h2 class="text-center mb-4">💰 Daily Income Report</h2>
-
-<form method="get" class="mb-3 text-center">
-  <input type="date" name="date" value="{{ selected_date }}" class="form-control d-inline-block w-25">
-  <button type="submit" class="btn btn-primary ms-2">Filter</button>
-</form>
-
-{% if reports %}
-<div class="table-responsive">
-<table class="table table-bordered table-striped shadow-sm">
-<thead class="table-dark">
-<tr>
-    <th>#</th>
-    <th>Member ID</th>
-    <th>Name</th>
-    <th>Left Joins</th>
-    <th>Right Joins</th>
-    <th>Left CF Before</th>
-    <th>Right CF Before</th>
-    <th>Left CF After</th>
-    <th>Right CF After</th>
-    <th>Pairs Paid</th>
-    <th>Binary Income (₹)</th> <!-- ✅ eligibility bonus merged -->
-    <th>Sponsor Income (₹)</th>
-    <th>Flashout Units</th>
-    <th>Wallet Income (₹)</th>
-    <th>Washed Pairs</th>
-    <th>Total Left BV</th>
-    <th>Total Right BV</th>
-    <th>Salary Income (₹)</th>
-    <th>Rank</th>
-    <th>Total Income (₹)</th>
-</tr>
-</thead>
-<tbody>
-{% for report in reports %}
-<tr>
-    <td>{{ forloop.counter }}</td>
-    <td>{{ report.member.auto_id }}</td>
-    <td>{{ report.member.name }}</td>
-    <td>{{ report.left_joins }}</td>
-    <td>{{ report.right_joins }}</td>
-    <td>{{ report.left_cf_before }}</td>
-    <td>{{ report.right_cf_before }}</td>
-    <td>{{ report.left_cf_after }}</td>
-    <td>{{ report.right_cf_after }}</td>
-    <td>{{ report.binary_pairs }}</td>
-    <td>{{ report.binary_income }}</td> <!-- ✅ eligibility bonus merged -->
-    <td>{{ report.sponsor_income }}</td>
-    <td>{{ report.flashout_units }}</td>
-    <td>{{ report.wallet_income }}</td>
-    <td>{{ report.washout_pairs }}</td>
-    <td>{{ report.total_left_bv }}</td>
-    <td>{{ report.total_right_bv }}</td>
-    <td>{{ report.salary_income }}</td>
-    <td>{{ report.rank }}</td>
-    <td><span class="badge bg-success fs-6">{{ report.total_income }}</span></td>
-</tr>
-{% empty %}
-<tr>
-    <td colspan="20">No income records found for this date.</td>
-</tr>
-{% endfor %}
-</tbody>
-</table>
+  {% if members %}
+  <div class="table-responsive">
+    <table class="table table-bordered table-striped table-hover table-sm text-center align-middle">
+      <thead class="table-dark">
+        <tr>
+          <th>#</th>
+          <th>Member ID</th>
+          <th>Name</th>
+          <th>Left Joins</th>
+          <th>Right Joins</th>
+          <th>Left CF Before</th>
+          <th>Right CF Before</th>
+          <th>Left CF After</th>
+          <th>Right CF After</th>
+          <th>Binary Income (₹)</th>
+          <th>Sponsor Income (₹)</th>
+          <th>Flashout Units</th>
+          <th>Wallet Income (₹)</th>
+          <th>Washed Pairs</th>
+          <th>Salary Income (₹)</th>
+          <th>Total Income (₹)</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for member in members %}
+        <tr>
+          <td>{{ forloop.counter }}</td>
+          <td>{{ member.auto_id }}</td>
+          <td>{{ member.name }}</td>
+          <td>{{ member.left_joins|default:"–" }}</td>
+          <td>{{ member.right_joins|default:"–" }}</td>
+          <td>{{ member.left_cf_before|default:"–" }}</td>
+          <td>{{ member.right_cf_before|default:"–" }}</td>
+          <td>{{ member.left_cf_after|default:"–" }}</td>
+          <td>{{ member.right_cf_after|default:"–" }}</td>
+          <td>{{ member.binary_income|default:"–" }}</td>
+          <td>{{ member.sponsor_income|default:"–" }}</td>
+          <td>{{ member.flashout_units|default:"–" }}</td>
+          <td>{{ member.wallet_income|default:"–" }}</td>
+          <td>{{ member.washed_pairs|default:"–" }}</td>
+          <td>{{ member.salary_income|default:"–" }}</td>
+          <td><strong>{{ member.total_income|default:"–" }}</strong></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+    <p>No income records found for this date.</p>
+  {% endif %}
 </div>
-{% else %}
-<div class="alert alert-info text-center fs-5">No income reports available yet.</div>
-{% endif %}
-
-<div class="text-center mt-3">
-<a href="/dashboard/" class="btn btn-secondary">⬅ Back to Dashboard</a>
-</div>
-</div>
-</main>
-
-<footer class="mt-5">
-    <img src="/static/images/banner_home.jpg" style="width:100%;">
-    <img src="/static/images/banner_shop.jpg" style="width:100%;">
-    <img src="/static/images/banner_contact.jpg" style="width:100%;">
-    <p>&copy; 2025 Rocky Sri Herbals</p>
-</footer>
-
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-</body>
-</html>
+{% endblock %}
 

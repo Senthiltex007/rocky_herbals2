@@ -898,8 +898,8 @@ from django.shortcuts import render, get_object_or_404
 from .models import Member
 
 def member_tree_root(request):
-    """Show tree starting from rocky074 (main root)."""
-    root = get_object_or_404(Member, auto_id="rocky074")
+    """Show tree starting from rocky005 (main root)."""
+    root = get_object_or_404(Member, auto_id="rocky005")
     return render(request, "herbalapp/dynamic_tree.html", {
         "root_member": root
     })
@@ -938,7 +938,6 @@ def build_tree(member):
 
 from django.shortcuts import render, get_object_or_404
 from herbalapp.models import Member
-from herbalapp.utils.tree import count_subtree
 from herbalapp.utils.tree_json import build_tree_json
 
 def dynamic_tree(request, auto_id):
@@ -1719,40 +1718,28 @@ def income_chart(request, auto_id):
     })
 
 # herbalapp/views.py
-from django.shortcuts import render, redirect
-from datetime import datetime
-from django.utils.timezone import localdate
-from herbalapp.models import Member, IncomeRecord
+from django.shortcuts import render
+import datetime
+from herbalapp.models import IncomeRecord
 
-# -----------------------------
-# Income Report View
-# -----------------------------
 def income_report(request):
+    # get date from GET param, fallback today
     date_str = request.GET.get("date")
-    target_date = None
-
     if date_str:
-        for fmt in ("%Y-%m-%d", "%d-%m-%Y"):
-            try:
-                target_date = datetime.strptime(date_str, fmt).date()
-                break
-            except ValueError:
-                pass
+        try:
+            run_date = datetime.datetime.strptime(date_str, "%Y-%m-%d").date()
+        except ValueError:
+            run_date = datetime.date.today()
+    else:
+        run_date = datetime.date.today()
 
-    if target_date is None:
-        target_date = localdate()   # ✅ IST aware
+    records = IncomeRecord.objects.filter(date=run_date).select_related("member")
 
-    # ✅ Fetch reports for the selected date
-    reports = IncomeRecord.objects.filter(
-        created_at__date=target_date,
-        type="binary_engine"
-    ).select_related("member").order_by("member__auto_id")
-
-    return render(request, "income_report.html", {
-        "today": target_date,
-        "reports": reports,
-        "count": reports.count(),
-    })
+    return render(
+        request,
+        "income_report.html",
+        {"members": records, "run_date": run_date},
+    )
 
 
 # -----------------------------
@@ -1838,7 +1825,6 @@ def member_rank_detail(request, auto_id):
     })
 def genealogy_view(request, auto_id):
     from herbalapp.utils.tree_income_debug import genealogy_tree_income_debug
-    from herbalapp.utils.tree import count_subtree, print_tree
     from herbalapp.models import Member
 
     root = Member.objects.get(auto_id=auto_id)
@@ -1865,7 +1851,6 @@ def genealogy_view(request, auto_id):
 
 from django.shortcuts import render
 from herbalapp.models import Member
-from herbalapp.utils.tree import count_subtree
 from herbalapp.utils.tree_json import build_tree_json
 
 def genealogy_visual_view(request, auto_id):
