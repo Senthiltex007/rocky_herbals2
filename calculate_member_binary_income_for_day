@@ -1,0 +1,15 @@
+from herbalapp.utils.tree import count_subtree
+
+left_total = count_subtree(member, "left")
+right_total = count_subtree(member, "right")
+
+if not binary_eligible:
+    if is_binary_eligible(left_total, right_total):
+        became_eligible_today = True
+        eligible_bonus = ELIGIBLE_BONUS
+        member.binary_eligible = True
+        member.binary_eligible_date = timezone.make_aware(
+            datetime.combine(run_date, datetime.min.time())
+        )
+        member.save(update_fields=["binary_eligible", "binary_eligible_date"])
+
