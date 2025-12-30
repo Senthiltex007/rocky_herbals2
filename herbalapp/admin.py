@@ -18,7 +18,7 @@ from .models import (
 )
 
 # ==========================================================
-# ✅ MEMBER ADMIN
+# ✅ MEMBER ADMIN (CLEAN VERSION)
 # ==========================================================
 @admin.register(Member)
 class MemberAdmin(admin.ModelAdmin):
@@ -28,14 +28,10 @@ class MemberAdmin(admin.ModelAdmin):
         "name",
         "sponsor",
         "side",
-        "binary_eligible",
-        "has_completed_first_pair",
-        "left_cf",
-        "right_cf",
         "joined_date",
     )
     search_fields = ("auto_id", "name", "phone", "email")
-    list_filter = ("side", "binary_eligible", "has_completed_first_pair", "district", "taluk", "pincode")
+    list_filter = ("side", "district", "taluk", "pincode")
     ordering = ("id",)
     readonly_fields = ("joined_date",)
 

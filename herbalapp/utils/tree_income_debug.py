@@ -1,42 +1,24 @@
 # herbalapp/utils/tree_income_debug.py
 # ----------------------------------------------------------
 # ✅ Genealogy tree income debug printer
-# - Shows text tree structure
-# - Shows left/right subtree counts
-# - Runs actual engine calculation for debug
 # ----------------------------------------------------------
 
 from herbalapp.models import Member
-from herbalapp.utils.tree import count_subtree, print_tree
 from herbalapp.mlm_engine_binary import calculate_member_binary_income_for_day
 import datetime
 
 
 def genealogy_tree_income_debug(root_auto_id: str):
     """
-    Print genealogy tree structure + subtree counts + engine-based income debug.
+    Print genealogy tree structure + engine-based income debug.
     """
     try:
         root = Member.objects.get(auto_id=root_auto_id)
     except Member.DoesNotExist:
         return f"❌ Member {root_auto_id} not found"
 
-    # Root info
     header = f"Genealogy Tree for {root.auto_id} - {root.name}\n"
     header += "=============================================\n"
-
-    # Tree structure
-    tree_str = print_tree(root, prefix="", is_left=True)
-
-    # Subtree counts
-    left_count = count_subtree(root, "left")
-    right_count = count_subtree(root, "right")
-
-    counts_str = (
-        f"\nSubtree Counts:\n"
-        f" - Left subtree count: {left_count}\n"
-        f" - Right subtree count: {right_count}\n"
-    )
 
     # Engine-based income calculation (using today's date)
     run_date = datetime.date.today()
@@ -61,5 +43,5 @@ def genealogy_tree_income_debug(root_auto_id: str):
         f" - Binary eligible: {debug_result['binary_eligible']}\n"
     )
 
-    return header + tree_str + counts_str + income_str
+    return header + income_str
 

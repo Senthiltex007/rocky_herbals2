@@ -1,110 +1,207 @@
-from django.utils import timezone
-from herbalapp.models import BonusRecord
+# herbalapp/mlm_engine_binary.py
+# ----------------------------------------------------------
+# FINAL MASTER MLM ENGINE (Binary + Sponsor + Flashout + Washout)
+# ----------------------------------------------------------
 
+# ---------------------------------------
+# Global constants
+# ---------------------------------------
 PAIR_VALUE = 500
-ELIGIBILITY_BONUS = 500
-DAILY_BINARY_PAIR_LIMIT = 5
-
-FLASHOUT_UNIT_PAIRS = 5       # 5 new pairs = 1 unit
 FLASHOUT_UNIT_VALUE = 1000
+DAILY_BINARY_PAIR_LIMIT = 5
 MAX_FLASHOUT_UNITS_PER_DAY = 9
+ELIGIBILITY_BONUS = 500
 
+from django.utils import timezone
+from herbalapp.models import IncomeRecord, SponsorIncome, Member
+
+# ---------------------------------------
+# Sponsor income processor
+# ---------------------------------------
+def process_sponsor_income(child, child_total_for_sponsor, run_date, child_became_eligible_today=False):
+    sponsor_amount = int(child_total_for_sponsor or 0)
+    if sponsor_amount <= 0:
+        return
+
+    # --- Parent Income Check ---
+    if child.placement and child.placement.binary_eligible:
+        SponsorIncome.objects.create(
+            sponsor=child.placement,
+            child=child,
+            amount=sponsor_amount,
+            date=run_date
+        )
+        print(f"Parent {child.placement.auto_id} credited ₹{sponsor_amount}")
+
+        # --- Grandparent Income Check ---
+        if child.placement.placement and child.placement.placement.binary_eligible:
+            SponsorIncome.objects.create(
+                sponsor=child.placement.placement,
+                child=child,
+                amount=sponsor_amount,
+                date=run_date
+            )
+            print(f"Grandparent {child.placement.placement.auto_id} credited ₹{sponsor_amount}")
+
+    # --- Sponsor Income Check (if sponsor ≠ parent) ---
+    sponsor_receiver = None
+    if child.sponsor and child.sponsor != child.placement:
+        sponsor_receiver = child.sponsor
+    elif getattr(child, "sponsor_id", None):
+        sponsor_receiver = Member.objects.filter(id=child.sponsor_id).first()
+
+    if sponsor_receiver and sponsor_receiver.binary_eligible:
+        SponsorIncome.objects.create(
+            sponsor=sponsor_receiver,
+            child=child,
+            amount=sponsor_amount,
+            date=run_date
+        )
+        print(f"Sponsor {sponsor_receiver.auto_id} credited ₹{sponsor_amount}")
+
+# ---------------------------------------
+# Binary income calculator
+# ---------------------------------------
 def calculate_member_binary_income_for_day(
     *,
-    left_joins_today: int,
-    right_joins_today: int,
-    left_cf_before: int,
-    right_cf_before: int,
-    binary_eligible: bool,
-    member,
-    run_date
+    left_joins_today=0,
+    right_joins_today=0,
+    left_cf_before=0,
+    right_cf_before=0,
+    binary_eligible=None,
+    member=None,
+    run_date=None
 ):
-    """
-    Rules:
-    - Eligibility (lifetime) when totals (CF + today) reach 1:2 or 2:1 → ₹500 once.
-    - On unlock day: first pair locked (no binary income), one extra unpaired locked.
-    - After eligibility: only today's new 1:1 pairs count for binary income; cap 5/day.
-    - Flashout: extra new pairs (beyond 5) → 5 pairs = 1 unit = ₹1000; cap 9 units/day; leftover → washout.
-    - Carry-forward: unmatched totals persist; consume only today's matched pairs.
-    - Sponsor income: child_total_for_sponsor = eligibility_income (if unlocked today) + binary_income (today).
-    """
+    L = int(left_joins_today or 0) + int(left_cf_before or 0)
+    R = int(right_joins_today or 0) + int(right_cf_before or 0)
 
-    left_joins_today = int(left_joins_today or 0)
-    right_joins_today = int(right_joins_today or 0)
-    L_total = int(left_cf_before or 0) + left_joins_today
-    R_total = int(right_cf_before or 0) + right_joins_today
-
-    eligibility_income = 0
+    new_binary_eligible = bool(binary_eligible)
     became_eligible_today = False
-    binary_income = 0
-    flashout_units = 0
-    repurchase_wallet_bonus = 0
-    washed_pairs = 0
+    eligibility_income = 0
 
-    # 1) Eligibility unlock
-    if not bool(binary_eligible):
-        cond_21 = (L_total >= 2 and R_total >= 1)
-        cond_12 = (L_total >= 1 and R_total >= 2)
-        if cond_21 or cond_12:
-            eligibility_income = ELIGIBILITY_BONUS
+    # Eligibility unlock
+    if not new_binary_eligible:
+        cond_12 = (L >= 1 and R >= 2)
+        cond_21 = (L >= 2 and R >= 1)
+        if cond_12 or cond_21:
+            new_binary_eligible = True
             became_eligible_today = True
-            member.binary_eligible = True
-            member.binary_eligible_since = run_date
-            if hasattr(member, "has_completed_first_pair"):
-                member.has_completed_first_pair = True
-            member.save(update_fields=["binary_eligible", "binary_eligible_since"] + (["has_completed_first_pair"] if hasattr(member, "has_completed_first_pair") else []))
-
-            # First pair locked, no binary income
-            locked_pairs = 1
-            effective_pairs = min(left_joins_today, right_joins_today) - locked_pairs
-            if effective_pairs > 0:
-                if effective_pairs > DAILY_BINARY_PAIR_LIMIT:
-                    binary_income = DAILY_BINARY_PAIR_LIMIT * PAIR_VALUE
-                else:
-                    binary_income = effective_pairs * PAIR_VALUE
-
-    else:
-        # Already eligible → count all new 1:1 pairs
-        pairs_today = min(left_joins_today, right_joins_today)
-        if pairs_today > DAILY_BINARY_PAIR_LIMIT:
-            binary_income = DAILY_BINARY_PAIR_LIMIT * PAIR_VALUE
+            eligibility_income = ELIGIBILITY_BONUS
+            if cond_12:
+                L -= 1; R -= 2
+            else:
+                L -= 2; R -= 1
+            L = max(L, 0); R = max(R, 0)
         else:
-            binary_income = pairs_today * PAIR_VALUE
+            washed_pairs = min(L, R)
+            L -= washed_pairs; R -= washed_pairs
+            return {
+                "new_binary_eligible": new_binary_eligible,
+                "became_eligible_today": False,
+                "eligibility_income": 0,
+                "binary_pairs": 0,
+                "binary_income": 0,
+                "flashout_units": 0,
+                "repurchase_wallet_bonus": 0,
+                "washed_pairs": washed_pairs,
+                "left_cf_after": L,
+                "right_cf_after": R,
+                "total_income": 0,
+                "child_total_for_sponsor": 0,
+                "unlock_day_cap_reached": False,
+                "flashout_triggered_today": False,
+                "washout_triggered_today": washed_pairs > 0,
+                "carry_forward_generated": (L > 0 or R > 0),
+                "joined_member_auto_id": member.auto_id,
+                "joined_member_sponsor": getattr(member.sponsor, "auto_id", None),
+                "joined_member_placement": getattr(member.placement, "auto_id", None),
+                "joined_date": getattr(member, "joined_date", None),
+            }
 
-    # Flashout bonus
-    extra_pairs_today = max(min(left_joins_today, right_joins_today) - DAILY_BINARY_PAIR_LIMIT, 0)
-    flashout_units = min(extra_pairs_today // FLASHOUT_UNIT_PAIRS, MAX_FLASHOUT_UNITS_PER_DAY)
+    # Binary income
+    total_pairs_available = min(L, R)
+    already_counted_first_pair = 1 if became_eligible_today else 0
+    remaining_cap = max(DAILY_BINARY_PAIR_LIMIT - already_counted_first_pair, 0)
+    binary_pairs_today = min(total_pairs_available, remaining_cap)
+    total_binary_pairs_for_day = binary_pairs_today + already_counted_first_pair
+    binary_income = total_binary_pairs_for_day * PAIR_VALUE
+    L -= binary_pairs_today; R -= binary_pairs_today
+
+    # Flashout
+    pairs_remaining_after_binary = min(L, R)
+    flashout_units = min(pairs_remaining_after_binary // DAILY_BINARY_PAIR_LIMIT, MAX_FLASHOUT_UNITS_PER_DAY)
+    flashout_pairs_used = flashout_units * DAILY_BINARY_PAIR_LIMIT
     repurchase_wallet_bonus = flashout_units * FLASHOUT_UNIT_VALUE
-    covered_by_flashout = flashout_units * FLASHOUT_UNIT_PAIRS
-    washed_pairs = max(extra_pairs_today - covered_by_flashout, 0)
+    L -= flashout_pairs_used; R -= flashout_pairs_used
 
-    # Carry-forward
-    left_cf_after = max(L_total - min(left_joins_today, right_joins_today), 0)
-    right_cf_after = max(R_total - min(left_joins_today, right_joins_today), 0)
+    if repurchase_wallet_bonus > 0:
+        member.repurchase_wallet_balance += repurchase_wallet_bonus
+        member.save(update_fields=["repurchase_wallet_balance"])
+        print(f"{member.auto_id} repurchase wallet updated ₹{repurchase_wallet_bonus}")
 
+    # Washout
+    washed_pairs = min(L, R)
+    L -= washed_pairs; R -= washed_pairs
+
+    left_cf_after = L; right_cf_after = R
     child_total_for_sponsor = eligibility_income + binary_income
     total_income = eligibility_income + binary_income + repurchase_wallet_bonus
+    run_datetime = timezone.now()
 
-    # ✅ Removed direct IncomeRecord save here
-    # Monitor will handle saving IncomeRecord centrally
+    # Persist IncomeRecord
+    existing_record = IncomeRecord.objects.filter(
+        member=member, type="binary_engine", created_at__date=run_date
+    ).first()
+    if existing_record:
+        existing_record.amount = total_income
+        existing_record.sponsor_income = child_total_for_sponsor
+        existing_record.binary_income = binary_income
+        existing_record.wallet_income = repurchase_wallet_bonus
+        existing_record.washed_pairs = washed_pairs
+        existing_record.left_cf_after = left_cf_after
+        existing_record.right_cf_after = right_cf_after
+        existing_record.save(update_fields=[
+            "amount","sponsor_income","binary_income","wallet_income",
+            "washed_pairs","left_cf_after","right_cf_after"
+        ])
+        record_created = False
+    else:
+        IncomeRecord.objects.create(
+            member=member,
+            type="binary_engine",
+            amount=total_income,
+            created_at=run_datetime,
+            sponsor_income=child_total_for_sponsor,
+            eligibility_income=eligibility_income,
+            binary_income=binary_income,
+            wallet_income=repurchase_wallet_bonus,
+            washed_pairs=washed_pairs,
+            left_cf_after=left_cf_after,
+            right_cf_after=right_cf_after,
+            total_income=total_income
+        )
+        record_created = True
 
-    # BonusRecord logs
-    if eligibility_income > 0:
-        BonusRecord.objects.create(member=member, type="eligibility_bonus", amount=eligibility_income)
-    if repurchase_wallet_bonus > 0:
-        BonusRecord.objects.create(member=member, type="flashout_bonus", amount=repurchase_wallet_bonus)
+    # Sponsor income mirror
+    process_sponsor_income(member, child_total_for_sponsor, run_date, became_eligible_today)
 
     return {
+        "new_binary_eligible": new_binary_eligible,
         "became_eligible_today": became_eligible_today,
         "eligibility_income": eligibility_income,
+        "binary_pairs": total_binary_pairs_for_day,
         "binary_income": binary_income,
         "flashout_units": flashout_units,
         "repurchase_wallet_bonus": repurchase_wallet_bonus,
         "washed_pairs": washed_pairs,
-        "binary_eligible": member.binary_eligible,
         "left_cf_after": left_cf_after,
         "right_cf_after": right_cf_after,
-        "child_total_for_sponsor": child_total_for_sponsor,
         "total_income": total_income,
+        "child_total_for_sponsor": child_total_for_sponsor,
+        "unlock_day_cap_reached": (total_binary_pairs_for_day == DAILY_BINARY_PAIR_LIMIT),
+        "flashout_triggered_today": (flashout_units > 0),
+        "washout_triggered_today": (washed_pairs > 0),
+        "carry_forward_generated": (left_cf_after > 0 or right_cf_after > 0),
+        "record_created": record_created
     }
 
