@@ -35,7 +35,7 @@ def trigger_engine_on_new_member(sender, instance, created, **kwargs):
     # 2️⃣ Sponsor routing rules
     receiver = None
     if placement and sponsor:
-        if placement.auto_id == sponsor.auto_id:
+        if placement.member_id == sponsor.member_id:
             # Rule 1: placement == sponsor → income goes to placement’s parent
             receiver = placement.parent
         else:
@@ -51,7 +51,7 @@ def trigger_engine_on_new_member(sender, instance, created, **kwargs):
                 date=run_date,
                 type="sponsor_income",
                 amount=SPONSOR_BONUS_AMOUNT,
-                meta={"child": instance.auto_id, "placement": placement.auto_id, "sponsor": sponsor.auto_id}
+                meta={"child": instance.member_id, "placement": placement.member_id, "sponsor": sponsor.member_id}
             )
             receiver.total_sponsor_income += SPONSOR_BONUS_AMOUNT
 
@@ -116,5 +116,5 @@ def trigger_engine_on_new_member(sender, instance, created, **kwargs):
     )
     record.save()
 
-    print(f"⚡ Engine Triggered for {placement.auto_id} on {run_date}")
+    print(f"⚡ Engine Triggered for {placement.member_id} on {run_date}")
 

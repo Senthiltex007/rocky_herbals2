@@ -5,8 +5,9 @@ class MemberForm(forms.ModelForm):
     class Meta:
         model = Member
         fields = [
-            "name", "phone", "aadhar_number", "avatar",
-            "district", "taluk", "pincode", "placement", "sponsor",
+            "member_id", "name", "phone", "email", "avatar",
+            "aadhar", "aadhar_number",
+            "placement", "sponsor",
             "side", "position", "joined_date",
         ]
         widgets = {
@@ -17,7 +18,7 @@ class MemberForm(forms.ModelForm):
 
     def clean(self):
         cleaned_data = super().clean()
-        required_fields = ["name", "placement", "sponsor", "side", "joined_date"]
+        required_fields = ["member_id", "name", "placement", "sponsor", "side", "joined_date"]
 
         for field in required_fields:
             if not cleaned_data.get(field):

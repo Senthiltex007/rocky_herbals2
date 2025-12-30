@@ -49,15 +49,15 @@ h2 {
             <tbody>
                 {% for member in salaries %}
                 <tr>
-                    <td>{{ member.auto_id }}</td>
+                    <td>{{ member.member_id }}</td>
                     <td>{{ member.name }}</td>
                     <td>{{ member.rank }}</td>
                     <td>{{ member.rank_monthly_salary }}</td>
                     <td>{{ member.total_left_bv }}</td>
                     <td>{{ member.total_right_bv }}</td>
                     <td>
-                        <a href="/member/edit/{{ member.auto_id }}/" class="btn btn-sm btn-outline-secondary">Edit</a>
-                        <a href="/tree/{{ member.auto_id }}/" class="btn btn-sm btn-outline-success">View Tree</a>
+                        <a href="/member/edit/{{ member.member_id }}/" class="btn btn-sm btn-outline-secondary">Edit</a>
+                        <a href="/tree/{{ member.member_id }}/" class="btn btn-sm btn-outline-success">View Tree</a>
                     </td>
                 </tr>
                 {% endfor %}

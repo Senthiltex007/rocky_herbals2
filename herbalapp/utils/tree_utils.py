@@ -16,7 +16,7 @@ def get_root_info(member: Member):
     """
     root = ascend_to_root(member)
     return {
-        "root_auto_id": root.auto_id,
+        "root_member_id": root.member_id,
         "root_name": root.name,
     }
 
@@ -57,27 +57,27 @@ def get_income_snapshot(member: Member):
     }
 
 
-def get_tree_json(root_auto_id: str):
+def get_tree_json(root_member_id: str):
     """
-    Build JSON for genealogy tree starting from root_auto_id.
+    Build JSON for genealogy tree starting from root_member_id.
     """
     try:
-        root = Member.objects.get(auto_id=root_auto_id)
+        root = Member.objects.get(member_id=root_member_id)
     except Member.DoesNotExist:
-        return {"error": f"Member {root_auto_id} not found"}
+        return {"error": f"Member {root_member_id} not found"}
     return build_tree_json(root)
 
 
-def debug_tree(root_auto_id: str):
+def debug_tree(root_member_id: str):
     """
     Full debug: tree text + counts + income snapshot.
     """
     try:
-        root = Member.objects.get(auto_id=root_auto_id)
+        root = Member.objects.get(member_id=root_member_id)
     except Member.DoesNotExist:
-        return f"❌ Member {root_auto_id} not found"
+        return f"❌ Member {root_member_id} not found"
 
-    header = f"Genealogy Tree Debug for {root.auto_id} - {root.name}\n"
+    header = f"Genealogy Tree Debug for {root.member_id} - {root.name}\n"
     header += "=============================================\n"
     tree_str = print_tree(root, prefix="", is_left=True)
 

@@ -6,11 +6,11 @@ from herbalapp.engine.eligibility import became_binary_eligible_today
 
 def credit_eligibility_bonus(member, amount, run_date):
     # TODO: insert/update DailyIncomeReport row
-    print(f"Eligibility bonus {amount} credited to {member.auto_id} on {run_date}")
+    print(f"Eligibility bonus {amount} credited to {member.member_id} on {run_date}")
 
 def credit_binary_income(member, pairs, run_date):
     # TODO: implement binary income logic with carry-forward/flashout
-    print(f"Binary income {pairs*500} credited to {member.auto_id} on {run_date}")
+    print(f"Binary income {pairs*500} credited to {member.member_id} on {run_date}")
 
 @transaction.atomic
 def process_member_daily(member, run_date):

@@ -1,4 +1,4 @@
-# herbalapp/views.py ====================================================== CLEAN, CONSISTENT VIEWS FOR Rocky Herbals (tree + app) Modern Tree (uses auto_id) - 
+# herbalapp/views.py ====================================================== CLEAN, CONSISTENT VIEWS FOR Rocky Herbals (tree + app) Modern Tree (uses member_id) - 
 # single complete file ======================================================
 
 from decimal import Decimal
@@ -411,13 +411,13 @@ def member_list(request):
 
 
 @login_required
-def delete_member(request, auto_id):
+def delete_member(request, member_id):
 
-    # ✅ Support both numeric PK and auto_id (rocky001)
-    if str(auto_id).isdigit():
-        member = get_object_or_404(Member, id=int(auto_id))
+    # ✅ Support both numeric PK and member_id (rocky001)
+    if str(member_id).isdigit():
+        member = get_object_or_404(Member, id=int(member_id))
     else:
-        member = get_object_or_404(Member, auto_id=auto_id)
+        member = get_object_or_404(Member, member_id=member_id)
 
     # ✅ Prevent deleting members who have children
     if member.left_child or member.right_child:
@@ -441,7 +441,7 @@ def delete_member(request, auto_id):
 
     messages.success(
         request,
-        f"✅ {member.name} ({member.auto_id}) deleted successfully!"
+        f"✅ {member.name} ({member.member_id}) deleted successfully!"
     )
     return redirect("member_list")
 
@@ -453,27 +453,27 @@ from .models import Member
 
 
 @login_required
-def replace_member(request, auto_id):
-    # ✅ Support numeric id OR auto_id (rocky001)
-    if str(auto_id).isdigit():
-        member = get_object_or_404(Member, id=int(auto_id))
+def replace_member(request, member_id):
+    # ✅ Support numeric id OR member_id (rocky001)
+    if str(member_id).isdigit():
+        member = get_object_or_404(Member, id=int(member_id))
     else:
-        member = get_object_or_404(Member, auto_id=auto_id)
+        member = get_object_or_404(Member, member_id=member_id)
 
     if request.method == "POST":
         new_parent_id = request.POST.get("new_parent")
         new_side = request.POST.get("side")
 
-        # ✅ Resolve new parent (numeric OR auto_id)
+        # ✅ Resolve new parent (numeric OR member_id)
         if str(new_parent_id).isdigit():
             new_parent = get_object_or_404(Member, id=int(new_parent_id))
         else:
-            new_parent = get_object_or_404(Member, auto_id=new_parent_id)
+            new_parent = get_object_or_404(Member, member_id=new_parent_id)
 
         # ❌ Cannot be own parent
         if new_parent.id == member.id:
             messages.error(request, "❌ A member cannot be their own parent!")
-            return redirect("replace_member", auto_id=member.auto_id)
+            return redirect("replace_member", member_id=member.member_id)
 
         # 🔁 Downline check
         def is_downline(root, target):
@@ -488,7 +488,7 @@ def replace_member(request, auto_id):
 
         if is_downline(member, new_parent):
             messages.error(request, "❌ Cannot move under own downline!")
-            return redirect("replace_member", auto_id=member.auto_id)
+            return redirect("replace_member", member_id=member.member_id)
 
         # ✅ Safe reassignment
         member.parent = new_parent
@@ -497,7 +497,7 @@ def replace_member(request, auto_id):
 
         messages.success(
             request,
-            f"✅ {member.name} ({member.auto_id}) moved under {new_parent.auto_id} on {new_side} side!"
+            f"✅ {member.name} ({member.member_id}) moved under {new_parent.member_id} on {new_side} side!"
         )
         return redirect("member_list")
 
@@ -669,22 +669,22 @@ from .models import Payment, Commission, Member
 # MANUAL COMMISSION CREDIT (simple)
 # -------------------------
 @login_required
-def credit_commission(request, auto_id):
-    # ✅ Normalize numeric → business auto_id
-    if str(auto_id).isdigit():
-        if str(auto_id) == "1":
-            auto_id = "rocky001"
+def credit_commission(request, member_id):
+    # ✅ Normalize numeric → business member_id
+    if str(member_id).isdigit():
+        if str(member_id) == "1":
+            member_id = "rocky001"
         else:
             try:
-                pk_member = Member.objects.get(id=int(auto_id))
-                auto_id = pk_member.auto_id
+                pk_member = Member.objects.get(id=int(member_id))
+                member_id = pk_member.member_id
             except Member.DoesNotExist:
-                return render(request, "tree_not_found.html", {"auto_id": auto_id})
+                return render(request, "tree_not_found.html", {"member_id": member_id})
 
     # ✅ Load member safely
-    member = Member.objects.filter(auto_id=auto_id).first()
+    member = Member.objects.filter(member_id=member_id).first()
     if not member:
-        return render(request, "tree_not_found.html", {"auto_id": auto_id})
+        return render(request, "tree_not_found.html", {"member_id": member_id})
 
     if request.method == "POST":
         # ✅ Get commission values
@@ -708,7 +708,7 @@ def credit_commission(request, auto_id):
 
         messages.success(
             request,
-            f"✅ Commission credited for {member.name} ({member.auto_id}) successfully!"
+            f"✅ Commission credited for {member.name} ({member.member_id}) successfully!"
         )
         return redirect("income_report")
 
@@ -780,13 +780,13 @@ def build_tree_html(member):
     # ✅ Safe escaping
     safe_name = (member.name or "").replace("'", "\\'").replace('"', '\\"')
     safe_phone = (member.phone or "").replace("'", "\\'").replace('"', '\\"')
-    safe_auto = str(member.auto_id)
+    safe_auto = str(member.member_id)
 
     # ✅ Node HTML
     node_html = (
         f"<li>"
         f"<div class='member-box' "
-        f"onclick=\"showMemberDetail({{id:'{member.auto_id}', name:'{safe_name}', phone:'{safe_phone}'}})\">"
+        f"onclick=\"showMemberDetail({{id:'{member.member_id}', name:'{safe_name}', phone:'{safe_phone}'}})\">"
         f"{safe_name} <br><small>ID: {safe_auto}</small>"
         f"</div>"
     )
@@ -797,7 +797,7 @@ def build_tree_html(member):
     if left:
         node_html += build_tree_html(left)
     else:
-        add_url = reverse('add_member_form') + f"?parent={member.auto_id}&side=left"
+        add_url = reverse('add_member_form') + f"?parent={member.member_id}&side=left"
         node_html += (
             "<li><div class='member-box text-muted'>➕ Left<br>"
             f"<a href='{add_url}'>Add</a></div></li>"
@@ -807,7 +807,7 @@ def build_tree_html(member):
     if right:
         node_html += build_tree_html(right)
     else:
-        add_url = reverse('add_member_form') + f"?parent={member.auto_id}&side=right"
+        add_url = reverse('add_member_form') + f"?parent={member.member_id}&side=right"
         node_html += (
             "<li><div class='member-box text-muted'>➕ Right<br>"
             f"<a href='{add_url}'>Add</a></div></li>"
@@ -820,23 +820,23 @@ def build_tree_html(member):
 # ======================================================
 # TREE VIEW PAGES
 # ======================================================
-def tree_view(request, auto_id):
+def tree_view(request, member_id):
 
-    # ✅ Normalize numeric → business auto_id
-    if str(auto_id).isdigit():
-        if str(auto_id) == "1":
-            auto_id = "rocky001"
+    # ✅ Normalize numeric → business member_id
+    if str(member_id).isdigit():
+        if str(member_id) == "1":
+            member_id = "rocky001"
         else:
             try:
-                pk_member = Member.objects.get(id=int(auto_id))
-                auto_id = pk_member.auto_id
+                pk_member = Member.objects.get(id=int(member_id))
+                member_id = pk_member.member_id
             except Member.DoesNotExist:
-                return render(request, "tree_not_found.html", {"auto_id": auto_id})
+                return render(request, "tree_not_found.html", {"member_id": member_id})
 
     # ✅ Load member safely
-    member = Member.objects.filter(auto_id=auto_id).first()
+    member = Member.objects.filter(member_id=member_id).first()
     if not member:
-        return render(request, "tree_not_found.html", {"auto_id": auto_id})
+        return render(request, "tree_not_found.html", {"member_id": member_id})
 
     # ✅ Render avatar-based dynamic tree
     return render(request, "herbalapp/dynamic_tree.html", {
@@ -844,22 +844,22 @@ def tree_view(request, auto_id):
     })
 
 
-def pyramid_view(request, auto_id):
-    # ✅ Normalize numeric → business auto_id
-    if str(auto_id).isdigit():
-        if str(auto_id) == "1":
-            auto_id = "rocky001"
+def pyramid_view(request, member_id):
+    # ✅ Normalize numeric → business member_id
+    if str(member_id).isdigit():
+        if str(member_id) == "1":
+            member_id = "rocky001"
         else:
             try:
-                pk_member = Member.objects.get(id=int(auto_id))
-                auto_id = pk_member.auto_id
+                pk_member = Member.objects.get(id=int(member_id))
+                member_id = pk_member.member_id
             except Member.DoesNotExist:
-                return render(request, "tree_not_found.html", {"auto_id": auto_id})
+                return render(request, "tree_not_found.html", {"member_id": member_id})
 
     # ✅ Load member safely
-    root = Member.objects.filter(auto_id=auto_id).first()
+    root = Member.objects.filter(member_id=member_id).first()
     if not root:
-        return render(request, "tree_not_found.html", {"auto_id": auto_id})
+        return render(request, "tree_not_found.html", {"member_id": member_id})
 
     # ✅ Collect children and grandchildren
     children = Member.objects.filter(parent=root)
@@ -881,17 +881,17 @@ from django.urls import reverse
 from .models import Member
 
 
-def _normalize_auto_id(auto_id):
-    """Convert numeric ID → business auto_id."""
-    if str(auto_id).isdigit():
-        if str(auto_id) == "1":
+def _normalize_member_id(member_id):
+    """Convert numeric ID → business member_id."""
+    if str(member_id).isdigit():
+        if str(member_id) == "1":
             return "rocky001"
         try:
-            pk_member = Member.objects.get(id=int(auto_id))
-            return pk_member.auto_id
+            pk_member = Member.objects.get(id=int(member_id))
+            return pk_member.member_id
         except:
             return None
-    return auto_id
+    return member_id
 
 
 from django.shortcuts import render, get_object_or_404
@@ -899,19 +899,19 @@ from .models import Member
 
 def member_tree_root(request):
     """Show tree starting from rocky005 (main root)."""
-    root = get_object_or_404(Member, auto_id="rocky005")
+    root = get_object_or_404(Member, member_id="rocky005")
     return render(request, "herbalapp/dynamic_tree.html", {
         "root_member": root
     })
 
 
-def member_tree(request, auto_id):
+def member_tree(request, member_id):
     """Show tree starting from any member."""
-    auto_id = _normalize_auto_id(auto_id)
-    if not auto_id:
-        return render(request, "tree_not_found.html", {"auto_id": auto_id})
+    member_id = _normalize_member_id(member_id)
+    if not member_id:
+        return render(request, "tree_not_found.html", {"member_id": member_id})
 
-    root = get_object_or_404(Member, auto_id=auto_id)
+    root = get_object_or_404(Member, member_id=member_id)
     return render(request, "herbalapp/dynamic_tree.html", {
         "root_member": root
     })
@@ -940,8 +940,8 @@ from django.shortcuts import render, get_object_or_404
 from herbalapp.models import Member
 from herbalapp.utils.tree_json import build_tree_json
 
-def dynamic_tree(request, auto_id):
-    root = get_object_or_404(Member, auto_id=auto_id)
+def dynamic_tree(request, member_id):
+    root = get_object_or_404(Member, member_id=member_id)
 
     left_count = count_subtree(root, "left")
     right_count = count_subtree(root, "right")
@@ -967,7 +967,7 @@ def dynamic_tree(request, auto_id):
 
 
 def place_member(request):
-    members = Member.objects.all().order_by("auto_id")
+    members = Member.objects.all().order_by("member_id")
     return render(request, "place_member.html", {"members": members})
 
 
@@ -984,22 +984,22 @@ from datetime import timedelta
 from .models import Member
 
 
-def member_detail_json(request, auto_id):
+def member_detail_json(request, member_id):
 
-    # ✅ Normalize ID: convert numeric → business auto_id
-    if str(auto_id).isdigit():
-        if str(auto_id) == "1":
-            auto_id = "rocky001"
+    # ✅ Normalize ID: convert numeric → business member_id
+    if str(member_id).isdigit():
+        if str(member_id) == "1":
+            member_id = "rocky001"
         else:
             try:
-                pk_member = Member.objects.get(id=int(auto_id))
-                auto_id = pk_member.auto_id
+                pk_member = Member.objects.get(id=int(member_id))
+                member_id = pk_member.member_id
             except:
                 return JsonResponse({"error": "Member not found"}, status=404)
 
-    # ✅ Load using business auto_id
+    # ✅ Load using business member_id
     try:
-        member = Member.objects.get(auto_id=auto_id)
+        member = Member.objects.get(member_id=member_id)
     except Member.DoesNotExist:
         return JsonResponse({"error": "Member not found"}, status=404)
 
@@ -1023,7 +1023,7 @@ def member_detail_json(request, auto_id):
 
     # ✅ Response JSON
     data = {
-        "auto_id": member.auto_id,
+        "member_id": member.member_id,
         "name": member.name,
         "phone": member.phone,
         "self_bv": float(bv_data.get("self_bv", 0)),
@@ -1043,26 +1043,26 @@ from .models import Member as _Member
 # Modern Tree (FINAL AVATAR VERSION)
 # -------------------------
 
-def _normalize_auto_id(auto_id):
-    """Convert numeric PK → business auto_id."""
-    if str(auto_id).isdigit():
-        if str(auto_id) == "1":
+def _normalize_member_id(member_id):
+    """Convert numeric PK → business member_id."""
+    if str(member_id).isdigit():
+        if str(member_id) == "1":
             return "rocky001"
         try:
-            pk_member = _Member.objects.get(id=int(auto_id))
-            return pk_member.auto_id
+            pk_member = _Member.objects.get(id=int(member_id))
+            return pk_member.member_id
         except:
             return None
-    return auto_id
+    return member_id
 
 
-def member_tree_modern(request, auto_id):
+def member_tree_modern(request, member_id):
 
-    auto_id = _normalize_auto_id(auto_id)
-    if not auto_id:
-        return _render(request, "tree_not_found.html", {"auto_id": auto_id})
+    member_id = _normalize_member_id(member_id)
+    if not member_id:
+        return _render(request, "tree_not_found.html", {"member_id": member_id})
 
-    root = _get(_Member, auto_id=auto_id)
+    root = _get(_Member, member_id=member_id)
 
     return render(request, "herbalapp/dynamic_tree.html", {
         "root_member": root
@@ -1071,7 +1071,7 @@ def member_tree_modern(request, auto_id):
 
 def member_tree_modern_root(request):
 
-    root = _Member.objects.filter(auto_id="rocky001").first()
+    root = _Member.objects.filter(member_id="rocky001").first()
     if not root:
         return _render(request, "tree_not_found.html", {"message": "No root member found."})
 
@@ -1087,14 +1087,14 @@ def member_tree_modern_root(request):
 from django.shortcuts import render as _render, get_object_or_404 as _get, redirect as _redirect
 from .models import Member as _Member
 
-def edit_member(request, auto_id):
+def edit_member(request, member_id):
 
     # ✅ Normalize numeric → business ID
-    auto_id = _normalize_auto_id(auto_id)
-    if not auto_id:
-        return _render(request, "tree_not_found.html", {"auto_id": auto_id})
+    member_id = _normalize_member_id(member_id)
+    if not member_id:
+        return _render(request, "tree_not_found.html", {"member_id": member_id})
 
-    member = _get(_Member, auto_id=auto_id)
+    member = _get(_Member, member_id=member_id)
 
     if request.method == 'POST':
         member.name = request.POST.get('name')
@@ -1103,7 +1103,7 @@ def edit_member(request, auto_id):
         member.save()
 
         # ✅ Redirect to modern avatar tree
-        return _redirect('member_tree_modern', auto_id=member.auto_id)
+        return _redirect('member_tree_modern', member_id=member.member_id)
 
     return _render(request, 'edit_member.html', {'member': member})
 
@@ -1111,34 +1111,34 @@ def edit_member(request, auto_id):
 from django.shortcuts import render as ___render, get_object_or_404 as ___get, redirect as ___redirect
 from .models import Member as ___Member
 
-def edit_sponsor(request, auto_id):
+def edit_sponsor(request, member_id):
 
-    # ✅ Normalize numeric → business auto_id
-    if str(auto_id).isdigit():
-        if str(auto_id) == "1":
-            auto_id = "rocky001"
+    # ✅ Normalize numeric → business member_id
+    if str(member_id).isdigit():
+        if str(member_id) == "1":
+            member_id = "rocky001"
         else:
             try:
-                pk_member = ___Member.objects.get(id=int(auto_id))
-                auto_id = pk_member.auto_id
+                pk_member = ___Member.objects.get(id=int(member_id))
+                member_id = pk_member.member_id
             except:
-                return ___render(request, "tree_not_found.html", {"auto_id": auto_id})
+                return ___render(request, "tree_not_found.html", {"member_id": member_id})
 
-    # ✅ Load member using business auto_id
-    member = ___get(___Member, auto_id=auto_id)
+    # ✅ Load member using business member_id
+    member = ___get(___Member, member_id=member_id)
 
     if request.method == 'POST':
-        sponsor_auto_id = request.POST.get('sponsor_auto_id')
+        sponsor_member_id = request.POST.get('sponsor_member_id')
 
-        # ✅ Load sponsor using auto_id
-        sponsor = ___Member.objects.filter(auto_id=sponsor_auto_id).first()
+        # ✅ Load sponsor using member_id
+        sponsor = ___Member.objects.filter(member_id=sponsor_member_id).first()
 
         if sponsor:
             member.parent = sponsor
             member.save()
 
             # ✅ Redirect to modern avatar tree (CORRECT)
-            return ___redirect('member_tree_modern', auto_id=member.auto_id)
+            return ___redirect('member_tree_modern', member_id=member.member_id)
 
     return ___render(request, 'edit_sponsor.html', {'member': member})
 # ======================================================
@@ -1224,7 +1224,7 @@ def export_income_excel(request):
                     if rewards_qs.exists():
                         for r in rewards_qs:
                             row = [
-                                m.auto_id, m.name,
+                                m.member_id, m.name,
                                 joining, binary_income, flash_bonus,
                                 sponsor_income, salary, stock_commission,
                                 total_income_all,
@@ -1236,7 +1236,7 @@ def export_income_excel(request):
                             ws.append(row)
                     else:
                         row = [
-                            m.auto_id, m.name,
+                            m.member_id, m.name,
                             joining, binary_income, flash_bonus,
                             sponsor_income, salary, stock_commission,
                             total_income_all,
@@ -1375,7 +1375,7 @@ def export_members_income(request):
         )
 
         ws.append([
-            member.auto_id,
+            member.member_id,
             member.name,
             member.package,
             binary_income,
@@ -1446,7 +1446,7 @@ def generate_daily_report():
     # ✅ Prepare WhatsApp message
     body = f"Rocky Herbals Daily Income Report - {today}\n\n"
     for r in reports:
-        body += f"{r.member.auto_id} - {r.member.name} : ₹{r.total_income}\n"
+        body += f"{r.member.member_id} - {r.member.name} : ₹{r.total_income}\n"
 
     # ✅ WhatsApp Cloud API details
     WHATSAPP_TOKEN = "YOUR_WHATSAPP_ACCESS_TOKEN"
@@ -1506,7 +1506,7 @@ def dashboard(request):
 # ✅ Members list
 @login_required
 def member_list(request):
-    members = Member.objects.all().order_by("auto_id")
+    members = Member.objects.all().order_by("member_id")
     return render(request, "member_list.html", {"members": members})
 
 
@@ -1526,22 +1526,22 @@ from .models import Member
 
 
 @login_required
-def member_bv(request, auto_id):
-    # ✅ Normalize numeric → business auto_id
-    if str(auto_id).isdigit():
-        if str(auto_id) == "1":
-            auto_id = "rocky001"
+def member_bv(request, member_id):
+    # ✅ Normalize numeric → business member_id
+    if str(member_id).isdigit():
+        if str(member_id) == "1":
+            member_id = "rocky001"
         else:
             try:
-                pk_member = Member.objects.get(id=int(auto_id))
-                auto_id = pk_member.auto_id
+                pk_member = Member.objects.get(id=int(member_id))
+                member_id = pk_member.member_id
             except Member.DoesNotExist:
-                return render(request, "tree_not_found.html", {"auto_id": auto_id})
+                return render(request, "tree_not_found.html", {"member_id": member_id})
 
     # ✅ Load member safely
-    member = Member.objects.filter(auto_id=auto_id).first()
+    member = Member.objects.filter(member_id=member_id).first()
     if not member:
-        return render(request, "tree_not_found.html", {"auto_id": auto_id})
+        return render(request, "tree_not_found.html", {"member_id": member_id})
 
     # ✅ Calculate BV totals
     left_bv = member.total_left_bv if hasattr(member, "total_left_bv") else 0
@@ -1570,14 +1570,14 @@ def member_register(request):
         name = request.POST.get("name", "").strip()
         mobile = request.POST.get("mobile", "").strip()
         email = request.POST.get("email", "").strip()
-        auto_id = request.POST.get("auto_id", "").strip()
+        member_id = request.POST.get("member_id", "").strip()
         place = request.POST.get("place", "").strip()
         district = request.POST.get("district", "").strip()
         pincode = request.POST.get("pincode", "").strip()
         aadhar = request.POST.get("aadhar", "").strip()
 
         # ✅ Basic validation
-        if not name or not mobile or not auto_id:
+        if not name or not mobile or not member_id:
             messages.error(request, "Name, Mobile, and Auto ID are required.")
             return redirect("member_register")
 
@@ -1585,8 +1585,8 @@ def member_register(request):
             messages.error(request, "Invalid mobile number.")
             return redirect("member_register")
 
-        if Member.objects.filter(auto_id=auto_id).exists():
-            messages.error(request, f"Auto ID {auto_id} already exists.")
+        if Member.objects.filter(member_id=member_id).exists():
+            messages.error(request, f"Auto ID {member_id} already exists.")
             return redirect("member_register")
 
         # ✅ Save to DB
@@ -1594,7 +1594,7 @@ def member_register(request):
             name=name,
             phone=mobile,
             email=email,
-            auto_id=auto_id,
+            member_id=member_id,
             place=place,
             district=district,
             pincode=pincode,
@@ -1621,25 +1621,25 @@ from django.contrib import messages
 from datetime import date
 from .models import Member
 
-def add_member_under_parent(request, parent_auto_id, side):
-    # ✅ Load parent by auto_id
-    parent = Member.objects.filter(auto_id=parent_auto_id).first()
+def add_member_under_parent(request, parent_member_id, side):
+    # ✅ Load parent by member_id
+    parent = Member.objects.filter(member_id=parent_member_id).first()
     if not parent:
-        return render(request, "tree_not_found.html", {"auto_id": parent_auto_id})
+        return render(request, "tree_not_found.html", {"member_id": parent_member_id})
 
     # ✅ Check if slot already filled
     if side == "left" and parent.left_member is not None:
-        messages.error(request, f"{parent.auto_id} already has a left member.")
-        return redirect("tree_view", auto_id=parent.auto_id)
+        messages.error(request, f"{parent.member_id} already has a left member.")
+        return redirect("tree_view", member_id=parent.member_id)
     if side == "right" and parent.right_member is not None:
-        messages.error(request, f"{parent.auto_id} already has a right member.")
-        return redirect("tree_view", auto_id=parent.auto_id)
+        messages.error(request, f"{parent.member_id} already has a right member.")
+        return redirect("tree_view", member_id=parent.member_id)
 
-    # ✅ Sponsor lookup by auto_id (fix)
-    sponsor_auto_id = request.POST.get("sponsor_id")
+    # ✅ Sponsor lookup by member_id (fix)
+    sponsor_member_id = request.POST.get("sponsor_id")
     sponsor = None
-    if sponsor_auto_id:
-        sponsor = get_object_or_404(Member, auto_id=sponsor_auto_id)
+    if sponsor_member_id:
+        sponsor = get_object_or_404(Member, member_id=sponsor_member_id)
 
     if request.method == "POST":
         # ✅ Create new member
@@ -1666,9 +1666,9 @@ def add_member_under_parent(request, parent_auto_id, side):
 
         messages.success(
             request,
-            f"✅ Member {new_member.name} ({new_member.auto_id}) added under {parent.auto_id} on {side} side!"
+            f"✅ Member {new_member.name} ({new_member.member_id}) added under {parent.member_id} on {side} side!"
         )
-        return redirect("tree_view", auto_id=parent.auto_id)
+        return redirect("tree_view", member_id=parent.member_id)
 
     # ✅ Render form for GET request
     return render(request, "herbalapp/add_member_form.html", {
@@ -1678,22 +1678,22 @@ def add_member_under_parent(request, parent_auto_id, side):
 
 
 @login_required
-def income_chart(request, auto_id):
-    # ✅ Normalize numeric → business auto_id
-    if str(auto_id).isdigit():
-        if str(auto_id) == "1":
-            auto_id = "rocky001"
+def income_chart(request, member_id):
+    # ✅ Normalize numeric → business member_id
+    if str(member_id).isdigit():
+        if str(member_id) == "1":
+            member_id = "rocky001"
         else:
             try:
-                pk_member = Member.objects.get(id=int(auto_id))
-                auto_id = pk_member.auto_id
+                pk_member = Member.objects.get(id=int(member_id))
+                member_id = pk_member.member_id
             except Member.DoesNotExist:
-                return render(request, "tree_not_found.html", {"auto_id": auto_id})
+                return render(request, "tree_not_found.html", {"member_id": member_id})
 
     # ✅ Load member safely
-    member = Member.objects.filter(auto_id=auto_id).first()
+    member = Member.objects.filter(member_id=member_id).first()
     if not member:
-        return render(request, "tree_not_found.html", {"auto_id": auto_id})
+        return render(request, "tree_not_found.html", {"member_id": member_id})
 
     # ✅ Collect income data
     reports = IncomeReport.objects.filter(member=member).order_by("date")
@@ -1752,8 +1752,8 @@ def add_member(request):
         placement_id = request.POST.get("placement_id")
         side = request.POST.get("side")
 
-        sponsor = Member.objects.filter(auto_id=sponsor_id).first()
-        placement = Member.objects.filter(auto_id=placement_id).first()
+        sponsor = Member.objects.filter(member_id=sponsor_id).first()
+        placement = Member.objects.filter(member_id=placement_id).first()
 
         new_member = Member.objects.create(
             name=name,
@@ -1807,8 +1807,8 @@ def salary_report(request):
 # ---------------------------------------------------------
 # ✅ 3. Member Rank Detail Page
 # ---------------------------------------------------------
-def member_rank_detail(request, auto_id):
-    member = get_object_or_404(Member, auto_id=auto_id)
+def member_rank_detail(request, member_id):
+    member = get_object_or_404(Member, member_id=member_id)
 
     # Null-safe BV
     left_bv = member.total_left_bv or 0
@@ -1823,11 +1823,11 @@ def member_rank_detail(request, auto_id):
         "matched_bv": matched_bv,
         "rank_info": rank_info,
     })
-def genealogy_view(request, auto_id):
+def genealogy_view(request, member_id):
     from herbalapp.utils.tree_income_debug import genealogy_tree_income_debug
     from herbalapp.models import Member
 
-    root = Member.objects.get(auto_id=auto_id)
+    root = Member.objects.get(member_id=member_id)
     left_count = count_subtree(root, "left")
     right_count = count_subtree(root, "right")
 
@@ -1853,8 +1853,8 @@ from django.shortcuts import render
 from herbalapp.models import Member
 from herbalapp.utils.tree_json import build_tree_json
 
-def genealogy_visual_view(request, auto_id):
-    root = Member.objects.get(auto_id=auto_id)
+def genealogy_visual_view(request, member_id):
+    root = Member.objects.get(member_id=member_id)
     left_count = count_subtree(root, "left")
     right_count = count_subtree(root, "right")
 
@@ -1895,7 +1895,7 @@ def add_member_form(request):
                 parent.right_member = new_member
 
             parent.save()
-            return redirect("tree_view", auto_id="root")
+            return redirect("tree_view", member_id="root")
     else:
         form = MemberForm()
 

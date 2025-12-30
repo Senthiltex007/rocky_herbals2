@@ -40,7 +40,7 @@
 <body>
 
 <div class="container mt-4">
-    <h2 class="text-center mb-4">🌳 Genealogy Tree – {{ root_member.auto_id }}</h2>
+    <h2 class="text-center mb-4">🌳 Genealogy Tree – {{ root_member.member_id }}</h2>
 
     <!-- ✅ Income Summary -->
     <div class="row mb-4">
@@ -62,7 +62,7 @@
     <div class="tree-container">
         <div class="tree-node">
             <div class="card">
-                <div class="auto-id">{{ root_member.auto_id }}</div>
+                <div class="auto-id">{{ root_member.member_id }}</div>
                 <div class="name">{{ root_member.name }}</div>
                 <div class="package">{{ root_member.package }}</div>
                 <div class="badge-wrap mt-2">
@@ -71,7 +71,7 @@
                     <span class="badge bg-warning text-dark">Flashout: {{ root_member.flashout }}</span>
                 </div>
                 <div class="mt-2">
-                    <a href="/member/edit/{{ root_member.auto_id }}/" class="btn btn-sm btn-outline-secondary">Edit</a>
+                    <a href="/member/edit/{{ root_member.member_id }}/" class="btn btn-sm btn-outline-secondary">Edit</a>
                 </div>
             </div>
         </div>

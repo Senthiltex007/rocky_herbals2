@@ -70,15 +70,15 @@ def monitor_all_in_one(run_date=None):
     print("\n--- SponsorIncome Records ---")
     for record in sponsor_records.select_related("sponsor","child"):
         print(
-            f"Sponsor {record.sponsor.auto_id} credited ₹{record.amount} "
-            f"from Child {record.child.auto_id} "
+            f"Sponsor {record.sponsor.member_id} credited ₹{record.amount} "
+            f"from Child {record.child.member_id} "
             f"(Eligibility Bonus={record.eligibility_bonus})"
         )
 
     print("\n--- IncomeRecord Entries ---")
     for rec in income_records.select_related("member"):
         print(
-            f"Member {rec.member.auto_id} | Eligibility={rec.amount - rec.binary_income - rec.wallet_income} | "
+            f"Member {rec.member.member_id} | Eligibility={rec.amount - rec.binary_income - rec.wallet_income} | "
             f"Binary={rec.binary_income} | SponsorMirror={rec.sponsor_income} | "
             f"Wallet={rec.wallet_income} | Total={rec.amount}"
         )

@@ -51,14 +51,14 @@
 <body>
 
 <div class="container">
-    <h2 class="text-center mb-4">🌐 Genealogy Visual – {{ root_member.auto_id }}</h2>
+    <h2 class="text-center mb-4">🌐 Genealogy Visual – {{ root_member.member_id }}</h2>
 
     <div class="tree-container">
         <!-- Root Member -->
         <div class="tree-level">
             <div class="member-card">
                 <img src="{{ root_member.avatar_url|default:'/static/images/avatar_default.png' }}" class="avatar" alt="Avatar">
-                <div class="auto-id">{{ root_member.auto_id }}</div>
+                <div class="auto-id">{{ root_member.member_id }}</div>
                 <div class="name">{{ root_member.name }}</div>
                 <div class="package">{{ root_member.package }}</div>
             </div>
@@ -69,7 +69,7 @@
             {% for child in root_member.children %}
             <div class="member-card">
                 <img src="{{ child.avatar_url|default:'/static/images/avatar_default.png' }}" class="avatar" alt="Avatar">
-                <div class="auto-id">{{ child.auto_id }}</div>
+                <div class="auto-id">{{ child.member_id }}</div>
                 <div class="name">{{ child.name }}</div>
                 <div class="package">{{ child.package }}</div>
             </div>
@@ -81,7 +81,7 @@
             {% for grandchild in grandchildren %}
             <div class="member-card">
                 <img src="{{ grandchild.avatar_url|default:'/static/images/avatar_default.png' }}" class="avatar" alt="Avatar">
-                <div class="auto-id">{{ grandchild.auto_id }}</div>
+                <div class="auto-id">{{ grandchild.member_id }}</div>
                 <div class="name">{{ grandchild.name }}</div>
                 <div class="package">{{ grandchild.package }}</div>
             </div>

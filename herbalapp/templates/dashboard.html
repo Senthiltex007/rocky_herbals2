@@ -159,7 +159,7 @@
 
     <div style="background:white; padding:15px; border-radius:10px; box-shadow:0 0 8px rgba(0,0,0,0.08);">
       <h5 style="margin-top:0;">
-        {{ member.name }} ({{ member.auto_id }})
+        {{ member.name }} ({{ member.member_id }})
         <a href="{% url 'member_tree_root' %}" style="float:right; font-size:13px;">View Full Tree »</a>
       </h5>
 
@@ -180,7 +180,7 @@
         <h2 class="accordion-header" id="headingOne">
           <button class="accordion-button" type="button" data-bs-toggle="collapse"
                   data-bs-target="#collapseOne" aria-expanded="true" aria-controls="collapseOne">
-            {{ member.name }} ({{ member.auto_id }})
+            {{ member.name }} ({{ member.member_id }})
           </button>
         </h2>
         <div id="collapseOne" class="accordion-collapse collapse show" aria-labelledby="headingOne">

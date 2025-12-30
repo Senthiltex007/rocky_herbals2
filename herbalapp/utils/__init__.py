@@ -1,10 +1,10 @@
-# herbalapp/utils/__init__.py
-# ----------------------------------------------------------
+# ==========================================================
+# herbalapp/utils/__init__.py (FINAL CLEAN VERSION)
+# ==========================================================
+
 # ✅ Utils package initializer
-# ----------------------------------------------------------
 
 from .member_creator import create_member
-from .auto_id import generate_auto_id
 from .tree_income_debug import genealogy_tree_income_debug
 
 # Directly expose final master engine for convenience

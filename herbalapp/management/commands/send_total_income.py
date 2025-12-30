@@ -24,7 +24,7 @@ class Command(BaseCommand):
         for m in Member.objects.all():
             income = m.calculate_full_income()
             ws.append([
-                m.auto_id,
+                m.member_id,
                 m.name,
                 m.package,
                 income["binary_income"],

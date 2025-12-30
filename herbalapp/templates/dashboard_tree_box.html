@@ -5,7 +5,7 @@
     <div class="box rank-{{ node.current_rank|default:''|slugify }}"
          onclick="info(
             '{{ node.name }}',
-            '{{ node.auto_id }}',
+            '{{ node.member_id }}',
             '{{ node.current_rank|default:"No Rank" }}',
             '{{ node.total_left_bv }}',
             '{{ node.total_right_bv }}',
@@ -26,7 +26,7 @@
         {% endif %}
 
         <div style="font-size:13px;"><b>{{ node.name }}</b></div>
-        <small style="font-size:11px;">{{ node.auto_id }}</small>
+        <small style="font-size:11px;">{{ node.member_id }}</small>
     </div>
 
     <ul>

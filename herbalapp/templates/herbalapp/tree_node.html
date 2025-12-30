@@ -5,16 +5,16 @@
          class="avatar" />
     <div class="info">
       <strong>{{ member.name }}</strong><br>
-      ID: {{ member.auto_id }}<br>
+      ID: {{ member.member_id }}<br>
       BV: {{ member.total_left_bv|default:"0" }}/{{ member.total_right_bv|default:"0" }}
     </div>
     <div class="actions">
-      {% if member.auto_id %}
+      {% if member.member_id %}
         {% if not member.left_member %}
-          <a class="add-btn" href="{% url 'add_member_under_parent' member.auto_id 'left' %}">+ Add Left</a>
+          <a class="add-btn" href="{% url 'add_member_under_parent' member.member_id 'left' %}">+ Add Left</a>
         {% endif %}
         {% if not member.right_member %}
-          <a class="add-btn" href="{% url 'add_member_under_parent' member.auto_id 'right' %}">+ Add Right</a>
+          <a class="add-btn" href="{% url 'add_member_under_parent' member.member_id 'right' %}">+ Add Right</a>
         {% endif %}
       {% else %}
         <span class="add-btn">No ID</span>

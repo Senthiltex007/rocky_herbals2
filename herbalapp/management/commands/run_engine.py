@@ -41,16 +41,16 @@ class Command(BaseCommand):
                 member=member,
                 run_date=run_date
             )
-            self.stdout.write(self.style.SUCCESS(f"{member.auto_id} → {result}"))
+            self.stdout.write(self.style.SUCCESS(f"{member.member_id} → {result}"))
 
             # --- Sponsor mirror already handled inside engine ---
             # If you want extra logging:
             if result["child_total_for_sponsor"] > 0:
                 self.stdout.write(self.style.WARNING(
-                    f"Sponsor mirror credited for {member.auto_id}: {result['child_total_for_sponsor']}"
+                    f"Sponsor mirror credited for {member.member_id}: {result['child_total_for_sponsor']}"
                 ))
             else:
                 self.stdout.write(self.style.WARNING(
-                    f"Sponsor not credited: recipient not eligible for {member.auto_id}"
+                    f"Sponsor not credited: recipient not eligible for {member.member_id}"
                 ))
 

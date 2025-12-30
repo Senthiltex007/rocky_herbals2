@@ -8,16 +8,16 @@ from herbalapp.mlm_engine_binary import calculate_member_binary_income_for_day
 import datetime
 
 
-def genealogy_tree_income_debug(root_auto_id: str):
+def genealogy_tree_income_debug(root_member_id: str):
     """
     Print genealogy tree structure + engine-based income debug.
     """
     try:
-        root = Member.objects.get(auto_id=root_auto_id)
+        root = Member.objects.get(member_id=root_member_id)
     except Member.DoesNotExist:
-        return f"❌ Member {root_auto_id} not found"
+        return f"❌ Member {root_member_id} not found"
 
-    header = f"Genealogy Tree for {root.auto_id} - {root.name}\n"
+    header = f"Genealogy Tree for {root.member_id} - {root.name}\n"
     header += "=============================================\n"
 
     # Engine-based income calculation (using today's date)

@@ -31,7 +31,7 @@ def process_sponsor_income(child, child_total_for_sponsor, run_date, child_becam
             amount=sponsor_amount,
             date=run_date
         )
-        print(f"Parent {child.placement.auto_id} credited ₹{sponsor_amount}")
+        print(f"Parent {child.placement.member_id} credited ₹{sponsor_amount}")
 
         # --- Grandparent Income Check ---
         if child.placement.placement and child.placement.placement.binary_eligible:
@@ -41,7 +41,7 @@ def process_sponsor_income(child, child_total_for_sponsor, run_date, child_becam
                 amount=sponsor_amount,
                 date=run_date
             )
-            print(f"Grandparent {child.placement.placement.auto_id} credited ₹{sponsor_amount}")
+            print(f"Grandparent {child.placement.placement.member_id} credited ₹{sponsor_amount}")
 
     # --- Sponsor Income Check (if sponsor ≠ parent) ---
     sponsor_receiver = None
@@ -57,7 +57,7 @@ def process_sponsor_income(child, child_total_for_sponsor, run_date, child_becam
             amount=sponsor_amount,
             date=run_date
         )
-        print(f"Sponsor {sponsor_receiver.auto_id} credited ₹{sponsor_amount}")
+        print(f"Sponsor {sponsor_receiver.member_id} credited ₹{sponsor_amount}")
 
 # ---------------------------------------
 # Binary income calculator
@@ -112,9 +112,9 @@ def calculate_member_binary_income_for_day(
                 "flashout_triggered_today": False,
                 "washout_triggered_today": washed_pairs > 0,
                 "carry_forward_generated": (L > 0 or R > 0),
-                "joined_member_auto_id": member.auto_id,
-                "joined_member_sponsor": getattr(member.sponsor, "auto_id", None),
-                "joined_member_placement": getattr(member.placement, "auto_id", None),
+                "joined_member_member_id": member.member_id,
+                "joined_member_sponsor": getattr(member.sponsor, "member_id", None),
+                "joined_member_placement": getattr(member.placement, "member_id", None),
                 "joined_date": getattr(member, "joined_date", None),
             }
 
@@ -137,7 +137,7 @@ def calculate_member_binary_income_for_day(
     if repurchase_wallet_bonus > 0:
         member.repurchase_wallet_balance += repurchase_wallet_bonus
         member.save(update_fields=["repurchase_wallet_balance"])
-        print(f"{member.auto_id} repurchase wallet updated ₹{repurchase_wallet_bonus}")
+        print(f"{member.member_id} repurchase wallet updated ₹{repurchase_wallet_bonus}")
 
     # Washout
     washed_pairs = min(L, R)

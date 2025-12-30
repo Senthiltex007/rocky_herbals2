@@ -1,6 +1,6 @@
-{% if member.auto_id %}
-    <a href="{% url 'add_member' parent_id=member.auto_id position='left' %}" class="add-btn" title="Add Left Child">+</a>
-    <a href="{% url 'add_member' parent_id=member.auto_id position='right' %}" class="add-btn" title="Add Right Child">+</a>
+{% if member.member_id %}
+    <a href="{% url 'add_member' parent_id=member.member_id position='left' %}" class="add-btn" title="Add Left Child">+</a>
+    <a href="{% url 'add_member' parent_id=member.member_id position='right' %}" class="add-btn" title="Add Right Child">+</a>
 {% else %}
     <span class="add-btn disabled">+</span>
     <span class="add-btn disabled">+</span>

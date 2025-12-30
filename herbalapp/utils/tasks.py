@@ -21,9 +21,9 @@ class Command(BaseCommand):
         for root in Member.objects.filter(placement__isnull=True):
             try:
                 process_member_daily(root, run_date)
-                self.stdout.write(self.style.SUCCESS(f"✅ Engine run for root {root.auto_id}"))
+                self.stdout.write(self.style.SUCCESS(f"✅ Engine run for root {root.member_id}"))
             except Exception as e:
-                self.stdout.write(self.style.ERROR(f"⚠️ Engine failed for {root.auto_id}: {e}"))
+                self.stdout.write(self.style.ERROR(f"⚠️ Engine failed for {root.member_id}: {e}"))
 
         # Run full audit after engine
         self.stdout.write(self.style.NOTICE("🔍 Running full income audit..."))

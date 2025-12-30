@@ -23,32 +23,86 @@ class RockCounter(models.Model):
 # ==========================================================
 # MEMBER MODEL (MAIN GENEALOGY TREE)
 # ==========================================================
+from collections import deque
+from decimal import Decimal
+
+from django.db import models, transaction
+from django.db.models import Sum
 from django.utils import timezone
 
+# ==========================================================
+# AUTO COUNTER FOR ROCKY IDs (Recommended)
+# ==========================================================
+class RockCounter(models.Model):
+    """
+    A safe, atomic counter for generating Rocky IDs.
+    Prevents race conditions when multiple members register at once.
+    """
+    name = models.CharField(max_length=50, unique=True)
+    last = models.PositiveIntegerField(default=0)
+
+    def __str__(self):
+        return f"{self.name}:{self.last}"
+
+
+# ==========================================================
+# MEMBER MODEL (MAIN GENEALOGY TREE)
+# ==========================================================
 class Member(models.Model):
-    auto_id = models.CharField(max_length=50, unique=True, blank=True, null=True)
+    member_id = models.CharField(
+        max_length=50,
+        primary_key=True,   # ✅ manual entry, no auto increment
+        unique=True,
+        blank=False,
+        null=False
+    )
     name = models.CharField(max_length=200)
     phone = models.CharField(max_length=20)
     email = models.EmailField(blank=True, null=True)
     avatar = models.ImageField(upload_to='avatars/', blank=True, null=True)
     aadhar = models.CharField(max_length=20, blank=True, null=True)
-    aadhar_number = models.CharField(max_length=20, null=True, blank=True)
-    place = models.CharField(max_length=100, blank=True, null=True)
-    district = models.CharField(max_length=100, null=True, blank=True)
-    taluk = models.CharField(max_length=100, null=True, blank=True)
-    pincode = models.CharField(max_length=10, null=True, blank=True)
+    aadhar_number = models.CharField(max_length=20, blank=True, null=True)
 
-    def save(self, *args, **kwargs):
-        if not self.auto_id:
-            with transaction.atomic():
-                counter, _ = RockCounter.objects.get_or_create(name="rocky")
-                counter.last += 1
-                counter.save()
-                self.auto_id = f"rocky{counter.last:03d}"
-        super().save(*args, **kwargs)
+    # ✅ Add other genealogy fields here (parent, sponsor, left/right children, etc.)
+    parent = models.ForeignKey(
+        'self',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='children'
+    )
+    sponsor = models.ForeignKey(
+        'self',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='sponsored_members'
+    )
+    side = models.CharField(max_length=10, blank=True, null=True)
+    position = models.CharField(max_length=10, blank=True, null=True)
+
+    # Income / status fields
+    binary_eligible = models.BooleanField(default=False)
+    eligibility_bonus = models.BooleanField(default=False)
+    has_completed_first_pair = models.BooleanField(default=False)
+    lifetime_pairs = models.IntegerField(default=0)
+    left_cf = models.IntegerField(default=0)
+    right_cf = models.IntegerField(default=0)
+    activation_amount = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0.00"))
+    is_active = models.BooleanField(default=True)
+    flashout_units = models.IntegerField(default=0)
+    sponsor_income = models.IntegerField(default=0)
+    washed_pairs = models.IntegerField(default=0)
+    repurchase_wallet_balance = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0.00"))
+    total_sponsor_income = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0.00"))
+
+    created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
+    joined_date = models.DateField(default=timezone.now)
+    level = models.CharField(max_length=20, blank=True, null=True)
 
     def __str__(self):
-        return f"{self.auto_id} - {self.name}"
+        return f"{self.member_id} - {self.name}"
 
     # -------------------------
     # MLM STRUCTURE
@@ -127,7 +181,7 @@ class Member(models.Model):
     )
 
     def __str__(self):
-        return f"{self.auto_id} - {self.name}"
+        return f"{self.member_id} - {self.name}"
 
     # -------------------------
     # HELPERS
@@ -153,7 +207,7 @@ class Member(models.Model):
             if right_child:
                 children.append(right_child)
             return {
-                "auto_id": member.auto_id,
+                "member_id": member.member_id,
                 "name": member.name,
                 "side": member.side,
                 # UI-க்காக activation_amount-ஐ package ஆக காட்டுகிறோம்
@@ -461,7 +515,7 @@ class SponsorIncome(models.Model):
     date = models.DateField(default=timezone.now)
 
     def __str__(self):
-        return f"Sponsor {self.sponsor.auto_id} from {self.child.auto_id} - {self.amount}"
+        return f"Sponsor {self.sponsor.member_id} from {self.child.member_id} - {self.amount}"
 
 
 # ==========================================================
@@ -588,7 +642,7 @@ class IncomeRecord(models.Model):
     total_income = models.DecimalField(max_digits=10, decimal_places=2, default=0)
 
     def __str__(self):
-        return f"{self.member.auto_id} - {self.type} - {self.amount}"
+        return f"{self.member.member_id} - {self.type} - {self.amount}"
 
     # ✅ THIS IS THE ONLY CORRECT PLACE
     class Meta:
@@ -656,7 +710,7 @@ class RankReward(models.Model):
         return True
 
     def __str__(self):
-        return f"{self.member.auto_id} - {self.rank_title}"
+        return f"{self.member.member_id} - {self.rank_title}"
 
 
 class RankPayoutLog(models.Model):
@@ -666,7 +720,7 @@ class RankPayoutLog(models.Model):
     paid_on = models.DateField()
 
     def __str__(self):
-        return f"{self.member.auto_id} - {self.rank_reward.rank_title} - {self.amount} on {self.paid_on}"
+        return f"{self.member.member_id} - {self.rank_reward.rank_title} - {self.amount} on {self.paid_on}"
 
 
 

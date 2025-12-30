@@ -1,17 +1,19 @@
+# ==========================================================
+# herbalapp/utils/member_creator.py (FINAL CLEAN VERSION)
+# ==========================================================
 from django.db import transaction
 from herbalapp.models import Member
-from .auto_id import generate_auto_id
 
 def create_member(**kwargs):
     """
-    Create a new Member safely with auto_id and default fields.
+    Create a new Member safely with manual member_id and default fields.
     """
     with transaction.atomic():
         member = Member(**kwargs)
 
-        # Auto ID
-        if not member.auto_id:
-            member.auto_id = generate_auto_id()
+        # ✅ Manual member_id must be provided in kwargs
+        if not member.member_id:
+            raise ValueError("member_id is required for creating a Member")
 
         # Default fields
         member.left_cf = 0

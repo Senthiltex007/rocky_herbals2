@@ -1,13 +1,13 @@
 <li>
     <div class="avatar-circle" onclick="info(
         '{{ parent.name }}',
-        '{{ parent.auto_id }}',
+        '{{ parent.member_id }}',
         '{{ parent.rank|default:'' }}',
         '{{ parent.left_bv|default:0 }}',
         '{{ parent.right_bv|default:0 }}'
     )">
         <div>{{ parent.name }}</div>
-        <small>{{ parent.auto_id }}</small>
+        <small>{{ parent.member_id }}</small>
     </div>
 
     {% if not parent.left_member %}

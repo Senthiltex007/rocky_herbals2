@@ -37,7 +37,7 @@ h3 {
 
     <div class="row">
         <div class="col-4 label">Auto ID:</div>
-        <div class="col-8 value">{{ member.auto_id }}</div>
+        <div class="col-8 value">{{ member.member_id }}</div>
     </div>
 
     <div class="row">
@@ -59,7 +59,7 @@ h3 {
         <div class="col-4 label">Sponsor:</div>
         <div class="col-8 value">
             {% if member.sponsor %}
-                {{ member.sponsor.auto_id }} – {{ member.sponsor.name }}
+                {{ member.sponsor.member_id }} – {{ member.sponsor.name }}
             {% else %}
                 -
             {% endif %}
@@ -70,7 +70,7 @@ h3 {
         <div class="col-4 label">Parent:</div>
         <div class="col-8 value">
             {% if member.parent %}
-                {{ member.parent.auto_id }} – {{ member.parent.name }}
+                {{ member.parent.member_id }} – {{ member.parent.name }}
             {% else %}
                 -
             {% endif %}

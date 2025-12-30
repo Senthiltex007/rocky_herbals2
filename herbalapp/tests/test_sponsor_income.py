@@ -3,7 +3,7 @@ from herbalapp.models import Member
 
 class SponsorIncomeTest(TestCase):
     def setUp(self):
-        # Create sponsor (auto_id will be generated automatically)
+        # Create sponsor (member_id will be generated automatically)
         self.sponsor = Member.objects.create(
             name="Sponsor",
             package="Gold"

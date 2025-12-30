@@ -4,7 +4,7 @@
     <div class="box rank-{{ node.current_rank|default:''|slugify }}"
          onclick="info(
                 '{{ node.name }}',
-                '{{ node.auto_id }}',
+                '{{ node.member_id }}',
                 '{{ node.current_rank|default:"No Rank" }}',
                 '{{ node.total_left_bv }}',
                 '{{ node.total_right_bv }}',
@@ -28,7 +28,7 @@
 
         <!-- ✅ Name + ID -->
         <div><b>{{ node.name }}</b></div>
-        <small>ID: {{ node.auto_id }}</small>
+        <small>ID: {{ node.member_id }}</small>
     </div>
 
 
@@ -38,7 +38,7 @@
             {% include "herbalapp/tree_box.html" with node=node.left_child %}
         </ul>
     {% else %}
-        <a class="add-btn" href="{% url 'add_member' node.auto_id 'left' %}">
+        <a class="add-btn" href="{% url 'add_member' node.member_id 'left' %}">
             ➕ Add Left
         </a>
     {% endif %}
@@ -50,7 +50,7 @@
             {% include "herbalapp/tree_box.html" with node=node.right_child %}
         </ul>
     {% else %}
-        <a class="add-btn" href="{% url 'add_member' node.auto_id 'right' %}">
+        <a class="add-btn" href="{% url 'add_member' node.member_id 'right' %}">
             ➕ Add Right
         </a>
     {% endif %}

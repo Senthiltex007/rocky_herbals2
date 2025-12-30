@@ -31,20 +31,20 @@
     <!-- ✅ Root Node -->
     <div class="node">
         <h2>{{ root_member.name }}</h2>
-        <p>ID: {{ root_member.auto_id }}</p>
+        <p>ID: {{ root_member.member_id }}</p>
         <p>BV: {{ root_member.bv|default:"0.00" }}</p>
 
         <div class="actions">
             {% if not root_member.left_member %}
-              <a href="{% url 'add_member_under_parent' root_member.auto_id 'left' %}">+ Add Left</a>
+              <a href="{% url 'add_member_under_parent' root_member.member_id 'left' %}">+ Add Left</a>
             {% else %}
-              <p>Left: {{ root_member.left_member.name }} ({{ root_member.left_member.auto_id }})</p>
+              <p>Left: {{ root_member.left_member.name }} ({{ root_member.left_member.member_id }})</p>
             {% endif %}
 
             {% if not root_member.right_member %}
-              <a href="{% url 'add_member_under_parent' root_member.auto_id 'right' %}">+ Add Right</a>
+              <a href="{% url 'add_member_under_parent' root_member.member_id 'right' %}">+ Add Right</a>
             {% else %}
-              <p>Right: {{ root_member.right_member.name }} ({{ root_member.right_member.auto_id }})</p>
+              <p>Right: {{ root_member.right_member.name }} ({{ root_member.right_member.member_id }})</p>
             {% endif %}
         </div>
     </div>

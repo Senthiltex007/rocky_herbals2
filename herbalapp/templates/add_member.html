@@ -43,7 +43,7 @@
         {% csrf_token %}
 
         <label>Member ID (Auto Generated)</label>
-        <input type="text" name="auto_id" value="{{ auto_id }}" readonly>
+        <input type="text" name="member_id" value="{{ member_id }}" readonly>
 
         <label>Name</label>
         <input type="text" name="name" required>
@@ -68,7 +68,7 @@
 
         <!-- ✅ Placement auto-filled -->
         <label>Placement ID (Under Which Member?)</label>
-        <input type="text" name="placement_id" value="{{ placement_auto_id }}" readonly required>
+        <input type="text" name="placement_id" value="{{ placement_member_id }}" readonly required>
 
         <!-- ✅ Position (Left / Right) -->
         <label>Position</label>

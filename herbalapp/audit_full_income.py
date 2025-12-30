@@ -23,12 +23,12 @@ def run_full_income_audit():
 
         if report:
             print(
-                f"{m.auto_id} ({m.name}) | Sponsor={sponsor_total} | Binary={binary_total} | Flashout={flashout_total} | "
+                f"{m.member_id} ({m.name}) | Sponsor={sponsor_total} | Binary={binary_total} | Flashout={flashout_total} | "
                 f"Eligibility={eligibility_total} | Repurchase={repurchase_total} | Salary={report.salary_income} | Rank={report.rank_title} | "
                 f"BV={lifetime_bv} | ExpectedRank={rank_title} ({monthly_salary}×{months}) | L_joins={report.left_joins}, R_joins={report.right_joins}"
             )
         else:
             print(
-                f"{m.auto_id} ({m.name}) | Sponsor={sponsor_total} | Binary={binary_total} | Flashout={flashout_total} | "
+                f"{m.member_id} ({m.name}) | Sponsor={sponsor_total} | Binary={binary_total} | Flashout={flashout_total} | "
                 f"Eligibility={eligibility_total} | Repurchase={repurchase_total} | BV={lifetime_bv} | ExpectedRank={rank_title} ({monthly_salary}×{months}) | No Daily Report today"
 

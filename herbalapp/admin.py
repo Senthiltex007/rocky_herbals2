@@ -1,5 +1,6 @@
-# herbalapp/admin.py
-
+# ==========================================================
+# herbalapp/admin.py (FINAL CLEAN VERSION)
+# ==========================================================
 from django.contrib import admin
 from django.utils.html import format_html
 from .models import (
@@ -18,26 +19,23 @@ from .models import (
 )
 
 # ==========================================================
-# ✅ MEMBER ADMIN (CLEAN VERSION)
+# ✅ MEMBER ADMIN (MANUAL ID VERSION)
 # ==========================================================
 @admin.register(Member)
 class MemberAdmin(admin.ModelAdmin):
     list_display = (
-        "id",
-        "auto_id_display",
+        "member_id",
         "name",
-        "sponsor",
+        "phone",
+        "email",
+        "aadhar_number",
         "side",
+        "position",
         "joined_date",
     )
-    search_fields = ("auto_id", "name", "phone", "email")
-    list_filter = ("side", "district", "taluk", "pincode")
-    ordering = ("id",)
-    readonly_fields = ("joined_date",)
-
-    def auto_id_display(self, obj):
-        return format_html("<strong>{}</strong>", obj.auto_id)
-    auto_id_display.short_description = "Auto ID"
+    search_fields = ("member_id", "name", "phone", "email")
+    list_filter = ("side", "position", "is_active")
+    ordering = ("member_id",)
 
 
 # ==========================================================
@@ -89,7 +87,7 @@ class CommissionAdmin(admin.ModelAdmin):
 
 
 # ==========================================================
-# ✅ DAILY INCOME REPORT ADMIN (minimal change: only eligibility_income added)
+# ✅ DAILY INCOME REPORT ADMIN
 # ==========================================================
 @admin.register(DailyIncomeReport)
 class DailyIncomeReportAdmin(admin.ModelAdmin):
@@ -99,7 +97,7 @@ class DailyIncomeReportAdmin(admin.ModelAdmin):
         "left_joins",
         "right_joins",
         "binary_pairs_paid",
-        "eligibility_income",   # ✅ added
+        "eligibility_income",
         "binary_income",
         "sponsor_income",
         "total_income",
@@ -114,7 +112,7 @@ class DailyIncomeReportAdmin(admin.ModelAdmin):
 class RankRewardAdmin(admin.ModelAdmin):
     list_display = ("member", "rank_title", "monthly_income", "duration_months", "months_paid", "active")
     list_filter = ("rank_title", "active")
-    search_fields = ("member__auto_id", "member__name")
+    search_fields = ("member__member_id", "member__name")
 
 
 # ==========================================================
@@ -124,11 +122,11 @@ class RankRewardAdmin(admin.ModelAdmin):
 class RankPayoutLogAdmin(admin.ModelAdmin):
     list_display = ("member", "rank_reward", "amount", "paid_on")
     list_filter = ("paid_on",)
-    search_fields = ("member__auto_id", "member__name")
+    search_fields = ("member__member_id", "member__name")
 
 
 # ==========================================================
-# ✅ INCOME RECORD ADMIN (new: explicit admin with eligibility field)
+# ✅ INCOME RECORD ADMIN
 # ==========================================================
 @admin.register(IncomeRecord)
 class IncomeRecordAdmin(admin.ModelAdmin):
@@ -136,7 +134,7 @@ class IncomeRecordAdmin(admin.ModelAdmin):
         "member",
         "type",
         "amount",
-        "eligibility_income",   # ✅ added
+        "eligibility_income",
         "binary_income",
         "sponsor_income",
         "wallet_income",
@@ -144,17 +142,19 @@ class IncomeRecordAdmin(admin.ModelAdmin):
         "total_income",
         "created_at",
     ]
-    search_fields = ["member__name", "member__auto_id"]
+    search_fields = ["member__name", "member__member_id"]
     list_filter = ["type", "created_at"]
 
 
 # ==========================================================
-# ✅ DIRECT REGISTRATIONS (unchanged)
+# ✅ DIRECT REGISTRATIONS
 # ==========================================================
 admin.site.register(BonusRecord)
 admin.site.register(RockCounter)
 
-# ✅ Admin Branding (unchanged)
+# ==========================================================
+# ✅ Admin Branding
+# ==========================================================
 admin.site.site_header = "🌿 Rocky Herbals Administration"
 admin.site.site_title = "Rocky Herbals Admin"
 admin.site.index_title = "Welcome to Rocky Herbals Dashboard"

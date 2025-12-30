@@ -53,7 +53,7 @@
     <img src="{{ member.avatar_url|default:'/static/images/avatar_default.png' }}" class="avatar" alt="Member Avatar">
 
     <!-- Auto ID -->
-    <div class="auto-id">{{ member.auto_id }}</div>
+    <div class="auto-id">{{ member.member_id }}</div>
 
     <!-- Name -->
     <div class="name">{{ member.name }}</div>
@@ -70,8 +70,8 @@
 
     <!-- Actions -->
     <div class="mt-2">
-        <a href="/tree/{{ member.auto_id }}/" class="btn btn-sm btn-outline-success">Open subtree</a>
-        <a href="/member/edit/{{ member.auto_id }}/" class="btn btn-sm btn-outline-secondary">Edit</a>
+        <a href="/tree/{{ member.member_id }}/" class="btn btn-sm btn-outline-success">Open subtree</a>
+        <a href="/member/edit/{{ member.member_id }}/" class="btn btn-sm btn-outline-secondary">Edit</a>
     </div>
 </div>
 
