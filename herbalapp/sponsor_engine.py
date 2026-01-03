@@ -1,6 +1,8 @@
 # herbalapp/sponsor_engine.py
 
 from herbalapp.models import Member, SponsorIncome, IncomeRecord
+from decimal import Decimal
+from django.db import models
 
 def has_completed_one_to_one(member):
     """
@@ -29,10 +31,10 @@ def resolve_sponsor_receiver(child):
         return getattr(placement, "placement", None) or placement
     return sponsor
 
-def process_sponsor_income(child_member, run_date, child_total_for_sponsor, child_became_eligible_today=False):
+def process_sponsor_income(child_member, run_date, child_became_eligible_today=False):
     """
     Rule 3: Receiver must have lifetime 1:1 pair completed.
-    Amount to credit = child's eligibility (₹500 if today unlocked) + child's binary income today.
+    Amount to credit = child's eligibility (₹500 if today unlocked) + child's sponsor income today.
     Prevent duplicates per (receiver, child, date).
     """
     receiver = resolve_sponsor_receiver(child_member)
@@ -43,15 +45,22 @@ def process_sponsor_income(child_member, run_date, child_total_for_sponsor, chil
     if not has_completed_one_to_one(receiver):
         return None
 
-    # Amount
-    amount = (500 if child_became_eligible_today else 0) + int(child_total_for_sponsor or 0)
+    # Amount = child eligibility bonus + child sponsor income
+    child_eligibility = 500 if child_became_eligible_today else 0
+
+    child_sponsor_today = IncomeRecord.objects.filter(
+        member=child_member,
+        created_at__date=run_date,
+        type="sponsor_income"
+    ).aggregate(total=models.Sum("amount"))["total"] or 0
+
+    amount = child_eligibility + int(child_sponsor_today)
     if amount <= 0:
         return None
 
     # Prevent duplicate
     existing = SponsorIncome.objects.filter(sponsor=receiver, child=child_member, date=run_date).first()
     if existing:
-        # already credited
         return existing.amount
 
     # Create credit
@@ -68,6 +77,31 @@ def process_sponsor_income(child_member, run_date, child_total_for_sponsor, chil
         rec.sponsor_income = (rec.sponsor_income or 0) + amount
         rec.total_income = (rec.total_income or 0) + amount
         rec.save()
+
+    # ✅ Update DailyIncomeReport too
+    from herbalapp.models import DailyIncomeReport
+    r, created = DailyIncomeReport.objects.get_or_create(
+        member=receiver,
+        date=run_date,
+        defaults={
+            "eligibility_income": Decimal("0.00"),
+            "binary_income": Decimal("0.00"),
+            "sponsor_income": Decimal(amount),
+            "wallet_income": Decimal("0.00"),
+            "salary_income": Decimal("0.00"),
+            "total_income": Decimal(amount),
+        }
+    )
+    if not created:
+        r.sponsor_income += Decimal(amount)
+        r.total_income = (
+            r.eligibility_income +
+            r.binary_income +
+            r.sponsor_income +
+            r.wallet_income +
+            r.salary_income
+        )
+        r.save()
 
     return si.amount
 

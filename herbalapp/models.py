@@ -2,17 +2,12 @@ from collections import deque
 from decimal import Decimal
 
 from django.db import models, transaction
-from django.db.models import Sum
 from django.utils import timezone
 
 # ==========================================================
-# AUTO COUNTER FOR ROCKY IDs (Recommended)
+# AUTO COUNTER FOR ROCKY IDs
 # ==========================================================
 class RockCounter(models.Model):
-    """
-    A safe, atomic counter for generating Rocky IDs.
-    Prevents race conditions when multiple members register at once.
-    """
     name = models.CharField(max_length=50, unique=True)
     last = models.PositiveIntegerField(default=0)
 
@@ -21,12 +16,10 @@ class RockCounter(models.Model):
 
 
 # ==========================================================
-# MEMBER MODEL (MAIN GENEALOGY TREE)
+# MEMBER MODEL
 # ==========================================================
-from django.utils import timezone
-
 class Member(models.Model):
-    auto_id = models.CharField(max_length=50, unique=True, blank=True, null=True)
+    auto_id = models.CharField(max_length=50, unique=True, editable=False)
     name = models.CharField(max_length=200)
     phone = models.CharField(max_length=20)
     email = models.EmailField(blank=True, null=True)
@@ -37,9 +30,11 @@ class Member(models.Model):
     district = models.CharField(max_length=100, null=True, blank=True)
     taluk = models.CharField(max_length=100, null=True, blank=True)
     pincode = models.CharField(max_length=10, null=True, blank=True)
-
+    eligibility_bonus_given = models.BooleanField(default=False)
+    joined_date = models.DateField(default=timezone.now)
+    locked_pairs = models.IntegerField(default=0)
     def save(self, *args, **kwargs):
-        if not self.auto_id:
+        if not self.pk and not self.auto_id:
             with transaction.atomic():
                 counter, _ = RockCounter.objects.get_or_create(name="rocky")
                 counter.last += 1
@@ -112,7 +107,6 @@ class Member(models.Model):
     # META / STOCK LEVEL
     # -------------------------
     from datetime import date
-    joined_date = models.DateField(default=date.today)
 
     # Stock point level (for commission)
     level = models.CharField(
@@ -385,7 +379,7 @@ class Member(models.Model):
 
         # Flashout → credited in signals.py, keep snapshot only
         report.flashout_units = 0
-        report.flashout_wallet_income = Decimal(self.repurchase_wallet_balance or 0)
+        report.wallet_income = Decimal(self.repurchase_wallet_balance or 0)
 
         # Washed pairs → join-count based, snapshot only
         report.washed_pairs = 0
@@ -429,39 +423,52 @@ class Payment(models.Model):
         return f"{self.member.name} - {self.status} - {self.amount}"
 
 
-# ==========================================================
-# INCOME MODEL (Corrected & Production‑Ready)
-# ==========================================================
+from decimal import Decimal
+from django.db import models
+
 class Income(models.Model):
-    member = models.ForeignKey(Member, on_delete=models.CASCADE)
+    member = models.ForeignKey("Member", on_delete=models.CASCADE)
     date = models.DateField(auto_now_add=True)
 
-    joining_package = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('3000.00'))
+    joining_package = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("3000.00"))
     binary_pairs = models.IntegerField(default=0)
 
-    binary_income = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
-    sponsor_income = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
-
-    # Correct name (matches your plan)
-    flash_bonus = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
-
-    salary_income = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
+    binary_income = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
+    sponsor_income = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
+    flash_bonus = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
+    salary_income = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
 
     def __str__(self):
         return f"Income for {self.member.name} on {self.date}"
 
+    @property
+    def total_income(self):
+        return self.binary_income + self.sponsor_income + self.flash_bonus + self.salary_income
 
-# ==========================================================
-# SPONSOR INCOME MODEL
-# ==========================================================
+    class Meta:
+        indexes = [
+            models.Index(fields=["member", "date"]),
+        ]
+
+
+from decimal import Decimal
+from django.utils import timezone
+from django.db import models
+
 class SponsorIncome(models.Model):
-    sponsor = models.ForeignKey(Member, on_delete=models.CASCADE, related_name="sponsor_incomes")
-    child = models.ForeignKey(Member, on_delete=models.CASCADE, related_name="child_sponsor_incomes")
-    amount = models.DecimalField(max_digits=12, decimal_places=2)
+    sponsor = models.ForeignKey("Member", on_delete=models.CASCADE, related_name="sponsor_incomes")
+    child = models.ForeignKey("Member", on_delete=models.CASCADE, related_name="child_sponsor_incomes")
+    amount = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
     date = models.DateField(default=timezone.now)
 
     def __str__(self):
         return f"Sponsor {self.sponsor.auto_id} from {self.child.auto_id} - {self.amount}"
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["sponsor", "date"]),
+            models.Index(fields=["child", "date"]),
+        ]
 
 
 # ==========================================================
@@ -670,8 +677,11 @@ class RankPayoutLog(models.Model):
 
 
 
+from decimal import Decimal
+from django.db import models
+
 class DailyIncomeReport(models.Model):
-    member = models.ForeignKey(Member, on_delete=models.CASCADE)
+    member = models.ForeignKey("Member", on_delete=models.CASCADE)
     date = models.DateField()
 
     left_joins = models.IntegerField(default=0)
@@ -683,50 +693,75 @@ class DailyIncomeReport(models.Model):
     right_cf_after = models.IntegerField(default=0)
 
     binary_pairs_paid = models.IntegerField(default=0)
-    binary_income = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
+    binary_income = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
 
     flashout_units = models.IntegerField(default=0)
-    flashout_wallet_income = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
+    wallet_income = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
 
     washed_pairs = models.IntegerField(default=0)
 
     total_left_bv = models.BigIntegerField(default=0)
     total_right_bv = models.BigIntegerField(default=0)
 
-    salary_income = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
+    salary_income = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
     rank_title = models.CharField(max_length=100, null=True, blank=True)
 
-    sponsor_income = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
-    
-    # ✅ New field for eligibility bonus
-    eligibility_income = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
+    sponsor_income = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
+    eligibility_income = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
 
-    total_income = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal('0.00'))
+    total_income = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal("0.00"))
 
     class Meta:
-        unique_together = ('member', 'date')
+        unique_together = ("member", "date")
+        indexes = [
+            models.Index(fields=["member", "date"]),
+        ]
 
     def __str__(self):
         return f"Daily Report for {self.member.name} on {self.date}"
 
+    @property
+    def computed_total(self):
+        return (
+            self.eligibility_income +
+            self.binary_income +
+            self.sponsor_income +
+            self.wallet_income +
+            self.salary_income
+        )
+
+from decimal import Decimal
 from django.db import models
 
 class AuditDailyReport(models.Model):
     date = models.DateField(unique=True)
     processed_members = models.IntegerField()
-    total_binary_income = models.DecimalField(max_digits=12, decimal_places=2)
-    total_sponsor_income = models.DecimalField(max_digits=12, decimal_places=2)
-    flashout_units = models.IntegerField()
-    washout_pairs = models.IntegerField()
 
-    # ✅ Add missing fields
-    total_eligibility_income = models.DecimalField(max_digits=12, decimal_places=2, default=0)
-    total_wallet_income = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    total_binary_income = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
+    total_sponsor_income = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
+    flashout_units = models.IntegerField(default=0)
+    washout_pairs = models.IntegerField(default=0)
+
+    # ✅ Added missing fields
+    total_eligibility_income = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
+    total_wallet_income = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
 
     class Meta:
         verbose_name = "Audit Daily Report"
         verbose_name_plural = "Audit Daily Reports"
+        indexes = [
+            models.Index(fields=["date"]),
+        ]
 
     def __str__(self):
         return f"Audit Report {self.date} ({self.processed_members} members)"
+
+    @property
+    def grand_total(self):
+        return (
+            self.total_binary_income +
+            self.total_sponsor_income +
+            self.total_eligibility_income +
+            self.total_wallet_income
+        )
 

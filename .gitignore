@@ -34,6 +34,18 @@ staticfiles/
 herbalapp/static/images/banner_home_v2.jpg
 herbalapp/static/images/favicon-herbal.ico
 herbalapp/static/js/bootstrap.bundle.herbal.min.js
+# Node / frontend builds (if ever used)
+node_modules/
+dist/
+
+# Coverage / test reports
+.coverage
+htmlcov/
+
+# Local settings
+*.env
+.env.*
+
 
 # Media uploads
 media/
@@ -42,3 +54,4 @@ media/
 .vscode/
 .idea/
 
+legacy_unused/

@@ -8,7 +8,7 @@ from django.db.models import Sum, Count
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "rocky_herbals2.settings")
 django.setup()
 
-from herbalapp.models import SponsorIncome, IncomeRecord
+from herbalapp.models import SponsorIncome, IncomeRecord, DailyIncomeReport
 
 
 def parse_date_arg() -> datetime.date:
@@ -17,10 +17,9 @@ def parse_date_arg() -> datetime.date:
     return datetime.date.today()
 
 
-def audit_sponsor_income(run_date: datetime.date):
-    print(f"=== Daily Audit for {run_date} ===")
+def audit_sponsor_income(run_date: datetime.date, auto_fix: bool = False):
+    print(f"=== SponsorIncome Audit for {run_date} ===")
 
-    # Check duplicates in SponsorIncome (same sponsor-child on same day)
     dupes_raw = SponsorIncome.objects.filter(date=run_date).values("sponsor_id", "child_id")
     seen = {}
     for d in dupes_raw:
@@ -29,32 +28,70 @@ def audit_sponsor_income(run_date: datetime.date):
     for key, count in seen.items():
         if count > 1:
             print("Duplicate SponsorIncome found:", key, "count =", count)
+            if auto_fix:
+                qs = SponsorIncome.objects.filter(
+                    sponsor_id=key[0], child_id=key[1], date=run_date
+                ).order_by("id")
+                keep = qs.last()
+                qs.exclude(id=keep.id).delete()
+                print(f"Cleaned SponsorIncome duplicates for {key}, kept id={keep.id}, amount={keep.amount}")
+    if not seen:
+        print("No SponsorIncome rows found for this date.")
 
-    # Check mismatch between SponsorIncome sum and IncomeRecord.sponsor_income
-    records = IncomeRecord.objects.filter(created_at__date=run_date).values(
-        "member_id", "eligibility_income", "binary_income", "sponsor_income", "total_income"
-    )
+
+def audit_income_records(run_date: datetime.date, auto_fix: bool = False):
+    print(f"\n=== IncomeRecord Audit for {run_date} ===")
+    records = IncomeRecord.objects.filter(date=run_date)
+    if not records.exists():
+        print("No IncomeRecord rows found.")
     for rec in records:
-        sponsor_sum = SponsorIncome.objects.filter(
-            sponsor_id=rec["member_id"], date=run_date
-        ).aggregate(total_amount_sum=Sum("amount"))["total_amount_sum"] or 0
-
-        if sponsor_sum != (rec["sponsor_income"] or 0):
-            print(
-                f"Mismatch for member {rec['member_id']}: "
-                f"IncomeRecord sponsor_income={rec['sponsor_income']} vs SponsorIncome sum={sponsor_sum}"
-            )
+        calc_total = (
+            (rec.eligibility_income or 0)
+            + (rec.binary_income or 0)
+            + (rec.wallet_income or 0)
+            + (rec.sponsor_income or 0)   # ✅ include sponsor income
+        )
+        if calc_total != (rec.total_income or 0):
+            print(f"Mismatch for IncomeRecord {rec.id}: stored={rec.total_income}, calc={calc_total}")
+            if auto_fix:
+                rec.total_income = calc_total
+                rec.save(update_fields=["total_income"])
+                print(f"Fixed IncomeRecord {rec.id} total → {calc_total}")
         else:
-            print(f"Member {rec['member_id']} sponsor_income consistent ({sponsor_sum})")
+            print(
+                f"Member {rec.member_id}: eligibility={rec.eligibility_income}, "
+                f"binary={rec.binary_income}, sponsor={rec.sponsor_income}, "
+                f"wallet={rec.wallet_income}, total={rec.total_income} (consistent)"
+            )
 
 
-def cleanup_duplicate_income_records(run_date: datetime.date, dry_run: bool = False):
-    """
-    Keep latest IncomeRecord per member for run_date, delete older duplicates.
-    """
+def audit_daily_report(run_date: datetime.date, auto_fix: bool = False):
+    print(f"\n=== DailyIncomeReport Audit for {run_date} ===")
+    reports = DailyIncomeReport.objects.filter(date=run_date)
+    if not reports.exists():
+        print("No DailyIncomeReport rows found.")
+    for r in reports:
+        calc_total = (
+            (r.binary_income or 0)
+            + (r.sponsor_income or 0)
+            + (r.wallet_income or 0)
+            + (r.salary_income or 0)
+            + (r.eligibility_income or 0)
+        )
+        if calc_total != (r.total_income or 0):
+            print(f"Mismatch for member {r.member_id}: stored={r.total_income}, calc={calc_total}")
+            if auto_fix:
+                r.total_income = calc_total
+                r.save(update_fields=["total_income"])
+                print(f"Fixed DailyIncomeReport {r.id} total → {calc_total}")
+        else:
+            print(f"Member {r.member_id} report consistent (total={r.total_income})")
+
+
+def cleanup_duplicate_income_records(run_date: datetime.date, dry_run: bool = True):
     print("\n=== Duplicate IncomeRecord cleanup ===")
     dupes = (
-        IncomeRecord.objects.filter(created_at__date=run_date)
+        IncomeRecord.objects.filter(date=run_date)
         .values("member_id")
         .annotate(c=Count("id"))
         .filter(c__gt=1)
@@ -67,11 +104,11 @@ def cleanup_duplicate_income_records(run_date: datetime.date, dry_run: bool = Fa
         member_id = d["member_id"]
         records = (
             IncomeRecord.objects
-            .filter(member_id=member_id, created_at__date=run_date)
-            .order_by("-created_at", "-id")
+            .filter(member_id=member_id, date=run_date)
+            .order_by("-id")
         )
         latest = records.first()
-        to_delete = records[1:]  # keep latest only
+        to_delete = records[1:]
 
         count_groups += 1
         print(f"Member {member_id} has {d['c']} records. Keeping latest id={latest.id}.")
@@ -90,10 +127,12 @@ def cleanup_duplicate_income_records(run_date: datetime.date, dry_run: bool = Fa
 
 if __name__ == "__main__":
     run_date = parse_date_arg()
-    audit_sponsor_income(run_date)
+    audit_sponsor_income(run_date, auto_fix=True)
+    audit_income_records(run_date, auto_fix=True)
+    audit_daily_report(run_date, auto_fix=True)
 
     # Set dry_run=True first to preview; switch to False to actually delete
     cleanup_duplicate_income_records(run_date, dry_run=False)
 
-    print("=== Audit + Cleanup Complete ===")
+    print("=== Audit + Auto-Fix Complete ===")
 

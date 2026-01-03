@@ -1,48 +1,49 @@
 # herbalapp/monitors.py
 
 from django.utils import timezone
-from herbalapp.models import AuditDailyReport, Member, SponsorIncome, IncomeRecord
-from herbalapp.mlm_engine_binary import calculate_member_binary_income_for_day
+from decimal import Decimal
+from herbalapp.models import (
+    AuditDailyReport,
+    Member,
+    IncomeRecord,
+    DailyIncomeReport
+)
 
 def monitor_all_in_one(run_date=None):
     if run_date is None:
         run_date = timezone.now().date()
 
-    processed_members = 0
-    total_binary_income = 0
-    flashout_units = 0
-    washout_pairs = 0
-    total_eligibility_income = 0
-    total_wallet_income = 0
+    # -------------------------------
+    # Summary counters
+    # -------------------------------
+    processed_members = Member.objects.count()
 
-    # --- Run engine for all members ---
-    for member in Member.objects.all().order_by("id"):
-        result = calculate_member_binary_income_for_day(
-            left_joins_today=0,
-            right_joins_today=0,
-            left_cf_before=0,
-            right_cf_before=0,
-            binary_eligible=member.binary_eligible,
-            member=member,
-            run_date=run_date
-        )
-        processed_members += 1
-        total_binary_income += result["binary_income"]
-        flashout_units += result["flashout_units"]
-        washout_pairs += result["washed_pairs"]
-        total_eligibility_income += result["eligibility_income"]
-        total_wallet_income += result["repurchase_wallet_bonus"]
+    binary_qs = IncomeRecord.objects.filter(date=run_date, type="binary_engine")
+    sponsor_qs = IncomeRecord.objects.filter(date=run_date, type="sponsor_income")
+    eligibility_qs = IncomeRecord.objects.filter(date=run_date, type="eligibility_bonus")
 
-    # --- SponsorIncome summary ---
-    sponsor_records = SponsorIncome.objects.filter(date=run_date)
-    total_sponsor_income = sum(r.amount for r in sponsor_records)
-    sponsor_count = sponsor_records.count()
+    total_binary_income = sum(r.binary_income or Decimal("0.00") for r in binary_qs)
+    total_wallet_income = sum(r.wallet_income or Decimal("0.00") for r in binary_qs)
 
-    # --- IncomeRecord summary ---
-    income_records = IncomeRecord.objects.filter(created_at__date=run_date)
-    income_total = sum(r.amount for r in income_records)
+    # ✅ Eligibility bonus from eligibility_bonus records
+    total_eligibility_income = sum(r.amount or Decimal("0.00") for r in eligibility_qs)
 
-    # --- Save/Update AuditDailyReport ---
+    total_sponsor_income = sum(r.amount or Decimal("0.00") for r in sponsor_qs)
+    sponsor_count = sponsor_qs.count()
+
+    flashout_units = sum(r.flashout_units or 0 for r in binary_qs)
+    washout_pairs = sum(r.washed_pairs or 0 for r in binary_qs)
+
+    income_total = (
+        total_binary_income +
+        total_eligibility_income +
+        total_wallet_income +
+        total_sponsor_income
+    )
+
+    # -------------------------------
+    # Save / Update AuditDailyReport
+    # -------------------------------
     AuditDailyReport.objects.update_or_create(
         date=run_date,
         defaults={
@@ -53,34 +54,58 @@ def monitor_all_in_one(run_date=None):
             "washout_pairs": washout_pairs,
             "total_eligibility_income": total_eligibility_income,
             "total_wallet_income": total_wallet_income,
+            "income_total": income_total,   # ✅ added
         }
     )
 
-    # --- Print audit ---
-    print(f"=== All‑in‑One Monitor for {run_date} ===")
-    print(f"Processed Members={processed_members}")
-    print(f"Eligibility Bonus={total_eligibility_income}")
-    print(f"Binary Income={total_binary_income}")
-    print(f"Sponsor Income={total_sponsor_income} (Records={sponsor_count})")
-    print(f"Flashout Units={flashout_units}")
-    print(f"Repurchase Wallet Bonus={total_wallet_income}")
-    print(f"Washout Pairs={washout_pairs}")
-    print(f"IncomeRecord Total={income_total}")
+    # -------------------------------
+    # Print audit
+    # -------------------------------
+    print(f"\n=== All-in-One Monitor for {run_date} ===")
+    print(f"Processed Members           : {processed_members}")
+    print(f"Eligibility Bonus           : {total_eligibility_income}")
+    print(f"Binary Income               : {total_binary_income}")
+    print(f"Sponsor Income              : {total_sponsor_income} (Records={sponsor_count})")
+    print(f"Flashout Units              : {flashout_units}")
+    print(f"Repurchase Wallet Bonus     : {total_wallet_income}")
+    print(f"Washout Pairs               : {washout_pairs}")
+    print(f"Total Income (All Streams)  : {income_total}")
 
-    print("\n--- SponsorIncome Records ---")
-    for record in sponsor_records.select_related("sponsor","child"):
+    # -------------------------------
+    # Sponsor Income Records
+    # -------------------------------
+    print("\n--- Sponsor Income Records ---")
+    for rec in sponsor_qs.select_related("member"):
+        print(f"Sponsor {rec.member.auto_id} credited ₹{rec.amount}")
+
+    # -------------------------------
+    # IncomeRecord Entries
+    # -------------------------------
+    print("\n--- IncomeRecord Entries ---")
+    for rec in IncomeRecord.objects.filter(date=run_date).select_related("member"):
         print(
-            f"Sponsor {record.sponsor.auto_id} credited ₹{record.amount} "
-            f"from Child {record.child.auto_id} "
-            f"(Eligibility Bonus={record.eligibility_bonus})"
+            f"Member {rec.member.auto_id} | "
+            f"Eligibility={rec.eligibility_income if rec.type=='binary_engine' else (rec.amount if rec.type=='eligibility_bonus' else Decimal('0.00'))} | "
+            f"Binary={rec.binary_income} | "
+            f"Sponsor={rec.amount if rec.type=='sponsor_income' else Decimal('0.00')} | "  # ✅ simplified
+            f"Wallet={rec.wallet_income} | "
+            f"Salary={rec.salary_income} | "
+            f"Total={rec.total_income}"
         )
 
-    print("\n--- IncomeRecord Entries ---")
-    for rec in income_records.select_related("member"):
+    # -------------------------------
+    # DailyIncomeReport summary
+    # -------------------------------
+    print("\n--- DailyIncomeReport Summary ---")
+    for r in DailyIncomeReport.objects.filter(date=run_date).select_related("member"):
         print(
-            f"Member {rec.member.auto_id} | Eligibility={rec.amount - rec.binary_income - rec.wallet_income} | "
-            f"Binary={rec.binary_income} | SponsorMirror={rec.sponsor_income} | "
-            f"Wallet={rec.wallet_income} | Total={rec.amount}"
+            f"DailyReport {r.member.auto_id} | "
+            f"Eligibility={r.eligibility_income} | "
+            f"Binary={r.binary_income} | "
+            f"Sponsor={r.sponsor_income} | "
+            f"Wallet={r.wallet_income} | "
+            f"Salary={r.salary_income} | "
+            f"Total={r.total_income}"
         )
 
     return {

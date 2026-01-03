@@ -13,12 +13,6 @@
   <form method="post" enctype="multipart/form-data" class="card p-3 shadow-sm">
     {% csrf_token %}
 
-    <!-- ✅ Auto ID shown at top -->
-    <div class="mb-3">
-      <label class="form-label">Auto ID</label>
-      <input type="text" name="auto_id" class="form-control" readonly value="{{ parent.auto_id }}">
-    </div>
-
     <div class="mb-3">
       <label class="form-label">Name</label>
       <input type="text" name="name" class="form-control" required>

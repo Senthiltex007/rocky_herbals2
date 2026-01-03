@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Income Report - {{ run_date }}</title>
+    <style>
+        table { border-collapse: collapse; width: 100%; }
+        th, td { border: 1px solid #ccc; padding: 8px; text-align: center; }
+        th { background-color: #f2f2f2; }
+    </style>
+</head>
+<body>
+    <h1>Income Report for {{ run_date }}</h1>
+
+    {% if error_msg %}
+      <p style="color:red;">{{ error_msg }}</p>
+    {% endif %}
+
+    <table>
+        <thead>
+            <tr>
+                <th>Member ID</th>
+                <th>Name</th>
+                <th>Eligibility Income</th>
+                <th>Binary Income</th>
+                <th>Sponsor Income</th>
+                <th>Wallet Income</th>
+                <th>Salary Income</th>
+                <th>Total Income</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for rec in members %}
+            <tr>
+                <td>{{ rec.member.auto_id }}</td>
+                <td>{{ rec.member.name }}</td>
+                <td>{{ rec.eligibility_income }}</td>
+                <td>{{ rec.binary_income }}</td>
+                <td>{{ rec.sponsor_income }}</td>
+                <td>{{ rec.wallet_income }}</td>
+                <td>{{ rec.salary_income }}</td>
+                <td>{{ rec.total_income }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+        <tfoot>
+            <tr>
+                <td colspan="2"><strong>Totals</strong></td>
+                <td>{{ totals.total_eligibility|default:"0" }}</td>
+                <td>{{ totals.total_binary|default:"0" }}</td>
+                <td>{{ totals.total_sponsor|default:"0" }}</td>
+                <td>{{ totals.total_wallet|default:"0" }}</td>
+                <td>{{ totals.total_salary|default:"0" }}</td>
+                <td>{{ totals.grand_total|default:"0" }}</td>
+            </tr>
+        </tfoot>
+    </table>
+</body>
+</html>
+
