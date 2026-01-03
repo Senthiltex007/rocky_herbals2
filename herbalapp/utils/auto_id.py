@@ -9,10 +9,9 @@ def generate_auto_id(prefix: str = DEFAULT_PREFIX) -> str:
     Generate sequential auto_id with configurable prefix.
     Example: rocky004, rocky005...
     """
-    last = Member.objects.order_by("-id").first()
+    last = Member.objects.filter(auto_id__startswith=prefix).order_by("-auto_id").first()
 
-    if last and last.auto_id and last.auto_id.startswith(prefix):
-        # ✅ slice after prefix instead of replace
+    if last and last.auto_id:
         num = int(last.auto_id[len(prefix):])
     else:
         num = 0

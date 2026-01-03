@@ -8,7 +8,6 @@ from .models import (
     BonusRecord,
     Order,
     Payment,
-    Income,
     SponsorIncome,
     Commission,
     DailyIncomeReport,
@@ -61,15 +60,6 @@ class PaymentAdmin(admin.ModelAdmin):
 
 
 # ==========================================================
-# ✅ INCOME ADMIN
-# ==========================================================
-@admin.register(Income)
-class IncomeAdmin(admin.ModelAdmin):
-    list_display = ["member", "date", "binary_income", "sponsor_income", "flash_bonus", "salary_income"]
-    search_fields = ["member__name"]
-
-
-# ==========================================================
 # ✅ SPONSOR INCOME ADMIN
 # ==========================================================
 @admin.register(SponsorIncome)
@@ -89,7 +79,7 @@ class CommissionAdmin(admin.ModelAdmin):
 
 
 # ==========================================================
-# ✅ DAILY INCOME REPORT ADMIN (minimal change: only eligibility_income added)
+# ✅ DAILY INCOME REPORT ADMIN
 # ==========================================================
 @admin.register(DailyIncomeReport)
 class DailyIncomeReportAdmin(admin.ModelAdmin):
@@ -99,7 +89,7 @@ class DailyIncomeReportAdmin(admin.ModelAdmin):
         "left_joins",
         "right_joins",
         "binary_pairs_paid",
-        "eligibility_income",   # ✅ added
+        "eligibility_income",
         "binary_income",
         "sponsor_income",
         "total_income",
@@ -128,7 +118,7 @@ class RankPayoutLogAdmin(admin.ModelAdmin):
 
 
 # ==========================================================
-# ✅ INCOME RECORD ADMIN (new: explicit admin with eligibility field)
+# ✅ INCOME RECORD ADMIN
 # ==========================================================
 @admin.register(IncomeRecord)
 class IncomeRecordAdmin(admin.ModelAdmin):
@@ -136,7 +126,7 @@ class IncomeRecordAdmin(admin.ModelAdmin):
         "member",
         "type",
         "amount",
-        "eligibility_income",   # ✅ added
+        "eligibility_income",
         "binary_income",
         "sponsor_income",
         "wallet_income",
@@ -149,12 +139,12 @@ class IncomeRecordAdmin(admin.ModelAdmin):
 
 
 # ==========================================================
-# ✅ DIRECT REGISTRATIONS (unchanged)
+# ✅ DIRECT REGISTRATIONS
 # ==========================================================
 admin.site.register(BonusRecord)
 admin.site.register(RockCounter)
 
-# ✅ Admin Branding (unchanged)
+# ✅ Admin Branding
 admin.site.site_header = "🌿 Rocky Herbals Administration"
 admin.site.site_title = "Rocky Herbals Admin"
 admin.site.index_title = "Welcome to Rocky Herbals Dashboard"

@@ -1,6 +1,11 @@
-# herbalapp/views.py ====================================================== CLEAN, CONSISTENT VIEWS FOR Rocky Herbals (tree + app) Modern Tree (uses auto_id) - 
-# single complete file ======================================================
+# herbalapp/views.py
+# ======================================================
+# CLEAN, CONSISTENT VIEWS FOR Rocky Herbals (tree + app)
+# Modern Tree (uses auto_id) - single complete file
+# ======================================================
 
+import datetime
+import csv
 from decimal import Decimal
 from collections import deque
 
@@ -12,13 +17,57 @@ from django.http import HttpResponse, JsonResponse
 from django.urls import reverse
 from django.views.decorators.csrf import csrf_exempt
 from django.db.models import Sum
+
 from herbalapp.utils.tree_json import build_tree_json
+from herbalapp.models import DailyIncomeReport
 
-import csv
 import openpyxl
-
-# Charts (openpyxl)
 from openpyxl.chart import BarChart, LineChart, Reference
+
+
+# ======================================================
+# ✅ INCOME REPORT VIEW
+# ======================================================
+def income_report(request):
+    # --- Get date from GET param, fallback to today ---
+    date_str = request.GET.get("date")
+    error_msg = None
+    if date_str:
+        try:
+            run_date = datetime.datetime.strptime(date_str, "%Y-%m-%d").date()
+        except ValueError:
+            run_date = datetime.date.today()
+            error_msg = "Invalid date format, showing today's report."
+    else:
+        run_date = datetime.date.today()
+
+    # --- Fetch DailyIncomeReport for date ---
+    records = DailyIncomeReport.objects.filter(date=run_date).select_related("member").order_by("member__auto_id")
+
+    # --- Aggregate totals ---
+    totals = records.aggregate(
+        total_eligibility=Sum("eligibility_income"),
+        total_binary=Sum("binary_income"),
+        total_sponsor=Sum("sponsor_income"),
+        total_wallet=Sum("wallet_income"),
+        total_salary=Sum("salary_income"),
+        grand_total=Sum("total_income"),
+    )
+
+    # --- Optional: fallback zeros if None ---
+    totals = {k: v or 0 for k, v in totals.items()}
+
+    # --- Render template ---
+    return render(
+        request,
+        "herbalapp/income_report.html",
+        {
+            "members": records,
+            "run_date": run_date,
+            "totals": totals,
+            "error_msg": error_msg,
+        },
+    )
 
 # ==========================
 # Models
@@ -1717,31 +1766,6 @@ def income_chart(request, auto_id):
         "total_income": total_income,
     })
 
-# herbalapp/views.py
-from django.shortcuts import render
-import datetime
-from herbalapp.models import IncomeRecord
-
-def income_report(request):
-    # get date from GET param, fallback today
-    date_str = request.GET.get("date")
-    if date_str:
-        try:
-            run_date = datetime.datetime.strptime(date_str, "%Y-%m-%d").date()
-        except ValueError:
-            run_date = datetime.date.today()
-    else:
-        run_date = datetime.date.today()
-
-    records = IncomeRecord.objects.filter(date=run_date).select_related("member")
-
-    return render(
-        request,
-        "income_report.html",
-        {"members": records, "run_date": run_date},
-    )
-
-
 # -----------------------------
 # Add Member View
 # -----------------------------
@@ -1751,6 +1775,9 @@ def add_member(request):
         sponsor_id = request.POST.get("sponsor_id")
         placement_id = request.POST.get("placement_id")
         side = request.POST.get("side")
+
+        if sponsor_id == "rocky005":
+            placement_id = "rocky006"  # ✅ auto‑assign root placement
 
         sponsor = Member.objects.filter(auto_id=sponsor_id).first()
         placement = Member.objects.filter(auto_id=placement_id).first()
@@ -1763,10 +1790,8 @@ def add_member(request):
             joined_date=localdate()
         )
 
-        # ✅ After adding member, redirect to Income Report
         return redirect("income_report")
 
-    # GET request → show add member form
     return render(request, "add_member_form.html")
 
 

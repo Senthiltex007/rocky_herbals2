@@ -2,7 +2,20 @@
 
 from django.utils import timezone
 from django.db.models import Sum
-from herbalapp.models import Member, IncomeRecord, SponsorIncome
+from herbalapp.models import Member, IncomeRecord, SponsorIncome, DailyIncomeReport
+
+def has_completed_one_to_one(member):
+    """
+    Lifetime 1:1 completion:
+    - Either model has boolean flag,
+    - Or lifetime_pairs > 0,
+    - Or any past IncomeRecord shows binary_pairs >= 1
+    """
+    if getattr(member, "has_completed_first_pair", False):
+        return True
+    if getattr(member, "lifetime_pairs", 0) > 0:
+        return True
+    return IncomeRecord.objects.filter(member=member, binary_pairs__gte=1).exists()
 
 def audit_member_boolean(member_auto_id: str, run_date=None):
     run_date = run_date or timezone.now().date()
@@ -40,16 +53,29 @@ def audit_member_boolean(member_auto_id: str, run_date=None):
         result["routing_rule2"] = False
         routed_target = None
 
-    # Rule 3: receiver has ≥1 pair
+    from datetime import date
+    from herbalapp.member_boolean_audit import audit_member_boolean
+    print(audit_member_boolean("rocky005", run_date=date(2026,1,3)))
+
+    # Rule 3: receiver has lifetime eligibility
     receiver_has_pair = False
     if routed_target:
         try:
             receiver = Member.objects.get(auto_id=routed_target)
-            binary_credit_sum = IncomeRecord.objects.filter(member=receiver).aggregate(s=Sum("binary_income"))["s"] or 0
-            receiver_has_pair = binary_credit_sum >= 500
+            receiver_has_pair = has_completed_one_to_one(receiver)
+            result["receiver_has_first_pair"] = receiver_has_pair
         except Member.DoesNotExist:
             receiver_has_pair = False
+            result["receiver_has_first_pair"] = False
     result["routing_rule3"] = receiver_has_pair
+
+    # Eligibility bonus check
+    elig_today = IncomeRecord.objects.filter(
+        member=m,
+        created_at__date=run_date,
+        type="eligibility_bonus"
+    ).exists()
+    result["eligibility_bonus_today"] = elig_today
 
     # SponsorIncome record today
     si_qs = SponsorIncome.objects.filter(date=run_date, child=m)
@@ -64,8 +90,16 @@ def audit_member_boolean(member_auto_id: str, run_date=None):
 
     # Consistency check
     sponsor_sum = si_qs.aggregate(s=Sum("amount"))["s"] or 0
-    mirror_sum_today = IncomeRecord.objects.filter(member__auto_id=routed_target, created_at__date=run_date).aggregate(s=Sum("sponsor_income"))["s"] or 0
+    mirror_sum_today = IncomeRecord.objects.filter(
+        member__auto_id=routed_target,
+        created_at__date=run_date
+    ).aggregate(s=Sum("sponsor_income"))["s"] or 0
     result["sponsor_match"] = sponsor_sum == mirror_sum_today
+
+    # DailyIncomeReport consistency
+    dr = DailyIncomeReport.objects.filter(member__auto_id=routed_target, date=run_date).first()
+    result["daily_report_sponsor_income"] = dr.sponsor_income if dr else 0
+    result["daily_report_match"] = sponsor_sum == (dr.sponsor_income if dr else 0)
 
     return result
 
