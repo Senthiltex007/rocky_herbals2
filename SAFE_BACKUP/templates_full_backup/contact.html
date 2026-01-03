@@ -1,0 +1,41 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container mt-5" style="max-width: 800px;">
+  <h2 class="text-center mb-4">📞 Contact Us</h2>
+
+  <!-- Company Info -->
+  <div class="card shadow-sm p-4 mb-4">
+    <h4>🏢 Rocky Sri Herbals</h4>
+    <p><strong>Email:</strong> {{ email }}</p>
+    <p><strong>Address:</strong> {{ address }}</p>
+  </div>
+
+  <!-- Contact Form -->
+  <div class="card shadow-sm p-4">
+    <h4>✉️ Send us a Message</h4>
+    <form method="post">
+      {% csrf_token %}
+      <div class="mb-3">
+        <label class="form-label">Your Name</label>
+        <input type="text" name="name" class="form-control" required>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Your Email</label>
+        <input type="email" name="email" class="form-control" required>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Message</label>
+        <textarea name="message" class="form-control" rows="4" required></textarea>
+      </div>
+      <button type="submit" class="btn btn-primary w-100">Send Message</button>
+    </form>
+  </div>
+
+  <!-- Back to Home -->
+  <div class="text-center mt-4">
+    <a href="{% url 'home' %}" class="btn btn-success">🏠 Back to Home</a>
+    <a href="{% url 'admin_dashboard' %}" class="btn btn-secondary">⬅ Back to Dashboard</a>
+  </div>
+</div>
+{% endblock %}
+

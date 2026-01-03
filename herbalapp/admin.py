@@ -1,52 +1,58 @@
-# herbalapp/admin.py
-
 from django.contrib import admin
 from django.utils.html import format_html
 from .models import (
-    Member,
-    IncomeRecord,
-    BonusRecord,
-    Order,
-    Payment,
-    SponsorIncome,
-    Commission,
-    DailyIncomeReport,
-    RankReward,
-    RankPayoutLog,
-    RockCounter,
+    Member, Payment, Income, Commission, Product, Order,
+    IncomeRecord, CommissionRecord, BonusRecord, RockCounter,
+    RankReward, RankPayoutLog
 )
 
 # ==========================================================
-# ✅ MEMBER ADMIN (CLEAN VERSION)
+# ✅ MEMBER ADMIN (UPDATED FOR NEW BINARY + RANK ENGINE)
 # ==========================================================
 @admin.register(Member)
 class MemberAdmin(admin.ModelAdmin):
     list_display = (
-        "id",
-        "auto_id_display",
-        "name",
-        "sponsor",
-        "side",
-        "joined_date",
+        "id", "auto_id_display", "name", "sponsor", "package", "total_bv_display",
+        "binary_income_display", "sponsor_income_display",
+        "flashout_income_display", "salary_display",
+        "current_rank", "joined_date", "active"
     )
     search_fields = ("auto_id", "name", "phone", "email")
-    list_filter = ("side", "district", "taluk", "pincode")
+    list_filter = ("package", "side", "active", "district", "taluk", "current_rank")
     ordering = ("id",)
-    readonly_fields = ("joined_date",)
 
+    # ✅ Auto ID highlight
     def auto_id_display(self, obj):
         return format_html("<strong>{}</strong>", obj.auto_id)
     auto_id_display.short_description = "Auto ID"
 
+    # ✅ Total BV (Left + Right)
+    def total_bv_display(self, obj):
+        return f"{obj.total_left_bv} / {obj.total_right_bv}"
+    total_bv_display.short_description = "Left / Right BV"
 
-# ==========================================================
-# ✅ ORDER ADMIN
-# ==========================================================
-@admin.register(Order)
-class OrderAdmin(admin.ModelAdmin):
-    list_display = ["id", "member", "product", "quantity", "total_amount", "status", "created_at"]
-    list_filter = ["status"]
-    search_fields = ["member__name", "product__name"]
+    # ✅ Binary Income
+    def binary_income_display(self, obj):
+        total = Income.objects.filter(member=obj).aggregate_sum("binary_income")
+        return total or 0
+    binary_income_display.short_description = "Binary Income"
+
+    # ✅ Sponsor Income
+    def sponsor_income_display(self, obj):
+        total = Income.objects.filter(member=obj).aggregate_sum("sponsor_income")
+        return total or 0
+    sponsor_income_display.short_description = "Sponsor Income"
+
+    # ✅ Flashout Income
+    def flashout_income_display(self, obj):
+        total = Income.objects.filter(member=obj).aggregate_sum("flash_bonus")
+        return total or 0
+    flashout_income_display.short_description = "Flashout Bonus"
+
+    # ✅ Salary (Rank Reward Monthly Salary)
+    def salary_display(self, obj):
+        return obj.salary or 0
+    salary_display.short_description = "Monthly Salary"
 
 
 # ==========================================================
@@ -54,47 +60,33 @@ class OrderAdmin(admin.ModelAdmin):
 # ==========================================================
 @admin.register(Payment)
 class PaymentAdmin(admin.ModelAdmin):
-    list_display = ["member", "amount", "status", "date"]
-    list_filter = ["status"]
-    search_fields = ["member__name"]
+    list_display = ("id", "member", "amount", "status", "date")
+    search_fields = ("member__name", "status")
+    list_filter = ("status", "date")
 
 
 # ==========================================================
-# ✅ SPONSOR INCOME ADMIN
+# ✅ INCOME ADMIN (FIXED flash_bonus)
 # ==========================================================
-@admin.register(SponsorIncome)
-class SponsorIncomeAdmin(admin.ModelAdmin):
-    list_display = ["sponsor", "child", "amount", "date"]
-    search_fields = ["sponsor__name", "child__name"]
+@admin.register(Income)
+class IncomeAdmin(admin.ModelAdmin):
+    list_display = (
+        "id", "member", "date",
+        "binary_pairs", "binary_income",
+        "sponsor_income", "flash_bonus", "salary_income"
+    )
+    search_fields = ("member__name",)
+    list_filter = ("date",)
 
 
 # ==========================================================
-# ✅ COMMISSION ADMIN
+# ✅ PRODUCT ADMIN
 # ==========================================================
-@admin.register(Commission)
-class CommissionAdmin(admin.ModelAdmin):
-    list_display = ["member", "commission_type", "commission_amount", "date"]
-    list_filter = ["commission_type"]
-    search_fields = ["member__name"]
-
-
-# ==========================================================
-# ✅ DAILY INCOME REPORT ADMIN
-# ==========================================================
-@admin.register(DailyIncomeReport)
-class DailyIncomeReportAdmin(admin.ModelAdmin):
-    list_display = [
-        "member",
-        "date",
-        "left_joins",
-        "right_joins",
-        "binary_pairs_paid",
-        "eligibility_income",
-        "binary_income",
-        "sponsor_income",
-        "total_income",
-    ]
-    search_fields = ["member__name"]
+@admin.register(Product)
+class ProductAdmin(admin.ModelAdmin):
+    list_display = ("id", "name", "mrp", "bv_value", "created_at")
+    search_fields = ("name",)
+    list_filter = ("created_at",)
 
 
 # ==========================================================
@@ -118,29 +110,12 @@ class RankPayoutLogAdmin(admin.ModelAdmin):
 
 
 # ==========================================================
-# ✅ INCOME RECORD ADMIN
-# ==========================================================
-@admin.register(IncomeRecord)
-class IncomeRecordAdmin(admin.ModelAdmin):
-    list_display = [
-        "member",
-        "type",
-        "amount",
-        "eligibility_income",
-        "binary_income",
-        "sponsor_income",
-        "wallet_income",
-        "salary_income",
-        "total_income",
-        "created_at",
-    ]
-    search_fields = ["member__name", "member__auto_id"]
-    list_filter = ["type", "created_at"]
-
-
-# ==========================================================
 # ✅ DIRECT REGISTRATIONS
 # ==========================================================
+admin.site.register(Commission)
+admin.site.register(Order)
+admin.site.register(IncomeRecord)
+admin.site.register(CommissionRecord)
 admin.site.register(BonusRecord)
 admin.site.register(RockCounter)
 

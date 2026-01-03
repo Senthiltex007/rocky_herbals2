@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="mb-3 text-end">
+  <a href="{% url 'export_income_excel' %}" class="btn btn-success">⬇️ Export to Excel</a>
+</div>
+<div class="container mt-4">
+  <h2 class="text-center text-success">💰 Members Income Details</h2>
+
+  <!-- ✅ Filter Form -->
+  <form method="get" class="row g-3 mb-3">
+    <div class="col-md-3">
+      <input type="text" name="district" value="{{ district }}" class="form-control" placeholder="Filter by District">
+    </div>
+    <div class="col-md-3">
+      <input type="text" name="sponsor" value="{{ sponsor }}" class="form-control" placeholder="Filter by Sponsor ID">
+    </div>
+    <div class="col-md-3">
+      <input type="text" name="name" value="{{ name }}" class="form-control" placeholder="Filter by Name">
+    </div>
+    <div class="col-md-3">
+      <button type="submit" class="btn btn-primary w-100">Search</button>
+    </div>
+  </form>
+
+  <table class="table table-bordered table-striped mt-3">
+    <thead class="table-dark">
+      <tr>
+        <th>Member ID</th>
+        <th>Name</th>
+        <th>Joining Package</th>
+        <th>Binary Income</th>
+        <th>Flash Bonus</th>
+        <th>Sponsor Income</th>
+        <th>Salary</th>
+        <th>Stock Commission</th>
+        <th>Total Income</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in income_data %}
+      <tr>
+        <td>{{ row.member.auto_id }}</td>
+        <td>{{ row.member.name }}</td>
+        <td>{{ row.joining_package }}</td>
+        <td>{{ row.binary_income }}</td>
+        <td>{{ row.flash_bonus }}</td>
+        <td>{{ row.sponsor_income }}</td>
+        <td>{{ row.salary }}</td>
+        <td>{{ row.stock_commission }}</td>
+        <td><strong class="text-success">{{ row.total_income_all }}</strong></td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="9" class="text-center">No records found</td></tr>
+      {% endfor %}
+    </tbody>
+    <!-- ✅ Totals Row -->
+    <tfoot class="table-success">
+      <tr>
+        <td colspan="2"><strong>Totals</strong></td>
+        <td><span class="badge bg-secondary">{{ totals.joining_package }}</span></td>
+        <td><span class="badge bg-info">{{ totals.binary_income }}</span></td>
+        <td><span class="badge bg-warning text-dark">{{ totals.flash_bonus }}</span></td>
+        <td><span class="badge bg-primary">{{ totals.sponsor_income }}</span></td>
+        <td><span class="badge bg-dark">{{ totals.salary }}</span></td>
+        <td><span class="badge bg-secondary">{{ totals.stock_commission }}</span></td>
+        <td><strong class="badge bg-success">{{ totals.total_income_all }}</strong></td>
+      </tr>
+    </tfoot>
+  </table>
+
+  <!-- ✅ Pagination -->
+  <nav aria-label="Page navigation">
+    <ul class="pagination justify-content-center">
+      {% if page_obj.has_previous %}
+      <li class="page-item">
+        <a class="page-link" href="?page={{ page_obj.previous_page_number }}&district={{ district }}&sponsor={{ sponsor }}&name={{ name }}">Previous</a>
+      </li>
+      {% else %}
+      <li class="page-item disabled"><span class="page-link">Previous</span></li>
+      {% endif %}
+
+      <li class="page-item disabled"><span class="page-link">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span></li>
+
+      {% if page_obj.has_next %}
+      <li class="page-item">
+        <a class="page-link" href="?page={{ page_obj.next_page_number }}&district={{ district }}&sponsor={{ sponsor }}&name={{ name }}">Next</a>
+      </li>
+      {% else %}
+      <li class="page-item disabled"><span class="page-link">Next</span></li>
+      {% endif %}
+    </ul>
+  </nav>
+
+</div>
+{% endblock %}
+
