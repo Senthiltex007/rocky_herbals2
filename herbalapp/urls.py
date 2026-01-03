@@ -1,3 +1,5 @@
+# rocky_herbals/urls.py
+
 from django.contrib import admin
 from django.urls import path
 from django.conf import settings
@@ -17,34 +19,31 @@ urlpatterns = [
     # ===================== TREE / PYRAMID VIEWS =====================
     path('tree/root/', views.member_tree_root, name='member_tree_root'),
     path('tree/', views.member_tree_root, name='member_tree_root_default'),
-    path('tree/<str:auto_id>/', views.tree_view, name='tree_view'),
-    path('tree/dynamic/<str:auto_id>/', views.dynamic_tree, name='dynamic_tree'),
+    path('tree/<str:member_id>/', views.tree_view, name='tree_view'),
+    path('tree/dynamic/<str:member_id>/', views.dynamic_tree, name='dynamic_tree'),
     path('tree/modern/', views.member_tree_modern_root, name='member_tree_modern_root'),
     path('tree/modern/<str:auto_id>/', views.member_tree_modern, name='member_tree_modern'),
-    path('pyramid/<str:auto_id>/', views.pyramid_view, name='pyramid_view'),
-
-    # ===================== GENEALOGY TREE INCOME DEBUG =====================
-    path('genealogy/<str:auto_id>/', views.genealogy_view, name='genealogy_tree'),
+    path('pyramid/<str:member_id>/', views.pyramid_view, name='pyramid_view'),
 
     # ===================== MEMBER ROUTES =====================
     path('members/', views.member_list, name='member_list'),
     path('members/login/', views.member_login, name='member_login'),
     path('members/register/', views.member_register, name='member_register'),
 
-    # ===================== ADD MEMBER ROUTES =====================
+    # ADD MEMBER ROUTES
     path('member/add/', views.add_member_form, name='add_member_form'),
-    path("member/add/<str:parent_auto_id>/<str:side>/", views.add_member_under_parent, name="add_member_under_parent"),
+    path('member/add/<str:parent_id>/<str:position>/', views.add_member_under_parent, name='add_member'),
 
-    # ===================== EDIT / DELETE MEMBER =====================
-    path('member/edit/<str:auto_id>/', views.edit_member, name='edit_member'),
-    path('member/edit-sponsor/<str:auto_id>/', views.edit_sponsor, name='edit_sponsor'),
-    path('member/delete/<str:auto_id>/', views.delete_member, name='delete_member'),
-    path('member/replace/<str:auto_id>/', views.replace_member, name='replace_member'),
-    path('member/<str:auto_id>/bv/', views.member_bv, name='member_bv'),
+    # EDIT / DELETE MEMBER
+    path('member/edit/<str:member_id>/', views.edit_member, name='edit_member'),
+    path('member/edit-sponsor/<str:member_id>/', views.edit_sponsor, name='edit_sponsor'),
+    path('member/delete/<str:member_id>/', views.delete_member, name='delete_member'),
+    path('member/replace/<str:member_id>/', views.replace_member, name='replace_member'),
+    path('member/<str:member_id>/bv/', views.member_bv, name='member_bv'),
 
-    # ===================== MEMBER DETAIL POPUP (JSON) =====================
-    path('member/detail-json/<str:auto_id>/', views.member_detail_json, name='member_detail_json'),
-    path('member/detail/<str:auto_id>/', views.member_detail_json, name='member_detail_legacy'),
+    # MEMBER DETAIL POPUP (JSON)
+    path('member/detail-json/<str:member_id>/', views.member_detail_json, name='member_detail_json'),
+    path('member/detail/<str:member_id>/', views.member_detail_json, name='member_detail_legacy'),
 
     # ===================== PRODUCT / CART / CHECKOUT =====================
     path('products/', views.product_list, name='products'),
@@ -58,17 +57,17 @@ urlpatterns = [
     path('checkout/', views.checkout, name='checkout'),
 
     # ===================== COMMISSION / INCOME =====================
-    path('commission/credit/<str:auto_id>/', views.credit_commission, name='credit_commission'),
+    path('commission/credit/<str:member_id>/', views.credit_commission, name='credit_commission'),
+    path("income/", views.income_view, name="income_page"),
     path("income/export/", views.export_income_excel, name="export_income_excel"),
     path('export-income/', views.export_members_income, name='export_income'),
     path("income_report/", views.income_report, name="income_report"),
-    path("income_chart/<str:auto_id>/", views.income_chart, name="income_chart"),
+    path("income_chart/<str:member_id>/", views.income_chart, name="income_chart"),
 
-    # ===================== RANK / SALARY REPORTS =====================
+    # ===================== RANK / SALARY REPORTS (NEW) =====================
     path("rank-report/", views.rank_report, name="rank_report"),
     path("salary-report/", views.salary_report, name="salary_report"),
-    path("member/<str:auto_id>/rank/", views.member_rank_detail, name="member_rank_detail"),
-    path("genealogy/visual/<str:auto_id>/", views.genealogy_visual_view, name="genealogy_visual"),
+    path("member/<str:member_id>/rank/", views.member_rank_detail, name="member_rank_detail"),
 ]
 
 # ===================== STATIC / MEDIA =====================
