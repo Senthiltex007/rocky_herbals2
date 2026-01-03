@@ -1,0 +1,63 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block content %}
+<div class="container mt-5">
+  <h2 class="text-center mb-4">📦 Our Products</h2>
+
+  <!-- Messages -->
+  {% if messages %}
+    <div>
+      {% for message in messages %}
+        <div class="alert alert-{{ message.tags }} text-center">
+          {{ message }}
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+
+  <!-- Add Product Button -->
+  <div class="mb-3 text-end">
+    <a href="{% url 'add_product' %}" class="btn btn-success">➕ Add Product</a>
+  </div>
+
+  <!-- Product Grid -->
+  <div class="row">
+    {% for product in products %}
+    <div class="col-md-4 mb-4">
+      <div class="card h-100 shadow-sm">
+        {% if product.image %}
+        <img src="{{ product.image.url }}" class="card-img-top" alt="{{ product.name }}">
+        {% else %}
+        <img src="{% static 'images/no-image.png' %}" class="card-img-top" alt="No image">
+        {% endif %}
+        <div class="card-body">
+          <h5 class="card-title text-success">{{ product.name }}</h5>
+          <p class="card-text fw-bold">₹{{ product.mrp }}</p>
+          <p class="card-text">{{ product.description|default:"No description available" }}</p>
+          <p class="text-muted small">Added on {{ product.created_at|date:"d M Y, H:i" }}</p>
+        </div>
+        <div class="card-footer text-center">
+          <a href="{% url 'edit_product' product.id %}" class="btn btn-primary btn-sm me-2">✏️ Edit</a>
+          <form method="post" action="{% url 'delete_product' product.id %}"
+                class="d-inline"
+                onsubmit="return confirm('Are you sure you want to delete {{ product.name }}?');">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-danger btn-sm">🗑 Delete</button>
+          </form>
+        </div>
+      </div>
+    </div>
+    {% empty %}
+    <div class="col-12 text-center">
+      <div class="alert alert-info">No products available yet.</div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- Back to Dashboard -->
+  <div class="text-center mt-3">
+    <a href="{% url 'dashboard' %}" class="btn btn-secondary">⬅ Back to Dashboard</a>
+  </div>
+</div>
+{% endblock %}
+

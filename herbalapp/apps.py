@@ -1,4 +1,3 @@
-# herbalapp/apps.py
 from django.apps import AppConfig
 
 class HerbalappConfig(AppConfig):
@@ -6,6 +5,5 @@ class HerbalappConfig(AppConfig):
     name = "herbalapp"
 
     def ready(self):
-        # ✅ Only load signals
-        from . import signals
+        from . import signals  # noqa
 

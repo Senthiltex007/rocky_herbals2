@@ -1,0 +1,52 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container mt-5">
+  <h2 class="text-center mb-4">➕ Add New Member</h2>
+
+  <form method="post" class="shadow p-4 bg-light rounded">
+    {% csrf_token %}
+    <div class="mb-3">
+      <label class="form-label">Name</label>
+      <input type="text" name="name" class="form-control" required>
+    </div>
+
+    <div class="mb-3">
+      <label class="form-label">Mobile Number</label>
+      <input type="text" name="mobile" class="form-control" required>
+    </div>
+
+    <div class="mb-3">
+      <label class="form-label">Email</label>
+      <input type="email" name="email" class="form-control" required>
+    </div>
+
+    <div class="mb-3">
+      <label class="form-label">Auto ID</label>
+      <input type="text" name="auto_id" class="form-control" placeholder="rocky0001" required>
+    </div>
+
+    <div class="mb-3">
+      <label class="form-label">Place</label>
+      <input type="text" name="place" class="form-control">
+    </div>
+
+    <div class="mb-3">
+      <label class="form-label">District</label>
+      <input type="text" name="district" class="form-control">
+    </div>
+
+    <div class="mb-3">
+      <label class="form-label">Pincode</label>
+      <input type="text" name="pincode" class="form-control">
+    </div>
+
+    <div class="mb-3">
+      <label class="form-label">Aadhar Number</label>
+      <input type="text" name="aadhar" class="form-control">
+    </div>
+
+    <button type="submit" class="btn btn-success w-100">Save Member</button>
+  </form>
+</div>
+{% endblock %}
+

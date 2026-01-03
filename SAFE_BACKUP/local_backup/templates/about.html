@@ -1,0 +1,46 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container mt-5" style="max-width: 800px;">
+  <h2 class="text-center mb-4">🌿 About Rocky Herbals</h2>
+
+  <div class="card shadow-sm p-4 mb-4">
+    <h4>🏢 Company Profile</h4>
+    <p>
+      Rocky Herbals is dedicated to providing high-quality herbal products that promote health and wellness.
+      Our mission is to combine traditional herbal knowledge with modern science to deliver safe, effective,
+      and affordable solutions for everyday life.
+    </p>
+  </div>
+
+  <div class="card shadow-sm p-4 mb-4">
+    <h4>🎯 Mission</h4>
+    <p>
+      To empower communities with natural remedies, ensuring holistic well-being and sustainable living.
+    </p>
+  </div>
+
+  <div class="card shadow-sm p-4 mb-4">
+    <h4>👁️ Vision</h4>
+    <p>
+      To become a trusted global brand in herbal healthcare, recognized for innovation, integrity, and impact.
+    </p>
+  </div>
+
+  <div class="card shadow-sm p-4 mb-4">
+    <h4>💡 Core Values</h4>
+    <ul>
+      <li>Integrity and transparency in all operations</li>
+      <li>Commitment to quality and safety</li>
+      <li>Respect for nature and sustainability</li>
+      <li>Customer‑centric approach</li>
+    </ul>
+  </div>
+
+  <!-- Back to Dashboard -->
+  <div class="text-center mt-4">
+    <a href="{% url 'home' %}" class="btn btn-success">🏠 Back to Home</a>
+    <a href="{% url 'admin_dashboard' %}" class="btn btn-secondary">⬅ Back to Dashboard</a>
+  </div>
+</div>
+{% endblock %}
+

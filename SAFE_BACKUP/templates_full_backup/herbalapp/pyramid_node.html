@@ -1,0 +1,20 @@
+<div class="node" onclick="alert('ID: {{ member.auto_id }}')">
+    {{ member.name }} ({{ member.auto_id }})
+</div>
+
+{% if member.left or member.right %}
+<ul>
+    {% if member.left %}
+    <li>
+        {% include 'herbalapp/pyramid_node.html' with member=member.left %}
+    </li>
+    {% endif %}
+
+    {% if member.right %}
+    <li>
+        {% include 'herbalapp/pyramid_node.html' with member=member.right %}
+    </li>
+    {% endif %}
+</ul>
+{% endif %}
+

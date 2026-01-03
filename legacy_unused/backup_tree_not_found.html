@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Member Not Found</title>
+    <style>
+        body {
+            font-family: Arial;
+            background: #f8f8f8;
+            text-align: center;
+            padding-top: 100px;
+        }
+        .box {
+            background: white;
+            padding: 30px;
+            display: inline-block;
+            border-radius: 10px;
+            box-shadow: 0 0 10px #ccc;
+        }
+        a {
+            margin-top: 15px;
+            display: inline-block;
+            color: blue;
+        }
+    </style>
+</head>
+<body>
+    <div class="box">
+        <h2>No member found with ID: {{ auto_id }}</h2>
+        <a href="/tree/root/">Go to Root Members</a>
+    </div>
+</body>
+</html>
+

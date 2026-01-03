@@ -1,0 +1,110 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container mt-5">
+  <h2 class="text-center mb-4">📊 Business Reports</h2>
+
+  <!-- Messages -->
+  {% if messages %}
+    <div>
+      {% for message in messages %}
+        <div class="alert alert-{{ message.tags }} text-center">
+          {{ message }}
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+
+  <!-- Income Report -->
+  <h4 class="mt-4">💰 Income Report</h4>
+  <table class="table table-bordered table-striped shadow-sm">
+    <thead class="table-dark">
+      <tr>
+        <th>ID</th>
+        <th>Member</th>
+        <th>Amount</th>
+        <th>Type</th>
+        <th>Date</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for income in incomes %}
+      <tr>
+        <td>{{ income.id }}</td>
+        <td>{{ income.member.name }}</td>
+        <td>₹{{ income.amount }}</td>
+        <td>{{ income.type }}</td>
+        <td>{{ income.created_at|date:"d M Y, H:i" }}</td>
+      </tr>
+      {% empty %}
+      <tr>
+        <td colspan="5" class="text-center">No income records found</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <!-- Commission Report -->
+  <h4 class="mt-4">🪙 Commission Report</h4>
+  <table class="table table-bordered table-striped shadow-sm">
+    <thead class="table-dark">
+      <tr>
+        <th>ID</th>
+        <th>Member</th>
+        <th>Level</th>
+        <th>Amount</th>
+        <th>Date</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for commission in commissions %}
+      <tr>
+        <td>{{ commission.id }}</td>
+        <td>{{ commission.member.name }}</td>
+        <td>{{ commission.level }}</td>
+        <td>₹{{ commission.amount }}</td>
+        <td>{{ commission.created_at|date:"d M Y, H:i" }}</td>
+      </tr>
+      {% empty %}
+      <tr>
+        <td colspan="5" class="text-center">No commission records found</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <!-- Bonus Report -->
+  <h4 class="mt-4">🎁 Bonus Report</h4>
+  <table class="table table-bordered table-striped shadow-sm">
+    <thead class="table-dark">
+      <tr>
+        <th>ID</th>
+        <th>Member</th>
+        <th>Bonus Type</th>
+        <th>Amount</th>
+        <th>Date</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for bonus in bonuses %}
+      <tr>
+        <td>{{ bonus.id }}</td>
+        <td>{{ bonus.member.name }}</td>
+        <td>{{ bonus.type }}</td>
+        <td>₹{{ bonus.amount }}</td>
+        <td>{{ bonus.created_at|date:"d M Y, H:i" }}</td>
+      </tr>
+      {% empty %}
+      <tr>
+        <td colspan="5" class="text-center">No bonus records found</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <!-- Back to Dashboard -->
+  <div class="text-center mt-4">
+    <a href="{% url 'admin_dashboard' %}" class="btn btn-secondary">⬅ Back to Dashboard</a>
+  </div>
+</div>
+{% endblock %}
+

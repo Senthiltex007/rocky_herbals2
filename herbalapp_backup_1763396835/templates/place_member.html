@@ -1,0 +1,51 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container mt-4">
+  <h3 class="mb-3">➕ Add Member</h3>
+
+  <form method="post">
+    {% csrf_token %}
+
+    <div class="form-group mb-2">
+      <label for="name">Name</label>
+      <input type="text" class="form-control" name="name" id="name" required>
+    </div>
+
+    <div class="form-group mb-2">
+      <label for="email">Email</label>
+      <input type="email" class="form-control" name="email" id="email" required>
+    </div>
+
+    <div class="form-group mb-2">
+      <label for="aadhar_number">Aadhar Number</label>
+      <input type="text" class="form-control" name="aadhar_number" id="aadhar_number" required>
+    </div>
+
+    <div class="form-group mb-2">
+      <label for="mobile_number">Mobile Number</label>
+      <input type="text" class="form-control" name="mobile_number" id="mobile_number">
+    </div>
+
+    <!-- Location Fields -->
+    <div class="form-group mb-2">
+      <label for="district">District</label>
+      <input type="text" class="form-control" name="district" id="district" required>
+    </div>
+
+    <div class="form-group mb-2">
+      <label for="taluk">Taluk</label>
+      <input type="text" class="form-control" name="taluk" id="taluk" required>
+    </div>
+
+    <div class="form-group mb-2">
+      <label for="pincode">Pincode</label>
+      <input type="text" class="form-control" name="pincode" id="pincode" required>
+    </div>
+
+    <button type="submit" class="btn btn-success mt-3">Save Member</button>
+    <a href="/tree" class="btn btn-secondary mt-3">⬅ Back to Tree</a>
+  </form>
+</div>
+{% endblock %}
+

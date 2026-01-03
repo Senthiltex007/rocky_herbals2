@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block content %}
+
+<style>
+.tree ul { padding-top: 20px; position: relative; display: table; margin: 0 auto; }
+.tree li { display: table-cell; text-align: center; vertical-align: top; position: relative; padding: 20px 5px 0 5px; }
+.tree li::before, .tree li::after { content:''; position:absolute; top:0; right:50%; border-top:1px solid #ccc; width:50%; height:20px; }
+.tree li::after { right:auto; left:50%; border-left:1px solid #ccc; }
+.tree li:only-child::before, .tree li:only-child::after { display:none; }
+
+.member-box {
+    border:1px solid #4CAF50;
+    background:#e8ffe8;
+    padding:6px 12px;
+    border-radius:6px;
+    cursor:pointer;
+}
+.member-box:hover { background:#c8ffc8; font-weight:bold; }
+
+.add-box {
+    border:1px dashed #999;
+    padding:6px 12px;
+    border-radius:6px;
+    font-size:12px;
+    background:#fff;
+}
+
+#popupMember {
+    display:none;
+    position:absolute;
+    background:#fff;
+    border:2px solid #4CAF50;
+    padding:15px;
+    z-index:2000;
+    min-width:230px;
+    border-radius:8px;
+    box-shadow:0 3px 8px rgba(0,0,0,.3);
+}
+#popupMember h4{ margin-top:0; }
+.close-btn{ background:red; color:#fff; padding:5px 10px; border:none; margin-top:10px; cursor:pointer; }
+.detail-btn{ background:green; color:#fff; padding:5px 10px; margin-top:10px; display:block; text-align:center; text-decoration:none; }
+</style>
+
+<h2 style="text-align:center;margin-bottom:20px;">Member Tree View</h2>
+
+<div class="tree">
+    <ul>
+        <li>
+            {% include "member_node.html" with member=root_member %}
+        </li>
+    </ul>
+</div>
+
+<div id="popupMember"></div>
+
+<script>
+// Open popup
+function showMemberPopup(id,event){
+    fetch(`/member/detail-json/${id}/`)
+    .then(res=>res.json())
+    .then(d=>{
+        let box=document.getElementById('popupMember');
+        box.innerHTML=`
+            <h4>${d.name}</h4>
+            <p><b>ID:</b> ${d.auto_id}</p>
+            <p><b>Phone:</b> ${d.phone}</p>
+            <p><b>Self BV:</b> ${d.self_bv}</p>
+            <p><b>Left BV:</b> ${d.left_bv}</p>
+            <p><b>Right BV:</b> ${d.right_bv}</p>
+            <p><b>Total BV:</b> ${d.total_bv}</p>
+            <p><b>Last Month BV:</b> ${d.last_month_bv}</p>
+            <a class="detail-btn" href="/member/detail/${id}/">View Full Profile</a>
+            <button onclick="closePopup()" class="close-btn">Close</button>
+        `;
+        box.style.display='block';
+        box.style.left=(event.pageX+10)+"px";
+        box.style.top=(event.pageY+10)+"px";
+    });
+}
+
+// Close
+function closePopup(){
+    document.getElementById('popupMember').style.display='none';
+}
+
+// hide if click outside
+document.addEventListener('click',function(e){
+    if(!e.target.classList.contains('member-box')){
+        document.getElementById('popupMember').style.display='none';
+    }
+});
+</script>
+
+{% endblock %}
+

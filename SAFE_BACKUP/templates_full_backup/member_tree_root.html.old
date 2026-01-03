@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Root Members</title>
+
+<!-- Bootstrap CSS -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+<style>
+  body { font-family: Arial; padding: 20px; background:#f7f7f7; }
+
+  /* Zoom/Pan container */
+  #treeContainer {
+    width: 100%;
+    height: 80vh;
+    overflow: hidden;
+    border: 1px solid #ddd;
+    position: relative;
+    background: #f9f9f9;
+    cursor: grab;
+  }
+  #treeContent {
+    transform-origin: 0 0;
+    transition: transform 0.2s ease;
+  }
+
+  /* Member card style */
+  .member-card {
+    flex: 1 1 250px;
+    max-width: 300px;
+  }
+  .member-card img {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    border: 2px solid #007bff;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+  }
+  .member-card img:hover {
+    transform: scale(1.1);
+    box-shadow: 0 0 10px rgba(0, 123, 255, 0.6);
+  }
+
+  /* Accordion styling */
+  .accordion-button {
+    font-weight: bold;
+    background: #f0f8ff;
+  }
+  .accordion-button:not(.collapsed) {
+    color: #fff;
+    background: #007bff;
+  }
+
+  /* SVG connector styling + animation */
+  .connector-path {
+    stroke: #007bff;
+    stroke-width: 2;
+    fill: none;
+    stroke-dasharray: 200;
+    stroke-dashoffset: 200;
+    animation: drawLine 1.5s ease forwards;
+  }
+  @keyframes drawLine {
+    to { stroke-dashoffset: 0; }
+  }
+</style>
+</head>
+<body>
+
+<h2 class="text-center mb-4">Root Members</h2>
+
+<div id="treeContainer">
+  <div id="treeContent">
+    {% if roots %}
+      <div class="d-flex flex-wrap gap-3 justify-content-center">
+        {% for member in roots %}
+          <div class="card member-card text-center">
+            <div class="card-body">
+              <div class="member-box"
+                   onclick="openMemberPopup('{{ member.id }}','{{ member.name }}','{{ member.member_id }}')">
+                <b>{{ member.name }}</b><br>
+                <small>ID: {{ member.member_id }}</small>
+              </div>
+
+              <h5 class="card-title">{{ member.name }}</h5>
+              <p class="card-text"><strong>ID:</strong> {{ member.member_id }}</p>
+              <a href="/tree/{{ member.id }}/" class="btn btn-primary btn-sm">View Tree</a>
+
+              <!-- Accordion for children -->
+              <div class="accordion mt-3" id="accordion{{ member.id }}">
+                <div class="accordion-item">
+                  <h2 class="accordion-header" id="heading{{ member.id }}">
+                    <button class="accordion-button collapsed" type="button"
+                            data-bs-toggle="collapse"
+                            data-bs-target="#collapse{{ member.id }}"
+                            aria-expanded="false"
+                            aria-controls="collapse{{ member.id }}">
+                      View Downline Tree
+                    </button>
+                  </h2>
+                  <div id="collapse{{ member.id }}" class="accordion-collapse collapse"
+                       aria-labelledby="heading{{ member.id }}"
+                       data-bs-parent="#accordion{{ member.id }}">
+                    <div class="accordion-body" id="childNodes{{ member.id }}">
+                      <p class="text-muted">Loading child nodes…</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <p class="text-center">No root members found.</p>
+    {% endif %}
+  </div>
+</div>
+
+<div class="text-center mt-3">
+  <a href="/" class="btn btn-secondary">Go to Home</a>
+</div>
+
+<!-- Bootstrap Modal -->
+<div class="modal fade" id="memberModal" tabindex="-1" aria-labelledby="memberModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="memberModalLabel">Member Details</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <h3 id="modalName"></h3>
+        <p><strong>ID:</strong> <span id="modalMemberId"></span></p>
+        <p><strong>Phone:</strong> <span id="modalPhone"></span></p>
+        <hr>
+        <p><strong>Self BV:</strong> <span id="bvSelf"></span></p>
+        <p><strong>Left BV:</strong> <span id="bvLeft"></span></p>
+        <p><strong>Right BV:</strong> <span id="bvRight"></span></p>
+        <p><strong>Total BV:</strong> <span id="bvTotal"></span></p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
+
+<script>
+// Recursive render function with SVG connectors
+function renderTree(member) {
+    let html = `
+        <div class="card mb-2 p-2 position-relative">
+            <strong>${member.name}</strong><br>
+            ID: ${member.member_id}<br>
+            Phone: ${member.phone || "N/A"}
+        </div>
+    `;
+    if (member.children && member.children.length > 0) {
+        html += `<div class="ms-4 ps-3">`;
+        member.children.forEach(child => {
+            html += `
+                <svg width="60" height="40" class="position-absolute" style="left:-30px;top:20px;">
+                    <path d="M60,20 C30,0 30,40 0,20" class="connector-path"></path>
+                </svg>
+                ${renderTree(child)}
+            `;
+        });
+        html += `</div>`;
+    }
+    return html;
+}
+
+// Show member detail in modal
+function showMemberDetail(member) {
+    document.getElementById("modalName").innerText = member.name;
+    document.getElementById("modalMemberId").innerText = member.member_id;
+    document.getElementById("modalPhone").innerText = member.phone || "N/A";
+
+    fetch(`/member/${member.id}/bv/`)
+      .then(res => res.json())
+      .then(data => {
+          document.getElementById("bvSelf").innerText = data.self_bv || 0;
+          document.getElementById("bvLeft").innerText = data.left_bv || 0;
+          document.getElementById("bvRight").innerText = data.right_bv || 0;
+          document.getElementById("bvTotal").innerText = data.total_bv || 0;
+      });
+
+    var modal = new bootstrap.Modal(document.getElementById("memberModal"));
+    modal.show();
+}
+
+// Accordion AJAX load
+document.addEventListener("DOMContentLoaded", function() {
+    document.querySelectorAll(".accordion-button").forEach(btn => {
+        btn.addEventListener("click", function() {
+            const targetId = this.getAttribute("data-bs-target").replace("#collapse", "");
+            const container = document.getElementById("childNodes" + targetId);
+
+            fetch(`/member/${targetId}/children/`)
+              .then(res => res.json())
+              .then(data => {
+                  container.innerHTML = renderTree(data);
+              })
+              .catch(err => {
+                  container.innerHTML = "<p class='text-danger'>Error loading child nodes.</p>";
+              });
+        });
+    });
+});
+// Zoom/Pan + Touch gestures
+document.addEventListener("DOMContentLoaded", function() {
+    const container = document.getElementById("treeContainer");
+    const content = document.getElementById("treeContent");
+
+    let scale = 1;
+    let posX = 0, posY = 0;
+    let isDragging = false;
+    let startX, startY;
+    let initialDistance = null;
+
+    // Mouse wheel zoom
+    container.addEventListener("wheel", function(e) {
+        e.preventDefault();
+        const delta = e.deltaY > 0 ? -0.1 : 0.1;
+        scale = Math.min(Math.max(0.5, scale + delta), 2);
+        content.style.transform = `translate(${posX}px, ${posY}px) scale(${scale})`;
+    });
+
+    // Mouse drag pan
+    container.addEventListener("mousedown", function(e) {
+        isDragging = true;
+        startX = e.clientX - posX;
+        startY = e.clientY - posY;
+        container.style.cursor = "grabbing";
+    });
+
+    container.addEventListener("mouseup", function() {
+        isDragging = false;
+        container.style.cursor = "grab";
+    });
+
+    container.addEventListener("mousemove", function(e) {
+        if (!isDragging) return;
+        posX = e.clientX - startX;
+        posY = e.clientY - startY;
+        content.style.transform = `translate(${posX}px, ${posY}px) scale(${scale})`;
+    });
+
+    // Touch gestures
+    container.addEventListener("touchstart", function(e) {
+        if (e.touches.length === 2) {
+            const dx = e.touches[0].clientX - e.touches[1].clientX;
+            const dy = e.touches[0].clientY - e.touches[1].clientY;
+            initialDistance = Math.sqrt(dx*dx + dy*dy);
+        } else if (e.touches.length === 1) {
+            isDragging = true;
+            startX = e.touches[0].clientX - posX;
+            startY = e.touches[0].clientY - posY;
+        }
+    });
+
+    container.addEventListener("touchmove", function(e) {
+        if (e.touches.length === 2 && initialDistance) {
+            const dx = e.touches[0].clientX - e.touches[1].clientX;
+            const dy = e.touches[0].clientY - e.touches[1].clientY;
+            const newDistance = Math.sqrt(dx*dx + dy*dy);
+            const delta = (newDistance - initialDistance) / 200;
+            scale = Math.min(Math.max(0.5, scale + delta), 2);
+            initialDistance = newDistance;
+            content.style.transform = `translate(${posX}px, ${posY}px) scale(${scale})`;
+        } else if (e.touches.length === 1 && isDragging) {
+            posX = e.touches[0].clientX - startX;
+            posY = e.touches[0].clientY - startY;
+            content.style.transform = `translate(${posX}px, ${posY}px) scale(${scale})`;
+        }
+    });
+
+    container.addEventListener("touchend", function(e) {
+        if (e.touches.length < 2) {
+            initialDistance = null;
+        }
+        if (e.touches.length === 0) {
+            isDragging = false;
+        }
+    });
+});
+</script>
+
+</body>
+</html>
+

@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Geniology Pyramid Tree</title>
+    <style>
+        ul { list-style-type: none; }
+        li { margin: 5px 0; }
+        .member { font-weight: bold; }
+        .actions { margin-left: 10px; }
+    </style>
+</head>
+<body>
+    <h2>Geniology Pyramid Tree</h2>
+
+    {% include 'geniology_tree_node.html' with member=root_member %}
+
+</body>
+</html>
+

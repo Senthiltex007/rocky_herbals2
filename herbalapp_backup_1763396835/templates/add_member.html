@@ -1,0 +1,60 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container mt-5">
+  <h2 class="text-center mb-4">🌳 Member Tree View</h2>
+
+  <!-- Messages -->
+  {% if messages %}
+    <div>
+      {% for message in messages %}
+        <div class="alert alert-{{ message.tags }} text-center">
+          {{ message }}
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+
+  <!-- Tree Display -->
+  <div class="card p-4 shadow-sm">
+    {% if tree %}
+      <ul class="list-unstyled text-center">
+        <li>
+          <strong>{{ tree.root.name }}</strong> (ID: {{ tree.root.id }})
+          <ul class="list-inline mt-3">
+            <li class="list-inline-item">
+              {% if tree.root.left %}
+                <div class="card p-2">
+                  <strong>{{ tree.root.left.name }}</strong> (L)
+                </div>
+              {% else %}
+                <div class="card p-2 bg-light text-muted">Empty Left</div>
+              {% endif %}
+            </li>
+            <li class="list-inline-item">
+              {% if tree.root.right %}
+                <div class="card p-2">
+                  <strong>{{ tree.root.right.name }}</strong> (R)
+                </div>
+              {% else %}
+                <div class="card p-2 bg-light text-muted">Empty Right</div>
+              {% endif %}
+            </li>
+          </ul>
+        </li>
+      </ul>
+    {% else %}
+      <div class="alert alert-info text-center">
+        No tree data available yet.
+      </div>
+    {% endif %}
+  </div>
+
+  <!-- Actions -->
+  <div class="text-center mt-3">
+    <a href="{% url 'place_member' %}" class="btn btn-success">📍 Place Member</a>
+    <a href="{% url 'member_list' %}" class="btn btn-primary">👥 Back to Members</a>
+    <a href="{% url 'admin_dashboard' %}" class="btn btn-secondary">🏠 Back to Dashboard</a>
+  </div>
+</div>
+{% endblock %}
+

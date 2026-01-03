@@ -1,0 +1,91 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container mt-4">
+  <div class="text-center mb-5">
+    <h2 class="fw-bold text-success">🌿 Rocky Sri Herbals Admin Dashboard</h2>
+    <p class="text-muted">Manage members, products, payments and reports at a glance</p>
+  </div>
+
+  <!-- Quick Stats -->
+  <div class="row g-4 mb-5">
+    <div class="col-md-3">
+      <div class="card h-100 shadow-lg border-0 text-center">
+        <div class="card-body">
+          <i class="fas fa-users fa-2x text-primary mb-2"></i>
+          <h5 class="card-title">Members</h5>
+          <p class="display-6 fw-bold">{{ members_count }}</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card h-100 shadow-lg border-0 text-center">
+        <div class="card-body">
+          <i class="fas fa-box fa-2x text-success mb-2"></i>
+          <h5 class="card-title">Products</h5>
+          <p class="display-6 fw-bold">{{ products_count }}</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card h-100 shadow-lg border-0 text-center">
+        <div class="card-body">
+          <i class="fas fa-credit-card fa-2x text-warning mb-2"></i>
+          <h5 class="card-title">Payments</h5>
+          <p class="display-6 fw-bold">{{ payments_count }}</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card h-100 shadow-lg border-0 text-center">
+        <div class="card-body">
+          <i class="fas fa-chart-line fa-2x text-danger mb-2"></i>
+          <h5 class="card-title">Income</h5>
+          <p class="display-6 fw-bold">₹{{ income_count }}</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Navigation -->
+  <div class="row g-4 text-center">
+    <div class="col-md-3">
+      <a href="{% url 'member_list' %}" class="text-decoration-none">
+        <div class="card h-100 shadow-sm p-4">
+          <i class="fas fa-users-cog fa-2x text-primary mb-2"></i>
+          <h5>Manage Members</h5>
+        </div>
+      </a>
+    </div>
+    <div class="col-md-3">
+      <a href="{% url 'products' %}" class="text-decoration-none">
+        <div class="card h-100 shadow-sm p-4">
+          <i class="fas fa-box-open fa-2x text-success mb-2"></i>
+          <h5>Manage Products</h5>
+        </div>
+      </a>
+    </div>
+    <div class="col-md-3">
+      <a href="{% url 'orders' %}" class="text-decoration-none">
+        <div class="card h-100 shadow-sm p-4">
+          <i class="fas fa-credit-card fa-2x text-warning mb-2"></i>
+          <h5>Manage Payments</h5>
+        </div>
+      </a>
+    </div>
+    <div class="col-md-3">
+      <a href="{% url 'reports' %}" class="text-decoration-none">
+        <div class="card h-100 shadow-sm p-4">
+          <i class="fas fa-chart-pie fa-2x text-danger mb-2"></i>
+          <h5>Reports</h5>
+        </div>
+      </a>
+    </div>
+  </div>
+
+  <!-- Back to Home -->
+  <div class="text-center mt-5">
+    <a href="{% url 'home' %}" class="btn btn-dark btn-lg">🏠 Back to Home</a>
+  </div>
+</div>
+{% endblock %}
+
