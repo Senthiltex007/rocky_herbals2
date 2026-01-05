@@ -61,13 +61,13 @@
         <input type="text" name="pincode">
 
         <label>Parent (Placement)</label>
-        <input type="text" value="{{ parent.member_id }}" readonly>
+        <input type="text" value="{{ parent.auto_id }}" readonly>
 
         <label>Position</label>
         <input type="text" value="{{ position }}" readonly>
 
         <label>Sponsor ID</label>
-        <input type="text" name="sponsor_id" value="{{ parent.sponsor.member_id }}" required>
+        <input type="text" name="sponsor_id" value="{{ parent.sponsor.auto_id }}" required>
 
         <label>Avatar (Optional)</label>
         <input type="file" name="avatar" accept="image/*">

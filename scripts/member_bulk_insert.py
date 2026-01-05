@@ -23,5 +23,5 @@ for i in range(2, 11):
 
 # STEP 3 — Print IDs + Placement + Sponsor to confirm
 for m in members:
-    print(f"DBid={m.id}, MemberID={m.member_id}, Sponsor={m.sponsor_id}, Placement={m.placement_id}")
+    print(f"DBid={m.id}, MemberID={m.auto_id}, Sponsor={m.sponsor_id}, Placement={m.placement_id}")
 

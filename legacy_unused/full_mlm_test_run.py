@@ -75,7 +75,7 @@ for root in Member.objects.filter(placement__isnull=True):
 print("\n✅ Daily Income Reports:")
 for d in DailyIncomeReport.objects.all():
     print({
-        "member_id": d.member.auto_id,
+        "auto_id": d.member.auto_id,
         "name": d.member.name,
         "eligible_bonus": getattr(d, 'eligible_bonus', 0),
         "binary_income": getattr(d, 'binary_income', 0),
@@ -93,7 +93,7 @@ for d in DailyIncomeReport.objects.all():
 print("\n✅ Sponsor Income Reports:")
 for s in SponsorIncome.objects.all():
     print({
-        "member_id": s.member.auto_id,
+        "auto_id": s.member.auto_id,
         "name": s.member.name,
         "sponsor_income": getattr(s, 'sponsor_income', 0)
     })

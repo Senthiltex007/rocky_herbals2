@@ -1,17 +1,17 @@
 # herbalapp/signals.py
-# ----------------------------------------------------------
-# Auto income trigger on:
-#   1. Payment Success
-#   2. New Member Creation
-# ----------------------------------------------------------
 
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 from .models import Payment, Member
-from .utils.sponsor_income import give_sponsor_income
 from .utils.binary_income import process_member_binary_income
-#from .utils.flash_out_bonus import process_out_flash_bonus
-from .services import add_salary_income
+from .utils.sponsor_income import give_sponsor_income
+
+
+# ==========================================================
+# 🔒 HELPER – Dummy Root Check
+# ==========================================================
+def is_dummy_root(member):
+    return member and member.auto_id == "rocky004"
 
 
 # ==========================================================
@@ -19,62 +19,65 @@ from .services import add_salary_income
 # ==========================================================
 @receiver(post_save, sender=Payment)
 def create_income_on_payment(sender, instance, created, **kwargs):
-    if created and instance.status == 'Paid':
-        member = instance.member
-        print(f"💰 Payment received for Member ID: {member.member_id}")
+    if not created or instance.status != "Paid":
+        return
 
-        # Binary income
-        try:
-            process_member_binary_income(member)
-            print("🔹 Binary income processed")
-        except Exception as e:
-            print(f"[signals] Binary income error: {e}")
+    member = instance.member
 
-        # Sponsor income
-        try:
-            give_sponsor_income(member)
-            print("🔸 Sponsor income processed")
-        except Exception as e:
-            print(f"[signals] Sponsor income error: {e}")
+    # 🚫 Skip dummy root
+    if is_dummy_root(member):
+        return
 
-        # Flash bonus
-        try:
-            process_flash_bonus(member)
-            print("✨ Flash bonus processed")
-        except Exception as e:
-            print(f"[signals] Flash bonus error: {e}")
+    print(f"💰 Payment received for Member ID: {member.auto_id}")
 
-        # Salary income
-        try:
-            bv_left = instance.amount
-            bv_right = instance.amount
-            add_salary_income(member, bv_left, bv_right)
-            print("💼 Salary income added")
-        except Exception as e:
-            print(f"[signals] Salary income error: {e}")
+    # Binary income
+    try:
+        process_member_binary_income(member)
+        print("🔹 Binary income processed")
+    except Exception as e:
+        print(f"[signals] Binary income error: {e}")
 
-    else:
-        print("ℹ Payment updated or not Paid → Income skipped")
+    # Sponsor income
+    try:
+        amount = give_sponsor_income(member)
+        if amount:
+            print(f"🔸 Sponsor income processed: +{amount}")
+        else:
+            print("🔸 Sponsor income not eligible today")
+    except Exception as e:
+        print(f"[signals] Sponsor income error: {e}")
 
 
 # ==========================================================
-# 2️⃣ NEW MEMBER ADDED → AUTO BINARY COUNT UPDATE
+# 2️⃣ NEW MEMBER ADDED → TREE UPDATE ONLY
 # ==========================================================
 @receiver(post_save, sender=Member)
-def auto_binary_on_new_member(sender, instance, created, **kwargs):
-    if created:
-        # Parent income calculate (child attach போதும்)
-        if instance.parent:
-            print(f"🧩 New Member Added: {instance.member_id} → Parent: {instance.parent.member_id}")
-            try:
-                process_member_binary_income(instance.parent)
-            except Exception as e:
-                print(f"[signals] Parent binary income error: {e}")
+def auto_income_on_new_member(sender, instance, created, **kwargs):
+    if not created:
+        return
 
-        # Own income eligibility check
+    # 🚫 Skip dummy root
+    if is_dummy_root(instance):
+        return
+
+    print(f"🧩 New Member Added: {instance.auto_id}")
+
+    # Parent binary update (only real parent)
+    parent = instance.parent
+    if parent and not is_dummy_root(parent):
         try:
-            process_member_binary_income(instance)
-            print("🔹 Auto Binary Trigger Completed")
+            process_member_binary_income(parent)
+            print(f"🔹 Parent binary updated: {parent.auto_id}")
         except Exception as e:
-            print(f"[signals] Member binary income error: {e}")
+            print(f"[signals] Parent binary income error: {e}")
+
+    # Sponsor income (child add based rule)
+    try:
+        amount = give_sponsor_income(instance)
+        if amount:
+            print(f"🔸 Sponsor income credited: +{amount}")
+        else:
+            print("🔸 Sponsor income not credited (rule check)")
+    except Exception as e:
+        print(f"[signals] Sponsor income error: {e}")
 

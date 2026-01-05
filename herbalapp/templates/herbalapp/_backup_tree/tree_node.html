@@ -1,0 +1,35 @@
+{% load static %}
+<div class="pyramid-node">
+  <!-- MEMBER BLOCK -->
+  <div class="member">
+    <img src="{% if member.avatar %}{{ member.avatar.url }}{% else %}{% static 'default-avatar.png' %}{% endif %}"
+         alt="{{ member.name }}"
+         class="avatar">
+    <div class="member-info">
+      <strong>{{ member.name }}</strong><br>
+      ID: {{ member.auto_id }}<br>
+      BV: {{ member.total_left_bv|default:0 }}/{{ member.total_right_bv|default:0 }}
+    </div>
+    <div class="add-links">
+      {% if not member.left_member %}
+        <a href="{% url 'add_member_under_parent' member.auto_id 'left' %}">+ Add Left</a>
+      {% endif %}
+      {% if not member.right_member %}
+        <a href="{% url 'add_member_under_parent' member.auto_id 'right' %}">+ Add Right</a>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- CHILDREN BLOCK -->
+  {% if member.left_member or member.right_member %}
+    <div class="children-container">
+      {% if member.left_member %}
+        {% include "herbalapp/tree_node_pyramid.html" with member=member.left_member %}
+      {% endif %}
+      {% if member.right_member %}
+        {% include "herbalapp/tree_node_pyramid.html" with member=member.right_member %}
+      {% endif %}
+    </div>
+  {% endif %}
+</div>
+

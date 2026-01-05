@@ -4,12 +4,12 @@ from decimal import Decimal
 from herbalapp.models import Member, IncomeRecord, SponsorIncome, DailyIncomeReport
 from herbalapp.mlm_engine_binary import calculate_member_binary_income_for_day
 
-def audit(member_id, run_date):
-    print("\n--- Audit for", member_id, "on", run_date, "---")
-    print("IncomeRecord:", IncomeRecord.objects.filter(member__auto_id=member_id, date=run_date).count())
-    print("SponsorIncome:", SponsorIncome.objects.filter(sponsor__auto_id=member_id, date=run_date).count())
-    print("DailyIncomeReport:", DailyIncomeReport.objects.filter(member__auto_id=member_id, date=run_date).count())
-    for rec in IncomeRecord.objects.filter(member__auto_id=member_id, date=run_date):
+def audit(auto_id, run_date):
+    print("\n--- Audit for", auto_id, "on", run_date, "---")
+    print("IncomeRecord:", IncomeRecord.objects.filter(member__auto_id=auto_id, date=run_date).count())
+    print("SponsorIncome:", SponsorIncome.objects.filter(sponsor__auto_id=auto_id, date=run_date).count())
+    print("DailyIncomeReport:", DailyIncomeReport.objects.filter(member__auto_id=auto_id, date=run_date).count())
+    for rec in IncomeRecord.objects.filter(member__auto_id=auto_id, date=run_date):
         print("IncomeRecord →", rec.type, rec.amount, rec.binary_income, rec.sponsor_income, rec.wallet_income, rec.eligibility_income)
 
 # ---------- Unlock day simulation ----------

@@ -79,13 +79,13 @@
           <div class="card member-card text-center">
             <div class="card-body">
               <div class="member-box"
-                   onclick="openMemberPopup('{{ member.id }}','{{ member.name }}','{{ member.member_id }}')">
+                   onclick="openMemberPopup('{{ member.id }}','{{ member.name }}','{{ member.auto_id }}')">
                 <b>{{ member.name }}</b><br>
-                <small>ID: {{ member.member_id }}</small>
+                <small>ID: {{ member.auto_id }}</small>
               </div>
 
               <h5 class="card-title">{{ member.name }}</h5>
-              <p class="card-text"><strong>ID:</strong> {{ member.member_id }}</p>
+              <p class="card-text"><strong>ID:</strong> {{ member.auto_id }}</p>
               <a href="/tree/{{ member.id }}/" class="btn btn-primary btn-sm">View Tree</a>
 
               <!-- Accordion for children -->
@@ -157,7 +157,7 @@ function renderTree(member) {
     let html = `
         <div class="card mb-2 p-2 position-relative">
             <strong>${member.name}</strong><br>
-            ID: ${member.member_id}<br>
+            ID: ${member.auto_id}<br>
             Phone: ${member.phone || "N/A"}
         </div>
     `;
@@ -179,7 +179,7 @@ function renderTree(member) {
 // Show member detail in modal
 function showMemberDetail(member) {
     document.getElementById("modalName").innerText = member.name;
-    document.getElementById("modalMemberId").innerText = member.member_id;
+    document.getElementById("modalMemberId").innerText = member.auto_id;
     document.getElementById("modalPhone").innerText = member.phone || "N/A";
 
     fetch(`/member/${member.id}/bv/`)

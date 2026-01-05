@@ -1,11 +1,11 @@
 # audit_income.py
 from herbalapp.models import IncomeReport, SponsorIncome, BinaryIncome
 
-def audit_member_income(member_id, date):
-    print(f"--- Audit for {member_id} on {date} ---")
+def audit_member_income(auto_id, date):
+    print(f"--- Audit for {auto_id} on {date} ---")
 
     # IncomeReport check
-    reports = IncomeReport.objects.filter(member__auto_id=member_id, date=date)
+    reports = IncomeReport.objects.filter(member__auto_id=auto_id, date=date)
     for r in reports:
         print("IncomeReport:", r.member.auto_id, r.date,
               "Binary:", r.binary_income,
@@ -16,13 +16,13 @@ def audit_member_income(member_id, date):
     print("IncomeReport count:", reports.count())
 
     # SponsorIncome check
-    sponsors = SponsorIncome.objects.filter(receiver__auto_id=member_id, date=date)
+    sponsors = SponsorIncome.objects.filter(receiver__auto_id=auto_id, date=date)
     for s in sponsors:
         print("SponsorIncome:", s.receiver.auto_id, s.date, "Amount:", s.amount)
     print("SponsorIncome count:", sponsors.count())
 
     # BinaryIncome check
-    binaries = BinaryIncome.objects.filter(member__auto_id=member_id, date=date)
+    binaries = BinaryIncome.objects.filter(member__auto_id=auto_id, date=date)
     for b in binaries:
         print("BinaryIncome:", b.member.auto_id, b.date, "Amount:", b.amount)
     print("BinaryIncome count:", binaries.count())

@@ -40,16 +40,6 @@ class RockCounter(models.Model):
     def __str__(self):
         return f"{self.name}:{self.last}"
 
-# ==========================================================
-# AUTO COUNTER FOR ROCKY IDs
-# ==========================================================
-class RockCounter(models.Model):
-    name = models.CharField(max_length=50, unique=True)
-    last = models.PositiveIntegerField(default=0)
-
-    def __str__(self):
-        return f"{self.name}:{self.last}"
-
 # herbalapp/models.py (Member extract only)
 
 from decimal import Decimal
@@ -67,11 +57,20 @@ from herbalapp.mlm_engine_binary import (
 # MEMBER MODEL (MAIN GENEALOGY TREE)
 # ==========================================================
 class Member(models.Model):
+
+    @property
+    def left_member(self):
+        return self.left_child
+
+    @property
+    def right_member(self):
+        return self.right_child
+
+
     # -------------------------
     # BASIC DETAILS
     # -------------------------
-    member_id = models.CharField(max_length=20, unique=True)
-    auto_id = models.CharField(max_length=20, unique=True, blank=True, null=True)
+    auto_id = models.CharField(max_length=20, unique=True)
 
     name = models.CharField(max_length=200)
     phone = models.CharField(max_length=20)
@@ -237,18 +236,18 @@ class Member(models.Model):
     # STRING REPRESENTATION
     # -------------------------
     def __str__(self):
-        return f"{self.auto_id or self.member_id or self.id} - {self.name}"
+        return f"{self.auto_id or self.auto_id or self.id} - {self.name}"
 
     # ==========================================================
     # AUTO ID GENERATOR (SAFE SEQUENCE with RockCounter)
     # ==========================================================
     def save(self, *args, **kwargs):
-        # MEMBER_ID (rocky001, rocky002...)
-        if not self.member_id:
+        # AUTO_ID (rocky001, rocky002...)
+        if not self.auto_id:
             with transaction.atomic():
                 counter, _ = RockCounter.objects.select_for_update().get_or_create(name='member')
                 counter.last += 1
-                self.member_id = f"rocky{counter.last:03d}"
+                self.auto_id = f"rocky{counter.last:03d}"
                 counter.save()
 
         # AUTO_ID (separate safe sequence)

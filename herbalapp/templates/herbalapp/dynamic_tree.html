@@ -1,109 +1,17 @@
-(venv) senthiltex007@Lenovo:~/rocky_sri_herbals$ cat herbalapp/templates/herbalapp/dynamic_tree.html
 {% load static %}
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <title>Dynamic Tree</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-    <style>
-        .tree {
-            width: 100%;
-            overflow-x: auto;
-            padding-bottom: 20px;
-        }
-        .tree > ul {
-            padding-top: 20px;
-            position: relative;
-            display: inline-block;
-            white-space: nowrap;
-        }
-        .tree ul {
-            padding-top: 20px;
-            position: relative;
-        }
-        .tree li {
-            display: inline-block;
-            vertical-align: top;
-            text-align: center;
-            list-style: none;
-            position: relative;
-            padding: 20px 10px 0 10px;
-        }
-
-        /* Thick connector lines */
-        .tree li::before,
-        .tree li::after {
-            content: "";
-            position: absolute;
-            top: 0;
-            width: 50%;
-            height: 20px;
-            border-top: 3px solid #444;
-        }
-        .tree li::before {
-            left: -50%;
-            border-right: 3px solid #444;
-        }
-        .tree li::after {
-            right: -50%;
-            border-left: 3px solid #444;
-        }
-        .tree li:only-child::before,
-        .tree li:only-child::after {
-            display: none;
-        }
-        .tree li > ul::before {
-            content: "";
-            position: absolute;
-            top: 0;
-            left: 50%;
-            height: 20px;
-            border-left: 3px solid #444;
-        }
-
-        /* Member styling — no box */
-        .member {
-            display: inline-block;
-            text-align: center;
-            padding: 0;
-            background: transparent;
-            border: none;
-            box-shadow: none;
-        }
-        .avatar {
-            width: 56px;
-            height: 56px;
-            border-radius: 50%;
-            object-fit: cover;
-            border: none;
-        }
-        .info {
-            font-size: 12px;
-            margin-top: 4px;
-        }
-        .actions {
-            margin-top: 4px;
-        }
-        .add-btn {
-            font-size: 12px;
-            color: #2b6ef2;
-            text-decoration: none;
-            padding: 2px 6px;
-            border-radius: 4px;
-        }
-        .add-btn:hover {
-            background: rgba(43, 110, 242, 0.1);
-        }
-    </style>
+  <title>Genealogy Tree</title>
+  <link rel="stylesheet" href="{% static 'herbalapp/tree.css' %}">
 </head>
 <body>
-    <h2 style="text-align:center; margin-top:20px;">Dynamic Tree</h2>
-    <div class="tree">
-        <ul>
-            {% include "herbalapp/tree_node.html" with member=root_member %}
-        </ul>
-    </div>
+
+<div class="pyramid-tree">
+  <h2>Dynamic Genealogy Tree</h2>
+  {% include "herbalapp/tree_node_pyramid.html" with member=root_member %}
+</div>
+
 </body>
 </html>
+

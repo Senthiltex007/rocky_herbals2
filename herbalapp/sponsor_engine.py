@@ -1,107 +1,179 @@
-# herbalapp/sponsor_engine.py
+# herbalapp/mlm_engine_full.py
 
-from herbalapp.models import Member, SponsorIncome, IncomeRecord
+from datetime import date
 from decimal import Decimal
-from django.db import models
+from herbalapp.models import Member, IncomeRecord, SponsorIncome, DailyIncomeReport
+from herbalapp.sponsor_engine import process_sponsor_income
 
-def has_completed_one_to_one(member):
-    """
-    Lifetime 1:1 completion:
-    - Either model has boolean flag, or lifetime_pairs > 0, or any past IncomeRecord shows binary_pairs >= 1
-    """
-    if hasattr(member, "has_completed_first_pair") and member.has_completed_first_pair:
-        return True
-    if hasattr(member, "lifetime_pairs") and (member.lifetime_pairs or 0) > 0:
-        return True
-    # Fallback check
-    rec = IncomeRecord.objects.filter(member=member, binary_pairs__gte=1).exists()
-    return rec
+receiver = resolve_sponsor_receiver(child_member)
 
-def resolve_sponsor_receiver(child):
-    """
-    Rule 1: if placement_id == sponsor_id → sponsor income goes to placement's parent
-    Rule 2: else → sponsor income goes to sponsor_id
-    """
-    placement = child.placement
-    sponsor = child.sponsor
-    if not placement or not sponsor:
-        return None
-    if placement.id == sponsor.id:
-        # parent of placement (if exists), else placement itself
-        return getattr(placement, "placement", None) or placement
-    return sponsor
+if is_dummy_root(receiver):
+    return None
 
-def process_sponsor_income(child_member, run_date, child_became_eligible_today=False):
-    """
-    Rule 3: Receiver must have lifetime 1:1 pair completed.
-    Amount to credit = child's eligibility (₹500 if today unlocked) + child's sponsor income today.
-    Prevent duplicates per (receiver, child, date).
-    """
-    receiver = resolve_sponsor_receiver(child_member)
-    if not receiver:
-        return None
+# ------------------------------
+# Constants
+# ------------------------------
+PAIR_VALUE = 500
+ELIGIBILITY_BONUS = 500
+DAILY_BINARY_PAIR_LIMIT = 5
+FLASHOUT_GROUP_SIZE = 5
+FLASHOUT_VALUE = 1000
+MAX_DAILY_FLASHOUTS = 9
 
-    # Rule 3 check
-    if not has_completed_one_to_one(receiver):
+# ------------------------------
+# Main MLM daily processor
+# ------------------------------
+def process_member_daily_income(member: Member, today: date = None):
+    """
+    Processes ONE member's daily income:
+    1. Binary eligibility
+    2. Binary income (max 5 pairs/day)
+    3. Flashout (max 9 units/day)
+    4. Washout (excess beyond binary+flashout)
+    5. Carry forward (unpaired)
+    6. Sponsor income
+    """
+    if not today:
+        today = date.today()
+
+    # Skip dummy root
+    if member.auto_id == "rocky004":
         return None
 
-    # Amount = child eligibility bonus + child sponsor income
-    child_eligibility = 500 if child_became_eligible_today else 0
+    # CF from previous day
+    left_cf_before = member.left_cf or 0
+    right_cf_before = member.right_cf or 0
 
-    child_sponsor_today = IncomeRecord.objects.filter(
-        member=child_member,
-        created_at__date=run_date,
-        type="sponsor_income"
-    ).aggregate(total=models.Sum("amount"))["total"] or 0
+    # Today's new members under left/right
+    left_today = member.left_today or 0
+    right_today = member.right_today or 0
 
-    amount = child_eligibility + int(child_sponsor_today)
-    if amount <= 0:
-        return None
+    binary_eligible = member.binary_eligible
 
-    # Prevent duplicate
-    existing = SponsorIncome.objects.filter(sponsor=receiver, child=child_member, date=run_date).first()
-    if existing:
-        return existing.amount
+    # ------------------------------
+    # 1️⃣ Eligibility check (1:2 / 2:1)
+    # ------------------------------
+    L = left_today + left_cf_before
+    R = right_today + right_cf_before
+    new_binary_eligible = binary_eligible
+    eligibility_income = 0
 
-    # Create credit
-    si = SponsorIncome.objects.create(
-        sponsor=receiver,
-        child=child_member,
-        amount=amount,
-        date=run_date
-    )
+    if not binary_eligible:
+        if (L >= 1 and R >= 2) or (L >= 2 and R >= 1):
+            # Become eligible
+            new_binary_eligible = True
+            eligibility_income = ELIGIBILITY_BONUS
 
-    # Update receiver's IncomeRecord for the day
-    rec = IncomeRecord.objects.filter(member=receiver, created_at__date=run_date).last()
-    if rec:
-        rec.sponsor_income = (rec.sponsor_income or 0) + amount
-        rec.total_income = (rec.total_income or 0) + amount
-        rec.save()
+            if L >= 2 and R >= 2:
+                if L > R:
+                    L -= 2
+                    R -= 1
+                else:
+                    L -= 1
+                    R -= 2
+            elif L >= 1 and R >= 2:
+                L -= 1
+                R -= 2
+            elif L >= 2 and R >= 1:
+                L -= 2
+                R -= 1
+        else:
+            # ❌ Pre-eligibility → carry forward only
+            member.left_cf = L
+            member.right_cf = R
+            member.save(update_fields=["left_cf", "right_cf"])
+            return {
+                "binary_income": 0,
+                "eligibility_income": 0,
+                "flashout_income": 0,
+                "washed_pairs": 0,
+                "left_cf_after": L,
+                "right_cf_after": R,
+                "total_income": 0,
+            }
 
-    # ✅ Update DailyIncomeReport too
-    from herbalapp.models import DailyIncomeReport
-    r, created = DailyIncomeReport.objects.get_or_create(
-        member=receiver,
-        date=run_date,
+    # ------------------------------
+    # 2️⃣ Binary income (1:1 pairs)
+    # ------------------------------
+    total_pairs = min(L, R)
+    binary_pairs_paid = min(total_pairs, DAILY_BINARY_PAIR_LIMIT)
+    binary_income = binary_pairs_paid * PAIR_VALUE
+    L -= binary_pairs_paid
+    R -= binary_pairs_paid
+
+    # ------------------------------
+    # 3️⃣ Flashout
+    # ------------------------------
+    remaining_pairs = total_pairs - binary_pairs_paid
+    flashout_units = min(remaining_pairs // FLASHOUT_GROUP_SIZE, MAX_DAILY_FLASHOUTS)
+    flashout_pairs_used = flashout_units * FLASHOUT_GROUP_SIZE
+    flashout_income = flashout_units * FLASHOUT_VALUE
+    L -= flashout_pairs_used
+    R -= flashout_pairs_used
+
+    # ------------------------------
+    # 4️⃣ Washout (only excess beyond binary + flashout)
+    # ------------------------------
+    pairs_remaining_after_flashout = remaining_pairs - flashout_pairs_used
+    washed_pairs = pairs_remaining_after_flashout
+    L -= washed_pairs
+    R -= washed_pairs
+
+    # ------------------------------
+    # 5️⃣ Carry forward
+    # ------------------------------
+    member.left_cf = L
+    member.right_cf = R
+    member.binary_eligible = new_binary_eligible
+    member.save(update_fields=["left_cf", "right_cf", "binary_eligible"])
+
+    # ------------------------------
+    # 6️⃣ Total income
+    # ------------------------------
+    total_income = eligibility_income + binary_income + flashout_income
+
+    # ------------------------------
+    # 7️⃣ Update IncomeRecord
+    # ------------------------------
+    rec, _ = IncomeRecord.objects.get_or_create(
+        member=member,
+        created_at=today,
         defaults={
-            "eligibility_income": Decimal("0.00"),
-            "binary_income": Decimal("0.00"),
-            "sponsor_income": Decimal(amount),
-            "wallet_income": Decimal("0.00"),
-            "salary_income": Decimal("0.00"),
-            "total_income": Decimal(amount),
+            "eligibility_income": Decimal(eligibility_income),
+            "binary_income": Decimal(binary_income),
+            "sponsor_income": Decimal(0),
+            "wallet_income": Decimal(0),
+            "salary_income": Decimal(0),
+            "total_income": Decimal(total_income),
+            "binary_pairs": binary_pairs_paid,
         }
     )
-    if not created:
-        r.sponsor_income += Decimal(amount)
-        r.total_income = (
-            r.eligibility_income +
-            r.binary_income +
-            r.sponsor_income +
-            r.wallet_income +
-            r.salary_income
-        )
-        r.save()
+    if rec:
+        rec.eligibility_income = Decimal(eligibility_income)
+        rec.binary_income = Decimal(binary_income)
+        rec.total_income = Decimal(total_income)
+        rec.binary_pairs = binary_pairs_paid
+        rec.save()
 
-    return si.amount
+    # ------------------------------
+    # 8️⃣ Sponsor income (if child became eligible today)
+    # ------------------------------
+    sponsor_income_amount = 0
+    if eligibility_income > 0:
+        sponsor_income_amount = process_sponsor_income(
+            child_member=member,
+            run_date=today,
+            child_became_eligible_today=True
+        )
+
+    return {
+        "binary_income": binary_income,
+        "eligibility_income": eligibility_income,
+        "flashout_income": flashout_income,
+        "washed_pairs": washed_pairs,
+        "left_cf_after": L,
+        "right_cf_after": R,
+        "total_income": total_income,
+        "sponsor_income": sponsor_income_amount,
+    }
 

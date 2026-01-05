@@ -7,7 +7,7 @@
     <div class="box rank-{{ member.current_rank|default:'None' }}"
          onclick="info(
              '{{ member.name }}',
-             '{{ member.member_id }}',
+             '{{ member.auto_id }}',
              '{{ member.current_rank|default:"-" }}',
              '{{ member.total_left_bv }}',
              '{{ member.total_right_bv }}',
@@ -30,7 +30,7 @@
         {% endif %}
 
         <strong>{{ member.name }}</strong><br>
-        ID: {{ member.member_id }}<br>
+        ID: {{ member.auto_id }}<br>
         BV: {{ member.total_left_bv }}/{{ member.total_right_bv }}
     </div>
 

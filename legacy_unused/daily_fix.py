@@ -63,24 +63,24 @@ for r in reports:
 print("\n=== Duplicate IncomeRecord cleanup ===")
 dupes_ir = (
     IncomeRecord.objects.filter(date=run_date)
-    .values("member_id")
+    .values("auto_id")
     .annotate(c=Count("id"))
     .filter(c__gt=1)
 )
 
 for d in dupes_ir:
-    member_id = d["member_id"]
+    auto_id = d["auto_id"]
     records = (
         IncomeRecord.objects
-        .filter(member_id=member_id, date=run_date)
+        .filter(auto_id=auto_id, date=run_date)
         .order_by("-id")
     )
     keep = records.first()
     to_delete = records[1:]
 
-    print(f"Member {member_id} has {d['c']} records. Keeping latest id={keep.id}.")
+    print(f"Member {auto_id} has {d['c']} records. Keeping latest id={keep.id}.")
     for rec in to_delete:
-        print(f"Deleting duplicate IncomeRecord id={rec.id} for member={member_id}")
+        print(f"Deleting duplicate IncomeRecord id={rec.id} for member={auto_id}")
         rec.delete()
 
 print("=== Daily Fix Complete ===")

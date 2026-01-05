@@ -1,3 +1,18 @@
-asgiref==3.10.0
+# Core Django
 Django==5.0.3
+asgiref==3.10.0
 sqlparse==0.5.3
+
+# Database (SQLite default – already used)
+pytz==2024.1
+
+# Decimal & timezone safe handling (implicit, but safe pin)
+python-dateutil==2.9.0.post0
+
+# Optional but RECOMMENDED for production & debugging
+gunicorn==21.2.0
+whitenoise==6.6.0
+
+# For future APIs / admin tools (safe to keep)
+requests==2.32.3
+

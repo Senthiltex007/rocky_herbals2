@@ -1,85 +1,143 @@
 # mlm_tool.py
+import os
+import django
+
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "rocky_herbals2.settings")
+django.setup()
+
 from herbalapp.models import Member
 
-def print_tree_with_add(member, indent=0):
-    if member:
-        print(" " * indent + f"{member.auto_id} - {member.name} (Phone: {member.phone or 'N/A'}, Aadhar: {member.aadhar or 'N/A'})")
-        print_tree_with_add(member.left_child, indent + 4)
-        print_tree_with_add(member.right_child, indent + 4)
-    else:
-        print(" " * indent + "+ Add Member")
 
-def interactive_tree(member):
+# -------------------------------------------------
+# PRINT TREE (QUERY BASED – SAFE)
+# -------------------------------------------------
+def print_tree_with_add(member, indent=0):
+    if not member:
+        return
+
+    print(
+        " " * indent
+        + f"{member.auto_id} - {member.name} "
+        f"(Phone: {member.phone or 'N/A'}, Aadhar: {member.aadhar or 'N/A'})"
+    )
+
+    left_children = Member.objects.filter(parent=member, side="left")
+    right_children = Member.objects.filter(parent=member, side="right")
+
+    if left_children.exists():
+        for c in left_children:
+            print_tree_with_add(c, indent + 4)
+    else:
+        print(" " * (indent + 4) + "+ Add Left Member")
+
+    if right_children.exists():
+        for c in right_children:
+            print_tree_with_add(c, indent + 4)
+    else:
+        print(" " * (indent + 4) + "+ Add Right Member")
+
+
+# -------------------------------------------------
+# INTERACTIVE TOOL
+# -------------------------------------------------
+def interactive_tree(root_member):
     while True:
-        print("\n--- Current Pyramid Tree ---")
-        print_tree_with_add(member)
+        print("\n======= CURRENT MLM TREE =======")
+        print_tree_with_add(root_member)
 
         print("\nOptions:")
         print("1. Add Member")
-        print("2. Replace Member")
+        print("2. Update Member")
         print("3. Delete Member")
         print("4. Exit")
 
-        choice = input("Enter your choice (1-4): ")
+        choice = input("Enter choice (1-4): ").strip()
 
+        # -------------------------
+        # ADD MEMBER
+        # -------------------------
         if choice == "1":
-            parent_id = input("Enter parent auto_id to add under: ")
-            side = input("Enter side (left/right, default: left): ") or "left"
-            name = input("Enter new member name: ")
-            phone = input("Enter phone number: ")
-            aadhar = input("Enter Aadhar number: ")
+            parent_id = input("Parent auto_id: ").strip()
+            side = input("Side (left/right): ").strip().lower()
+            name = input("Name: ").strip()
+            phone = input("Phone: ").strip()
+            aadhar = input("Aadhar: ").strip()
+
+            if side not in ("left", "right"):
+                print("❌ Side must be left or right")
+                continue
 
             try:
-                parent_member = Member.objects.get(auto_id=parent_id)
-                new_member = Member(name=name, phone=phone, aadhar=aadhar)
-                new_member.save()
+                parent = Member.objects.get(auto_id=parent_id)
 
-                if side.lower() == "left":
-                    parent_member.left_child = new_member
-                else:
-                    parent_member.right_child = new_member
-                parent_member.save()
+                exists = Member.objects.filter(parent=parent, side=side).exists()
+                if exists:
+                    print(f"❌ {side.upper()} side already occupied")
+                    continue
 
-                print(f"Member {name} added successfully!")
+                new_member = Member.objects.create(
+                    name=name,
+                    phone=phone or None,
+                    aadhar=aadhar or None,
+                    parent=parent,
+                    side=side,
+                    sponsor=parent,   # default sponsor = parent
+                )
+
+                print(f"✅ Member {new_member.auto_id} added successfully")
 
             except Member.DoesNotExist:
-                print("Parent member not found!")
+                print("❌ Parent member not found")
 
+        # -------------------------
+        # UPDATE MEMBER
+        # -------------------------
         elif choice == "2":
-            replace_id = input("Enter auto_id of member to replace: ")
+            mid = input("Member auto_id to update: ").strip()
             try:
-                m = Member.objects.get(auto_id=replace_id)
-                new_name = input(f"Enter new name (current: {m.name}): ")
-                new_phone = input(f"Enter new phone (current: {m.phone or 'N/A'}): ")
-                new_aadhar = input(f"Enter new Aadhar (current: {m.aadhar or 'N/A'}): ")
+                m = Member.objects.get(auto_id=mid)
+                name = input(f"Name ({m.name}): ").strip()
+                phone = input(f"Phone ({m.phone or 'N/A'}): ").strip()
+                aadhar = input(f"Aadhar ({m.aadhar or 'N/A'}): ").strip()
 
-                m.name = new_name or m.name
-                m.phone = new_phone or m.phone
-                m.aadhar = new_aadhar or m.aadhar
+                if name:
+                    m.name = name
+                if phone:
+                    m.phone = phone
+                if aadhar:
+                    m.aadhar = aadhar
+
                 m.save()
+                print("✅ Member updated successfully")
 
-                print(f"Member {replace_id} updated successfully!")
             except Member.DoesNotExist:
-                print("Member not found!")
+                print("❌ Member not found")
 
+        # -------------------------
+        # DELETE MEMBER (SAFE)
+        # -------------------------
         elif choice == "3":
-            del_id = input("Enter auto_id of member to delete: ")
+            mid = input("Member auto_id to delete: ").strip()
             try:
-                m = Member.objects.get(auto_id=del_id)
-                parent = m.parent
-                if parent:
-                    if parent.left_child == m:
-                        parent.left_child = None
-                    elif parent.right_child == m:
-                        parent.right_child = None
-                    parent.save()
-                m.delete()
-                print(f"Member {del_id} deleted successfully!")
-            except Member.DoesNotExist:
-                print("Member not found!")
+                m = Member.objects.get(auto_id=mid)
 
+                has_children = Member.objects.filter(parent=m).exists()
+                if has_children:
+                    print("❌ Cannot delete member with downlines")
+                    continue
+
+                m.delete()
+                print("✅ Member deleted successfully")
+
+            except Member.DoesNotExist:
+                print("❌ Member not found")
+
+        # -------------------------
+        # EXIT
+        # -------------------------
         elif choice == "4":
             break
+
         else:
-            print("Invalid choice! Try again.")
+            print("❌ Invalid choice")
 

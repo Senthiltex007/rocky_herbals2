@@ -36,6 +36,6 @@ def give_sponsor_income(member):
     sponsor.total_sponsor_income += SPONSOR_AMOUNT
     sponsor.save(update_fields=["total_sponsor_income"])
 
-    print(f"✅ Sponsor income credited: {sponsor.member_id} +{SPONSOR_AMOUNT}")
+    print(f"✅ Sponsor income credited: {sponsor.auto_id} +{SPONSOR_AMOUNT}")
     return SPONSOR_AMOUNT
 
