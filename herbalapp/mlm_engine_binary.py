@@ -1,4 +1,4 @@
-# herbalapp/mlm_engine_binary_corrected.py
+# herbalapp/mlm_engine_binary.py
 
 def calculate_member_binary_income_for_day(
     left_joins_today: int,
@@ -8,20 +8,22 @@ def calculate_member_binary_income_for_day(
     binary_eligible: bool,
 ):
     """
-    Corrected Rocky Herbals MLM Binary Engine for ONE MEMBER for ONE DAY.
+    FINAL Rocky Herbals MLM Binary Engine (Rule-Accurate)
 
-    Rules implemented:
-    1️⃣ Lifetime eligibility: 1:2 or 2:1 only
-    2️⃣ Before eligibility: all 1:1 or unpaired (2:0 / 0:2) → carry forward, no washout
-    3️⃣ Eligibility bonus: ₹500 one-time
-    4️⃣ Daily binary income: max 5 pairs (₹500/pair)
-    5️⃣ Flashout bonus: 5 pairs → 1 unit (₹1000), max 9 units/day
-    6️⃣ Washout: only applies after binary + flashout limit exceeded
-    7️⃣ Carry forward: leftover single-side members
+    RULES IMPLEMENTED:
+    1️⃣ Binary eligibility (lifetime): 1:2 or 2:1
+    2️⃣ Before eligibility: NO income, NO washout, only carry forward
+    3️⃣ Eligibility bonus: ₹500 (one-time only)
+    4️⃣ Eligibility day: eligibility pair NOT counted as binary pair
+    5️⃣ Daily binary income: max 5 pairs/day (₹500 per pair)
+    6️⃣ Flashout bonus: 5 pairs = 1 unit (₹1000), max 9 units/day
+    7️⃣ Flashout → repurchase wallet only
+    8️⃣ Washout: excess pairs beyond binary + flashout
+    9️⃣ Carry forward: lifetime, waits until matched
     """
 
     # -------------------------------
-    # Constants
+    # CONSTANTS
     # -------------------------------
     PAIR_VALUE = 500
     ELIGIBILITY_BONUS = 500
@@ -31,7 +33,7 @@ def calculate_member_binary_income_for_day(
     MAX_DAILY_FLASHOUTS = 9
 
     # -------------------------------
-    # Total members including CF
+    # TOTAL MEMBERS (TODAY + CF)
     # -------------------------------
     L = left_joins_today + left_cf_before
     R = right_joins_today + right_cf_before
@@ -46,30 +48,22 @@ def calculate_member_binary_income_for_day(
     washed_pairs = 0
 
     # -------------------------------
-    # 1️⃣ Eligibility check (1:2 or 2:1)
+    # 1️⃣ BINARY ELIGIBILITY CHECK
     # -------------------------------
     if not binary_eligible:
         if (L >= 1 and R >= 2) or (L >= 2 and R >= 1):
-            # Eligible now
             new_binary_eligible = True
             eligibility_income = ELIGIBILITY_BONUS
 
-            # Deduct eligibility pattern
-            if L >= 2 and R >= 2:
-                if L > R:
-                    L -= 2
-                    R -= 1
-                else:
-                    L -= 1
-                    R -= 2
-            elif L >= 1 and R >= 2:
+            # Deduct ONLY eligibility pattern (IMPORTANT FIX)
+            if L >= 1 and R >= 2:
                 L -= 1
                 R -= 2
             elif L >= 2 and R >= 1:
                 L -= 2
                 R -= 1
         else:
-            # ❌ Before eligibility → NO washout, just carry forward
+            # ❌ Before eligibility → NO income, NO washout
             return {
                 "new_binary_eligible": False,
                 "eligibility_income": 0,
@@ -85,45 +79,50 @@ def calculate_member_binary_income_for_day(
             }
 
     # -------------------------------
-    # 2️⃣ After eligibility → only 1:1 counts
+    # 2️⃣ AFTER ELIGIBILITY → ONLY 1:1 PAIRS
     # -------------------------------
     total_pairs_available = min(L, R)
 
     # -------------------------------
-    # 3️⃣ Binary income: max 5 pairs/day
+    # 3️⃣ DAILY BINARY INCOME
     # -------------------------------
     binary_pairs_paid = min(total_pairs_available, DAILY_BINARY_PAIR_LIMIT)
     binary_income = binary_pairs_paid * PAIR_VALUE
+
     L -= binary_pairs_paid
     R -= binary_pairs_paid
 
     # -------------------------------
-    # 4️⃣ Flashout bonus
+    # 4️⃣ FLASHOUT BONUS
     # -------------------------------
     pairs_remaining_after_binary = total_pairs_available - binary_pairs_paid
+
     possible_flashout_units = pairs_remaining_after_binary // FLASHOUT_GROUP_SIZE
     flashout_units = min(possible_flashout_units, MAX_DAILY_FLASHOUTS)
+
     flashout_pairs_used = flashout_units * FLASHOUT_GROUP_SIZE
     flashout_income = flashout_units * FLASHOUT_VALUE
+
     L -= flashout_pairs_used
     R -= flashout_pairs_used
 
     # -------------------------------
-    # 5️⃣ Washout (only excess pairs beyond binary + flashout)
+    # 5️⃣ WASHOUT (EXCESS PAIRS)
     # -------------------------------
     pairs_remaining_after_flashout = pairs_remaining_after_binary - flashout_pairs_used
     washed_pairs = pairs_remaining_after_flashout
+
     L -= washed_pairs
     R -= washed_pairs
 
     # -------------------------------
-    # 6️⃣ Carry forward
+    # 6️⃣ CARRY FORWARD
     # -------------------------------
     left_cf_after = L
     right_cf_after = R
 
     # -------------------------------
-    # 7️⃣ Total income
+    # 7️⃣ TOTAL INCOME
     # -------------------------------
     total_income = eligibility_income + binary_income + flashout_income
 
@@ -141,13 +140,11 @@ def calculate_member_binary_income_for_day(
         "total_income": total_income,
     }
 
-# herbalapp/mlm_engine_binary.py
 
+# -------------------------------------------------
+# TEMP RANK FUNCTION (SAFE STUB)
+# -------------------------------------------------
 def determine_rank_from_bv(total_bv):
-    """
-    Temporary stub to fix ImportError
-    You can enhance rank logic later
-    """
     if total_bv >= 100000:
         return "DIAMOND"
     elif total_bv >= 50000:
@@ -155,4 +152,3 @@ def determine_rank_from_bv(total_bv):
     elif total_bv >= 10000:
         return "SILVER"
     return "NONE"
-

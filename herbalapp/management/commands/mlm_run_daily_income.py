@@ -1,131 +1,143 @@
 # herbalapp/management/commands/mlm_run_daily_income.py
-
 from django.core.management.base import BaseCommand
+from django.db import transaction
 from django.utils import timezone
+from datetime import datetime
+from decimal import Decimal
+
 from herbalapp.models import Member, DailyIncomeReport
 from herbalapp.mlm_engine_binary import calculate_member_binary_income_for_day
+from herbalapp.sponsor_engine import calculate_sponsor_income_for_day
 
-def get_previous_carry_forward(member, run_date):
-    prev = (
-        DailyIncomeReport.objects
-        .filter(member=member, date__lt=run_date)
-        .order_by("-date")
-        .first()
-    )
-    if not prev:
-        return 0, 0
-    return prev.left_cf_after, prev.right_cf_after
+DUMMY_ROOT = "rocky004"
 
-def get_today_joins_for_member(member, date):
-    """
-    TEMP TEST MODE
-    """
-    # Ideally, count members added under left/right today
-    return 1, 1
-
-def calculate_sponsor_income(member, binary_income, eligibility_income):
-    """
-    Sponsor income calculation as per rules:
-    1️⃣ Placement ID = Sponsor ID → placement's parent gets sponsor income
-    2️⃣ Placement ID != Sponsor ID → sponsor gets sponsor income
-    3️⃣ Sponsor must have completed 1:1 pair to receive income
-    """
-    sponsor_income = 0
-    sponsor_member = None
-
-    if member.placement_id and member.sponsor_id:
-        if member.placement_id == member.sponsor_id:
-            # Rule 1: sponsor income goes to placement parent
-            sponsor_member = Member.objects.filter(id=member.placement_id).first()
-        else:
-            # Rule 2: sponsor income goes to sponsor
-            sponsor_member = Member.objects.filter(id=member.sponsor_id).first()
-
-    if sponsor_member:
-        # Rule 3: check if sponsor has at least 1:1 pair completed
-        left = sponsor_member.left_child_count if hasattr(sponsor_member, 'left_child_count') else 0
-        right = sponsor_member.right_child_count if hasattr(sponsor_member, 'right_child_count') else 0
-        if min(left, right) >= 1:
-            sponsor_income = binary_income + eligibility_income
-            sponsor_member.sponsor_income_today = getattr(sponsor_member, 'sponsor_income_today', 0) + sponsor_income
-            sponsor_member.save()
-    return sponsor_income
 
 class Command(BaseCommand):
-    help = "Run daily MLM binary & sponsor income"
+    help = "Run MLM Daily Income (Binary + Sponsor + Flashout) safely (no duplicates)"
 
     def add_arguments(self, parser):
         parser.add_argument(
             "--date",
             type=str,
-            help="YYYY-MM-DD (default: today)",
+            help="Run income for specific date (YYYY-MM-DD)",
         )
 
+    @transaction.atomic
     def handle(self, *args, **options):
-        run_date = (
-            timezone.datetime.fromisoformat(options["date"]).date()
-            if options.get("date")
-            else timezone.now().date()
+
+        # ================= DATE =================
+        if options.get("date"):
+            run_date = datetime.strptime(options["date"], "%Y-%m-%d").date()
+        else:
+            run_date = timezone.localdate()
+
+        self.stdout.write(self.style.WARNING(f"▶ Running MLM income for {run_date}"))
+
+        # ================= DAILY LOCK =================
+        if DailyIncomeReport.objects.filter(date=run_date).exists():
+            self.stdout.write(
+                self.style.ERROR(f"❌ Income already generated for {run_date}. Aborting.")
+            )
+            return
+
+        # ================= MEMBERS =================
+        members = (
+            Member.objects
+            .filter(is_active=True)
+            .exclude(auto_id=DUMMY_ROOT)
+            .order_by("id")
         )
-        self.stdout.write(f"▶ Running MLM incomes for {run_date}")
 
-        for member in Member.objects.all().order_by("id"):
+        processed = 0
 
-            left_today, right_today = get_today_joins_for_member(member, run_date)
-            left_cf_before, right_cf_before = get_previous_carry_forward(member, run_date)
+        for member in members:
 
-            result = calculate_member_binary_income_for_day(
+            # ================= SNAPSHOT =================
+            left_cf_before = member.left_cf or 0
+            right_cf_before = member.right_cf or 0
+            left_today = member.left_new_today or 0
+            right_today = member.right_new_today or 0
+            already_binary_eligible = member.binary_eligible
+
+            # ================= BINARY ENGINE =================
+            binary_result = calculate_member_binary_income_for_day(
                 left_joins_today=left_today,
                 right_joins_today=right_today,
                 left_cf_before=left_cf_before,
                 right_cf_before=right_cf_before,
-                binary_eligible=member.binary_eligible,
+                binary_eligible=already_binary_eligible,
             )
 
-            # Update eligibility
-            if result["new_binary_eligible"] and not member.binary_eligible:
+            # ================= ELIGIBILITY DAY CHECK =================
+            eligibility_today = (
+                binary_result.get("new_binary_eligible", False)
+                and not already_binary_eligible
+            )
+
+            child_eligibility_income = Decimal("500") if eligibility_today else Decimal("0")
+
+            # ================= UPDATE MEMBER =================
+            member.left_cf = binary_result["left_cf_after"]
+            member.right_cf = binary_result["right_cf_after"]
+
+            if binary_result["new_binary_eligible"]:
                 member.binary_eligible = True
+                member.binary_eligible_date = run_date
 
-            # Update carry forward
-            member.left_carry_forward = result["left_cf_after"]
-            member.right_carry_forward = result["right_cf_after"]
+            member.save(update_fields=[
+                "left_cf",
+                "right_cf",
+                "binary_eligible",
+                "binary_eligible_date",
+            ])
 
-            # Sponsor income
-            sponsor_income = calculate_sponsor_income(
-                member,
-                binary_income=result["binary_income"],
-                eligibility_income=result["eligibility_income"],
-            )
-
-            member.save()
-
-            # Save daily report
-            DailyIncomeReport.objects.update_or_create(
+            # ================= DAILY REPORT =================
+            report = DailyIncomeReport.objects.create(
                 member=member,
                 date=run_date,
-                defaults={
-                    "left_joins": left_today,
-                    "right_joins": right_today,
-                    "left_cf_before": left_cf_before,
-                    "right_cf_before": right_cf_before,
-                    "left_cf_after": result["left_cf_after"],
-                    "right_cf_after": result["right_cf_after"],
-                    "eligibility_income": result["eligibility_income"],
-                    "binary_income": result["binary_income"],
-                    "sponsor_income": sponsor_income,
-                    "flashout_units": result["flashout_units"],
-                    "washed_pairs": result["washed_pairs"],
-                    "total_income": result["total_income"] + sponsor_income,
-                },
+                binary_income=Decimal("0"),
+                flashout_units=0,
+                sponsor_income=Decimal("0"),
+                total_income=Decimal("0"),
             )
+
+            # ================= APPLY BINARY (STRICT RULE) =================
+            # Eligibility day → NO binary, NO flashout
+            if member.binary_eligible_date != run_date:
+                report.binary_income = Decimal(binary_result.get("binary_income", 0))
+                report.flashout_units = binary_result.get("flashout_units", 0)
+
+            # ================= TOTAL BEFORE SPONSOR =================
+            report.total_income = report.binary_income
+
+            # ================= SPONSOR INCOME =================
+            sponsor_income = calculate_sponsor_income_for_day(
+                child_member=member,
+                run_date=run_date,
+                child_eligibility_income=child_eligibility_income,
+                child_binary_income=report.binary_income,
+            )
+            sponsor_income = Decimal(sponsor_income or 0)
+
+            report.sponsor_income = sponsor_income
+            report.total_income += sponsor_income
+            report.save(update_fields=["sponsor_income", "total_income"])
+
+            processed += 1
 
             self.stdout.write(
-                f"{member.auto_id} → "
-                f"Binary ₹{result['binary_income']} | "
-                f"Eligibility ₹{result['eligibility_income']} | "
-                f"Sponsor ₹{sponsor_income} | "
-                f"Flashout Units {result['flashout_units']} (product)"
+                self.style.SUCCESS(
+                    f"{member.auto_id} | "
+                    f"Binary: {report.binary_income} | "
+                    f"Sponsor: {report.sponsor_income} | "
+                    f"Flashout: {report.flashout_units} | "
+                    f"Total: {report.total_income}"
+                )
             )
 
-        self.stdout.write("✅ MLM daily income run completed")
+        self.stdout.write(
+            self.style.SUCCESS(
+                f"✅ MLM DAILY INCOME COMPLETED | Date: {run_date} | Members: {processed}"
+            )
+        )
 

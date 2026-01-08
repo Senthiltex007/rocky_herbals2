@@ -1,82 +1,74 @@
+{% load static %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Dynamic Genealogy Tree</title>
+
+<!-- Bootstrap (only layout, not tree) -->
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
-<style>
-.tree-container {
-    text-align: center;
-    margin-top: 20px;
-}
-.tree-node {
-    display: inline-block;
-    margin: 10px;
-}
-.tree-node .card {
-    width: 200px;
-    border: 1px solid #ccc;
-    border-radius: 8px;
-    padding: 12px;
-    background: #f9f9f9;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
-}
-.tree-node .auto-id {
-    font-weight: 700;
-    color: #198754;
-    font-size: 16px;
-}
-.tree-node .name {
-    font-size: 14px;
-    margin-bottom: 4px;
-}
-.tree-node .package {
-    font-size: 12px;
-    color: #555;
-}
-.badge-wrap { line-height: 1.8; }
-</style>
+
+<!-- TREE CSS -->
+<link rel="stylesheet" href="{% static 'herbalapp/tree.css' %}">
 </head>
+
 <body>
 
-<div class="container mt-4">
-    <h2 class="text-center mb-4">🌳 Genealogy Tree – {{ root_member.auto_id }}</h2>
+<div class="container-fluid mt-3">
 
-    <!-- ✅ Income Summary -->
-    <div class="row mb-4">
-        <div class="col-md-3"><strong>Left Count:</strong> {{ left_count }}</div>
-        <div class="col-md-3"><strong>Right Count:</strong> {{ right_count }}</div>
-        <div class="col-md-3"><strong>Pairs:</strong> {{ pairs }}</div>
-        <div class="col-md-3"><strong>Binary Income:</strong> ₹{{ binary_income }}</div>
-    </div>
-    <div class="row mb-4">
-        <div class="col-md-3"><strong>Sponsor Income:</strong> ₹{{ sponsor_income }}</div>
-        <div class="col-md-3"><strong>Flashout:</strong> ₹{{ flashout }}</div>
-        <div class="col-md-3"><strong>Binary Eligible:</strong> ₹{{ binary_eligible }}</div>
-    </div>
+  <!-- ================= HEADER ================= -->
+  <h3 class="text-center mb-4">
+    🌳 Genealogy Tree – {{ root_member.auto_id }}
+  </h3>
 
-    <!-- ✅ Tree JSON Debug (optional) -->
-    <pre class="bg-light p-3 text-start">{{ tree_json|safe }}</pre>
+  <!-- ================= INCOME SUMMARY ================= -->
+  <div class="row text-center mb-3">
+    <div class="col-md-3 col-6"><strong>Left Count</strong><br>{{ left_count }}</div>
+    <div class="col-md-3 col-6"><strong>Right Count</strong><br>{{ right_count }}</div>
+    <div class="col-md-3 col-6"><strong>Pairs</strong><br>{{ pairs }}</div>
+    <div class="col-md-3 col-6"><strong>Binary Income</strong><br>₹{{ binary_income }}</div>
+  </div>
 
-    <!-- ✅ Root Member Card -->
-    <div class="tree-container">
-        <div class="tree-node">
-            <div class="card">
-                <div class="auto-id">{{ root_member.auto_id }}</div>
-                <div class="name">{{ root_member.name }}</div>
-                <div class="package">{{ root_member.package }}</div>
-                <div class="badge-wrap mt-2">
-                    <span class="badge bg-success">Binary: {{ root_member.binary_income }}</span><br>
-                    <span class="badge bg-primary">Sponsor: {{ root_member.sponsor_income }}</span><br>
-                    <span class="badge bg-warning text-dark">Flashout: {{ root_member.flashout }}</span>
-                </div>
-                <div class="mt-2">
-                    <a href="/member/edit/{{ root_member.auto_id }}/" class="btn btn-sm btn-outline-secondary">Edit</a>
-                </div>
-            </div>
-        </div>
+  <div class="row text-center mb-4">
+    <div class="col-md-4 col-6"><strong>Sponsor Income</strong><br>₹{{ sponsor_income }}</div>
+    <div class="col-md-4 col-6"><strong>Flashout</strong><br>₹{{ flashout }}</div>
+    <div class="col-md-4 col-12"><strong>Binary Eligible</strong><br>{{ binary_eligible }}</div>
+  </div>
+
+  <!-- ================= TREE WRAPPER ================= -->
+  <div class="tree-container">
+    <div class="tree" id="tree">
+
+      <!-- ROOT NODE -->
+      {% include "tree_node.html" with member=root_member %}
+
     </div>
+  </div>
+
 </div>
+
+<!-- ================= ZOOM CONTROLS ================= -->
+<div class="zoom-controls">
+  <button class="btn btn-primary" onclick="zoomIn()">＋</button>
+  <button class="btn btn-primary" onclick="zoomOut()">－</button>
+</div>
+
+<!-- ================= ZOOM SCRIPT ================= -->
+<script>
+let scale = 1;
+const tree = document.getElementById("tree");
+
+function zoomIn() {
+  scale += 0.1;
+  tree.style.transform = `scale(${scale})`;
+}
+
+function zoomOut() {
+  scale = Math.max(0.5, scale - 0.1);
+  tree.style.transform = `scale(${scale})`;
+}
+</script>
 
 </body>
 </html>

@@ -5,100 +5,65 @@ from django.utils import timezone
 from decimal import Decimal
 from collections import deque
 
-
 # ==========================================================
-# AUTO ID GENERATOR (Legacy fallback)
-# ==========================================================
-def generate_auto_id():
-    """
-    Generates rocky001, rocky002, rocky003...
-    Uses the Member table directly.
-    This is a fallback if RockCounter is not used.
-    """
-    from herbalapp.models import Member
-
-    last = Member.objects.order_by('-id').first()
-    if not last:
-        return "rocky001"
-
-    last_id = last.auto_id.replace("rocky", "")
-    new_number = int(last_id) + 1
-    return f"rocky{new_number:03d}"
-
-
-# ==========================================================
-# AUTO COUNTER FOR ROCKY IDs (Recommended)
+# AUTO COUNTER FOR ROCKY IDs
 # ==========================================================
 class RockCounter(models.Model):
-    """
-    A safe, atomic counter for generating Rocky IDs.
-    Prevents race conditions when multiple members register at once.
-    """
     name = models.CharField(max_length=50, unique=True)
     last = models.PositiveIntegerField(default=0)
 
     def __str__(self):
         return f"{self.name}:{self.last}"
 
-# herbalapp/models.py (Member extract only)
-
-from decimal import Decimal
-from collections import deque
-
-from django.db import models, transaction
-from django.utils import timezone
-
-from herbalapp.mlm_engine_binary import (
-    calculate_member_binary_income_for_day,
-    determine_rank_from_bv,
-)
 
 # ==========================================================
-# MEMBER MODEL (MAIN GENEALOGY TREE)
+# MEMBER MODEL (MAIN – MLM ENGINE SAFE)
 # ==========================================================
 class Member(models.Model):
 
-    @property
-    def left_member(self):
-        return self.left_child
-
-    @property
-    def right_member(self):
-        return self.right_child
-
+    # -------------------------
+    # SYSTEM ID
+    # -------------------------
+    auto_id = models.CharField(max_length=20, unique=True)
 
     # -------------------------
     # BASIC DETAILS
     # -------------------------
-    auto_id = models.CharField(max_length=20, unique=True)
-
     name = models.CharField(max_length=200)
     phone = models.CharField(max_length=20)
     email = models.EmailField(blank=True, null=True)
     avatar = models.ImageField(upload_to='avatars/', blank=True, null=True)
 
-    activation_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    activation_amount = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=0
+    )
+
     is_active = models.BooleanField(default=False)
 
-    total_bv = models.IntegerField(default=0)  # can be used as cached field if needed
-    rank = models.CharField(max_length=100, default="", blank=True)  # legacy, kept for compatibility
+    # -------------------------
+    # BUSINESS VOLUME & RANK
+    # -------------------------
+    total_bv = models.IntegerField(default=0)
+    rank = models.CharField(max_length=100, blank=True, default="")
 
-    total_left_bv = models.IntegerField(default=0)   # optional cache
-    total_right_bv = models.IntegerField(default=0)  # optional cache
+    total_left_bv = models.IntegerField(default=0)
+    total_right_bv = models.IntegerField(default=0)
 
     # -------------------------
-    # IDENTIFICATION / ADDRESS
+    # ADDRESS / KYC
     # -------------------------
     aadhar = models.CharField(max_length=20, blank=True, null=True)
-    aadhar_number = models.CharField(max_length=20, null=True, blank=True)
+    aadhar_number = models.CharField(max_length=20, blank=True, null=True)
     place = models.CharField(max_length=100, blank=True, null=True)
-    district = models.CharField(max_length=100, null=True, blank=True)
-    taluk = models.CharField(max_length=100, null=True, blank=True)
-    pincode = models.CharField(max_length=10, null=True, blank=True)
+    district = models.CharField(max_length=100, blank=True, null=True)
+    taluk = models.CharField(max_length=100, blank=True, null=True)
+    pincode = models.CharField(max_length=10, blank=True, null=True)
 
-    # -------------------------
-    # BINARY TREE (PARENT & CHILDREN)
-    # -------------------------
+    # =====================================================
+    # 🔥 BINARY TREE (FOR TREE DISPLAY & PAIR CALCULATION)
+    # =====================================================
     parent = models.ForeignKey(
         'self',
         null=True,
@@ -107,7 +72,6 @@ class Member(models.Model):
         related_name='children'
     )
 
-    # side = left / right under parent (binary tree)
     side = models.CharField(
         max_length=5,
         choices=[('left', 'Left'), ('right', 'Right')],
@@ -115,25 +79,11 @@ class Member(models.Model):
         blank=True
     )
 
-    # Binary pointers
-    left_child = models.OneToOneField(
-        'self',
-        null=True,
-        blank=True,
-        on_delete=models.SET_NULL,
-        related_name='left_of'
-    )
-    right_child = models.OneToOneField(
-        'self',
-        null=True,
-        blank=True,
-        on_delete=models.SET_NULL,
-        related_name='right_of'
-    )
+    # ❌ REMOVED: left_child / right_child (BUG ROOT CAUSE)
 
-    # -------------------------
-    # SPONSOR TREE
-    # -------------------------
+    # =====================================================
+    # SPONSOR TREE (FOR SPONSOR INCOME)
+    # =====================================================
     sponsor = models.ForeignKey(
         'self',
         null=True,
@@ -142,10 +92,9 @@ class Member(models.Model):
         related_name='sponsored_members'
     )
 
-    # -------------------------
-    # OPTIONAL: PLACEMENT TREE
-    # (Kept only if you really use it; otherwise can be removed)
-    # -------------------------
+    # =====================================================
+    # PLACEMENT TREE (FOR YOUR RULES)
+    # =====================================================
     placement = models.ForeignKey(
         'self',
         null=True,
@@ -153,6 +102,26 @@ class Member(models.Model):
         on_delete=models.SET_NULL,
         related_name='placement_downline'
     )
+
+    # -------------------------
+    # TIMESTAMP
+    # -------------------------
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    # =====================================================
+    # 🔑 HELPER METHODS (TREE SAFE)
+    # =====================================================
+    def left_child(self):
+        return Member.objects.filter(parent=self, side='left').first()
+
+    def right_child(self):
+        return Member.objects.filter(parent=self, side='right').first()
+
+    def has_pair(self):
+        return self.left_child() and self.right_child()
+
+    def __str__(self):
+        return f"{self.auto_id} - {self.name}"
 
     # -------------------------
     # PACKAGE / RANK
@@ -446,45 +415,6 @@ class Member(models.Model):
     # ==========================================================
     # BINARY ENGINE WRAPPER (PER DAY)
     # ==========================================================
-    def run_binary_engine_for_day(self, left_joins_today: int, right_joins_today: int):
-        """
-        Wraps calculate_member_binary_income_for_day for this member.
-        Updates:
-        - binary_eligible
-        - left_cf / right_cf
-        - binary_income
-        - flash_bonus
-        Logs into DailyIncomeReport.
-        """
-        result = calculate_member_binary_income_for_day(
-            left_joins_today=left_joins_today,
-            right_joins_today=right_joins_today,
-            left_cf_before=self.left_cf,
-            right_cf_before=self.right_cf,
-            binary_eligible=self.binary_eligible,
-        )
-
-        self.binary_eligible = result["new_binary_eligible"]
-        self.left_cf = result["left_cf_after"]
-        self.right_cf = result["right_cf_after"]
-
-        self.binary_income += Decimal(result["binary_income"])
-        self.flash_bonus += Decimal(result["flashout_income"])
-        self.binary_pairs += int(result["binary_pairs_paid"])
-
-        self.save()
-
-        DailyIncomeReport.objects.create(
-            member=self,
-            binary_income=result["binary_income"],
-            flash_bonus=result["flashout_income"],
-            sponsor_income=Decimal('0.00'),  # sponsor income handled separately
-            salary=Decimal('0.00'),
-            stock_commission=Decimal('0.00'),
-            total_income=result["total_income"],
-        )
-
-        return result
 
 
 # ==========================================================

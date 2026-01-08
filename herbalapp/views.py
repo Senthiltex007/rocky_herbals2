@@ -13,8 +13,21 @@ from django.urls import reverse
 from django.views.decorators.csrf import csrf_exempt
 from django.db.models import Sum
 
+
 import csv
 import openpyxl
+# -------------------------
+# STATIC / SIMPLE PAGES
+# -------------------------
+
+from django.shortcuts import render
+
+def join(request):
+    """
+    Join Us page
+    """
+    return render(request, "join.html", {"page_title": "Join Us"})
+
 
 # Charts (openpyxl)
 from openpyxl.chart import BarChart, LineChart, Reference
@@ -195,10 +208,8 @@ def add_combo_chart(ws, bv_start_row, wallet_start_row, rank_start_row, rank_end
     bar += line
 
 
-    # ============================
-    # ✅ 4. Place Chart in Sheet
-    # ============================
-    ws.add_chart(bar, "P30")
+from openpyxl.chart import BarChart, LineChart, Reference
+from django.db.models import QuerySet
 
 
 def add_dashboard_sheet(wb, members):
@@ -212,41 +223,77 @@ def add_dashboard_sheet(wb, members):
     - BV vs Wallet Chart
     """
 
+    # ==================================================
+    # ✅ SAFETY: members can be queryset OR list
+    # ==================================================
+    if isinstance(members, QuerySet):
+        members_qs = members
+        members_list = list(members)
+    else:
+        members_list = list(members)
+        members_qs = Member.objects.filter(
+            id__in=[m.id for m in members_list]
+        )
+
     ws = wb.create_sheet(title="Dashboard")
 
-    # ============================
+    # ==================================================
     # ✅ OVERALL SUMMARY
-    # ============================
+    # ==================================================
     ws.append(["Dashboard Summary"])
-    ws.append(["Total Members", members.count()])
+    ws.append(["Total Members", len(members_list)])
 
-    total_left_bv = sum((m.get_bv_counts()[0] or 0) for m in members)
-    total_right_bv = sum((m.get_bv_counts()[1] or 0) for m in members)
+    total_left_bv = sum(
+        (m.get_bv_counts()[0] or 0) for m in members_list
+    )
+    total_right_bv = sum(
+        (m.get_bv_counts()[1] or 0) for m in members_list
+    )
 
     ws.append(["Total Left BV", total_left_bv])
     ws.append(["Total Right BV", total_right_bv])
     ws.append(["Total Matched BV", min(total_left_bv, total_right_bv)])
 
-    total_repurchase = sum(getattr(m, "repurchase_wallet", 0) or 0 for m in members)
-    total_flash = sum(getattr(m, "flash_wallet", 0) or 0 for m in members)
+    total_repurchase = sum(
+        getattr(m, "repurchase_wallet", 0) or 0
+        for m in members_list
+    )
+    total_flash = sum(
+        getattr(m, "flash_wallet", 0) or 0
+        for m in members_list
+    )
 
     ws.append(["Total Repurchase Wallet", total_repurchase])
     ws.append(["Total Flash Wallet", total_flash])
 
-    # ============================
-    # ✅ RANK SUMMARY
-    # ============================
+    # ==================================================
+    # ✅ RANK SUMMARY (DYNAMIC – NO HARD CODING)
+    # ==================================================
     ws.append([])
     ws.append(["Rank Summary"])
 
-    rank_titles = ["1st Star", "Double Star", "Triple Star"]
-    for title in rank_titles:
-        count = members.filter(current_rank=title).count()
-        ws.append([title, count])
+    rank_start_row = ws.max_row + 1
 
-    # ============================
+    ranks = (
+        members_qs
+        .values_list("current_rank", flat=True)
+        .exclude(current_rank__isnull=True)
+        .exclude(current_rank="")
+        .distinct()
+    )
+
+    if not ranks:
+        ws.append(["No Rank Data", 0])
+    else:
+        for rank in ranks:
+            count = members_qs.filter(current_rank=rank).count()
+            ws.append([rank, count])
+
+    rank_end_row = ws.max_row
+
+    # ==================================================
     # ✅ RANK DISTRIBUTION CHART
-    # ============================
+    # ==================================================
     chart1 = BarChart()
     chart1.title = "Rank Distribution"
     chart1.x_axis.title = "Rank"
@@ -255,77 +302,96 @@ def add_dashboard_sheet(wb, members):
     chart1.width = 20
     chart1.legend.position = "r"
 
-    # Last 3 rows contain rank summary
-    rank_end = ws.max_row
-    rank_start = rank_end - 2
-
-    data = Reference(ws, min_col=2, min_row=rank_start, max_row=rank_end)
-    cats = Reference(ws, min_col=1, min_row=rank_start, max_row=rank_end)
+    data = Reference(
+        ws,
+        min_col=2,
+        min_row=rank_start_row,
+        max_row=rank_end_row
+    )
+    cats = Reference(
+        ws,
+        min_col=1,
+        min_row=rank_start_row,
+        max_row=rank_end_row
+    )
 
     chart1.add_data(data, titles_from_data=False)
     chart1.set_categories(cats)
-
     ws.add_chart(chart1, "E5")
 
-    # ============================
-    # ✅ BV vs WALLET CHART
-    # ============================
+    # ==================================================
+    # ✅ BV vs WALLET CHART (NO HARD-CODED ROWS)
+    # ==================================================
     chart2 = BarChart()
     chart2.type = "col"
-    chart2.grouping = "stacked"
+    chart2.grouping = "clustered"  # ✅ correct for single-series
     chart2.title = "BV vs Wallet Comparison"
     chart2.height = 12
     chart2.width = 20
     chart2.legend.position = "r"
 
-    # BV/Wallet rows = rows 2 to 7
-    data2 = Reference(ws, min_col=2, min_row=2, max_row=7)
-    cats2 = Reference(ws, min_col=1, min_row=2, max_row=7)
+    bv_wallet_start_row = 2
+    bv_wallet_end_row = 1 + 1 + 5  # summary rows count (safe)
+
+    data2 = Reference(
+        ws,
+        min_col=2,
+        min_row=bv_wallet_start_row,
+        max_row=bv_wallet_end_row
+    )
+    cats2 = Reference(
+        ws,
+        min_col=1,
+        min_row=bv_wallet_start_row,
+        max_row=bv_wallet_end_row
+    )
 
     chart2.add_data(data2, titles_from_data=False)
     chart2.set_categories(cats2)
-
     ws.add_chart(chart2, "E20")
 
-    # ============================
-    # ✅ OPTIONAL: RANK PROGRESSION (placeholder)
-    # ============================
-    # chart3 = LineChart()
-    # chart3.title = "Rank Progression Trend"
-    # chart3.y_axis.title = "Members"
-    # chart3.x_axis.title = "Month"
-    #
-    # data3 = Reference(ws, min_col=2, min_row=15, max_row=20)
-    # cats3 = Reference(ws, min_col=1, min_row=15, max_row=20)
-    #
-    # chart3.add_data(data3, titles_from_data=False)
-    # chart3.set_categories(cats3)
-    #
-    # ws.add_chart(chart3, "M5")
+    # ==================================================
+    # ✅ DONE – CLEAN & SAFE
+    # ==================================================
 
 # -------------------------
 # HOME / STATIC PAGES
 # -------------------------
 
+from django.shortcuts import render
+
+
 def home(request):
+    """
+    Home page
+    """
     return render(request, "home.html")
 
 
 def about(request):
+    """
+    About Us page
+    """
     context = {
         "page_title": "About Us",
         "company": "Rocky Herbals",
-        "description": "We are a herbal products company focused on natural wellness and sustainable herbal solutions."
+        "description": (
+            "We are a herbal products company focused on natural wellness "
+            "and sustainable herbal solutions."
+        ),
     }
     return render(request, "about.html", context)
 
 
 def contact(request):
+    """
+    Contact Us page
+    """
     context = {
         "page_title": "Contact Us",
         "email": "info@rockyherbals.com",
-        "phone": "8122105779",
-        "address": "Nambiyur, Tamil Nadu, India"
+        "phone": "+91 81221 05779",
+        "address": "Nambiyur, Tamil Nadu, India",
     }
     return render(request, "contact.html", context)
 
@@ -333,18 +399,39 @@ def contact(request):
 # -------------------------
 # AUTH / MEMBER LOGIN
 # -------------------------
+
+from django.shortcuts import render, redirect
+from django.contrib import messages
+from django.contrib.auth import authenticate, login
+
+
 def member_login(request):
+    """
+    Member login view
+    """
+
     if request.method == "POST":
         username = request.POST.get("username", "").strip()
         password = request.POST.get("password", "").strip()
 
+        # ✅ Basic validation
+        if not username or not password:
+            messages.error(request, "Username and password are required.")
+            return render(request, "member_login.html")
+
         user = authenticate(request, username=username, password=password)
 
-        if user:
+        if user is not None:
+            # ✅ Optional: block inactive users
+            if not user.is_active:
+                messages.error(request, "Your account is inactive. Please contact admin.")
+                return render(request, "member_login.html")
+
             login(request, user)
             return redirect("member_list")
 
-        messages.error(request, "Invalid username or password")
+        # ❌ Invalid credentials
+        messages.error(request, "Invalid username or password.")
 
     return render(request, "member_login.html")
 
@@ -352,34 +439,70 @@ def member_login(request):
 # -------------------------
 # ADMIN LOGIN / DASHBOARD
 # -------------------------
+
+from django.shortcuts import render, redirect
+from django.contrib import messages
+from django.contrib.auth import authenticate, login
+from django.contrib.auth.decorators import login_required, user_passes_test
+from django.db.models import Sum
+
+from .models import Member, Payment, Product, Income
+
+
+# =========================
+# 🔐 ADMIN LOGIN
+# =========================
 def admin_login(request):
     if request.method == "POST":
         username = request.POST.get("username", "").strip()
         password = request.POST.get("password", "").strip()
 
+        # ✅ Basic validation
+        if not username or not password:
+            messages.error(request, "Username and password are required.")
+            return render(request, "admin_login.html")
+
         user = authenticate(request, username=username, password=password)
 
+        # ✅ Only staff users allowed
         if user and user.is_staff:
+            if not user.is_active:
+                messages.error(request, "Admin account is inactive.")
+                return render(request, "admin_login.html")
+
             login(request, user)
             return redirect("admin_dashboard")
 
-        messages.error(request, "Invalid admin credentials")
+        messages.error(request, "Invalid admin credentials.")
 
     return render(request, "admin_login.html")
 
 
+# =========================
+# 🔒 ADMIN CHECK
+# =========================
+def is_admin(user):
+    return user.is_authenticated and user.is_staff
+
+
+# =========================
+# 📊 ADMIN DASHBOARD
+# =========================
 @login_required
+@user_passes_test(is_admin)
 def admin_dashboard(request):
-    # Total members
+
+    # 👥 Members
     total_members = Member.objects.count()
 
-    # Paid & unpaid members
+    # 💳 Payments
     paid_members = Payment.objects.filter(status="Paid").count()
     unpaid_members = total_members - paid_members
 
-    # Total income (null-safe)
+    # 💰 Total income (null-safe)
     total_income = (
-        Payment.objects.filter(status="Paid")
+        Payment.objects
+        .filter(status="Paid")
         .aggregate(total=Sum("amount"))
         .get("total") or 0
     )
@@ -387,7 +510,8 @@ def admin_dashboard(request):
     context = {
         "company_name": "Rocky Herbals",
         "total_members": total_members,
-        "unpaid": unpaid_members,
+        "paid_members": paid_members,
+        "unpaid_members": unpaid_members,
         "income": total_income,
         "products_count": Product.objects.count(),
         "income_count": Income.objects.count(),
@@ -395,31 +519,55 @@ def admin_dashboard(request):
 
     return render(request, "admin_dashboard.html", context)
 
-
 # -------------------------
 # MEMBER CRUD / LIST
 # -------------------------
-from django.contrib.auth.decorators import login_required
+
+from django.contrib.auth.decorators import login_required, user_passes_test
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
+from django.views.decorators.http import require_POST
+
+from .models import Member
 
 
+# =========================
+# 🔒 ADMIN CHECK
+# =========================
+def is_admin(user):
+    return user.is_authenticated and user.is_staff
+
+
+# =========================
+# 👥 MEMBER LIST
+# =========================
 @login_required
+@user_passes_test(is_admin)
 def member_list(request):
     members = Member.objects.all().order_by("id")
     return render(request, "member_list.html", {"members": members})
 
 
+# =========================
+# ❌ DELETE MEMBER (ADMIN ONLY)
+# =========================
 @login_required
+@user_passes_test(is_admin)
+@require_POST
 def delete_member(request, auto_id):
 
-    # ✅ Support both numeric PK and business auto_id
+    # ✅ Support both numeric PK & auto_id
     if str(auto_id).isdigit():
         member = get_object_or_404(Member, id=auto_id)
     else:
         member = get_object_or_404(Member, auto_id=auto_id)
 
-    # ✅ Prevent deleting members who have children
+    # 🚫 Protect ROOT / Dummy members
+    if member.auto_id in ["rocky001", "rocky004"]:
+        messages.error(request, "❌ Root member cannot be deleted.")
+        return redirect("member_list")
+
+    # 🚫 Block if member has children
     if member.left_child or member.right_child:
         messages.error(
             request,
@@ -427,88 +575,135 @@ def delete_member(request, auto_id):
         )
         return redirect("member_list")
 
-    # ✅ Detach from parent safely
+    # ✅ Detach safely from parent
     parent = member.parent
     if parent:
         if parent.left_child_id == member.id:
             parent.left_child = None
         elif parent.right_child_id == member.id:
             parent.right_child = None
-        parent.save()
+        parent.save(update_fields=["left_child", "right_child"])
 
-    # ✅ Delete member
     member.delete()
 
     messages.success(request, f"✅ {member.name} deleted successfully!")
     return redirect("member_list")
 
 
-@login_required
-def replace_member(request, auto_id):
-    member = get_object_or_404(Member, id=auto_id)
+from django.contrib.auth.decorators import login_required, user_passes_test
+from django.shortcuts import render, redirect, get_object_or_404
+from django.contrib import messages
+from django.db import transaction
 
+from .models import Member
+
+
+# =========================
+# 🔒 ADMIN CHECK
+# =========================
+def is_admin(user):
+    return user.is_authenticated and user.is_staff
+
+
+# =========================
+# 🔁 REPLACE / MOVE MEMBER
+# =========================
+@login_required
+@user_passes_test(is_admin)
+def replace_member(request, auto_id):
+
+    # ✅ auto_id safe lookup
+    member = get_object_or_404(Member, auto_id=auto_id)
+
+    # 🚫 Protect root / dummy members
+    if member.auto_id in ["rocky001", "rocky004"]:
+        messages.error(request, "❌ Root member cannot be moved.")
+        return redirect("member_list")
+
+    # =========================
+    # 🔁 POST → MOVE
+    # =========================
     if request.method == "POST":
         new_parent_id = request.POST.get("new_parent")
         new_side = request.POST.get("side")
 
-        new_parent = get_object_or_404(Member, id=new_parent_id)
-        if new_parent.id == member.id:
-            messages.error(request, "A member cannot be their own parent!")
-            return redirect("replace_member", auto_id=member.id)
+        if new_side not in ["L", "R"]:
+            messages.error(request, "❌ Invalid side selected.")
+            return redirect("replace_member", auto_id=member.auto_id)
 
+        new_parent = get_object_or_404(Member, id=new_parent_id)
+
+        # 🚫 Cannot move under itself
+        if new_parent.id == member.id:
+            messages.error(request, "❌ A member cannot be their own parent.")
+            return redirect("replace_member", auto_id=member.auto_id)
+
+        # 🚫 Prevent loop (downline check)
         def is_downline(root, target):
             if not root:
                 return False
             if root.id == target.id:
                 return True
-            left, right = _get_children(root)
-            return is_downline(left, target) or is_downline(right, target)
+            return (
+                is_downline(root.left_child, target) or
+                is_downline(root.right_child, target)
+            )
 
         if is_downline(member, new_parent):
-            messages.error(request, "Cannot move under own downline!")
-            return redirect("replace_member", auto_id=member.id)
+            messages.error(request, "❌ Cannot move under own downline.")
+            return redirect("replace_member", auto_id=member.auto_id)
 
-        if new_side not in ["L", "R"]:
-            messages.error(request, "Invalid side!")
-            return redirect("replace_member", auto_id=member.id)
+        # 🚫 Side occupied check
+        if new_side == "L" and new_parent.left_child:
+            messages.error(request, "❌ Left side already occupied.")
+            return redirect("replace_member", auto_id=member.auto_id)
 
-        # Ensure side empty
-        left, right = _get_children(new_parent)
-        if new_side == "L" and left:
-            messages.error(request, "Left side occupied!")
-            return redirect("replace_member", auto_id=member.id)
-        if new_side == "R" and right:
-            messages.error(request, "Right side occupied!")
-            return redirect("replace_member", auto_id=member.id)
+        if new_side == "R" and new_parent.right_child:
+            messages.error(request, "❌ Right side already occupied.")
+            return redirect("replace_member", auto_id=member.auto_id)
 
-        # Detach from old parent
-        old_parent = member.parent
-        if old_parent:
-            if old_parent.left_child_id == member.id:
-                old_parent.left_child = None
-            elif old_parent.right_child_id == member.id:
-                old_parent.right_child = None
-            old_parent.save()
+        # =========================
+        # 🔐 ATOMIC TREE MOVE
+        # =========================
+        with transaction.atomic():
 
-        # Attach to new parent
-        member.parent = new_parent
-        member.side = new_side
-        if new_side == "L":
-            new_parent.left_child = member
-        else:
-            new_parent.right_child = member
+            # Detach from old parent
+            old_parent = member.parent
+            if old_parent:
+                if old_parent.left_child_id == member.id:
+                    old_parent.left_child = None
+                elif old_parent.right_child_id == member.id:
+                    old_parent.right_child = None
+                old_parent.save(update_fields=["left_child", "right_child"])
 
-        new_parent.save()
-        member.save()
+            # Attach to new parent
+            member.parent = new_parent
+            member.side = new_side
 
-        messages.success(request, "Member moved successfully!")
+            if new_side == "L":
+                new_parent.left_child = member
+            else:
+                new_parent.right_child = member
+
+            new_parent.save(update_fields=["left_child", "right_child"])
+            member.save(update_fields=["parent", "side"])
+
+        messages.success(request, "✅ Member moved successfully.")
         return redirect("member_list")
 
-    all_members = Member.objects.exclude(id=auto_id)
-    return render(request, "replace_member.html", {
-        "member": member,
-        "members": all_members
-    })
+    # =========================
+    # GET → SHOW FORM
+    # =========================
+    members = Member.objects.exclude(id=member.id)
+
+    return render(
+        request,
+        "replace_member.html",
+        {
+            "member": member,
+            "members": members,
+        }
+    )
 
 
 from django.contrib.auth.decorators import login_required
@@ -756,11 +951,12 @@ def build_tree_html(member):
         f"onclick=\"showMemberDetail({{id:'{member.auto_id}', name:'{safe_name}', phone:'{safe_phone}'}})\">"
         f"{safe_name} <br><small>ID: {safe_auto}</small>"
         f"</div>"
+        f"<ul>"
     )
 
-    node_html += "<ul>"
-
-    # ✅ LEFT CHILD
+    # -------------------------
+    # LEFT CHILD
+    # -------------------------
     if left:
         node_html += build_tree_html(left)
     else:
@@ -770,7 +966,9 @@ def build_tree_html(member):
             f"<a href='{add_url}'>Add</a></div></li>"
         )
 
-    # ✅ RIGHT CHILD
+    # -------------------------
+    # RIGHT CHILD
+    # -------------------------
     if right:
         node_html += build_tree_html(right)
     else:
@@ -783,40 +981,55 @@ def build_tree_html(member):
     node_html += "</ul></li>"
     return node_html
 
+from django.shortcuts import render, get_object_or_404
+from herbalapp.models import Member
 
-# ======================================================
-# TREE VIEW PAGES
-# ======================================================
 def tree_view(request, auto_id):
-
-    # ✅ Normalize numeric → business auto_id
+    # Normalize numeric ID → auto_id
     if str(auto_id).isdigit():
-        if str(auto_id) == "1":
-            auto_id = "rocky001"
-        else:
-            try:
-                pk_member = Member.objects.get(id=int(auto_id))
-                auto_id = pk_member.auto_id
-            except Member.DoesNotExist:
-                return render(request, "tree_not_found.html", {"auto_id": auto_id})
+        try:
+            pk_member = Member.objects.get(id=int(auto_id))
+            auto_id = pk_member.auto_id
+        except Member.DoesNotExist:
+            return render(request, "tree_not_found.html", {"auto_id": auto_id})
 
-    # ✅ Load member safely
-    member = Member.objects.filter(auto_id=auto_id).first()
-    if not member:
-        return render(request, "tree_not_found.html", {"auto_id": auto_id})
+    # Load member safely
+    member = get_object_or_404(Member, auto_id=auto_id)
 
-    # ✅ Render avatar-based dynamic tree
-    return render(request, "herbalapp/dynamic_tree.html", {
-        "root_member": member
-    })
+    # Corrected counts
+    left_count = member.children.filter(side="left").count()
+    right_count = member.children.filter(side="right").count()
+    pairs = min(left_count, right_count)
 
+    context = {
+        "root_member": member,
+        "left_count": left_count,
+        "right_count": right_count,
+        "pairs": pairs,
+        "binary_income": getattr(member, "binary_income", 0),
+        "sponsor_income": getattr(member, "sponsor_income", 0),
+        "flashout": getattr(member, "flashout", 0),
+        "binary_eligible": getattr(member, "binary_eligible", 0),
+    }
+    return render(request, "herbalapp/dynamic_tree.html", context)
+
+
+# ======================================================
+# PYRAMID / MLM TREE VIEW
+# ======================================================
+from django.shortcuts import render, get_object_or_404
+from herbalapp.models import Member
 
 def pyramid_view(request, auto_id):
+    """
+    Shows a pyramid/tree starting from a given member.
+    Handles numeric IDs, missing members, and passes the root to template.
+    """
 
-    # ✅ Normalize numeric → business auto_id
+    # Normalize numeric ID → auto_id
     if str(auto_id).isdigit():
         if str(auto_id) == "1":
-            auto_id = "rocky001"
+            auto_id = "rocky001"  # Root member
         else:
             try:
                 pk_member = Member.objects.get(id=int(auto_id))
@@ -824,107 +1037,126 @@ def pyramid_view(request, auto_id):
             except Member.DoesNotExist:
                 return render(request, "tree_not_found.html", {"auto_id": auto_id})
 
-    # ✅ Load member safely
+    # Load member safely
     root = Member.objects.filter(auto_id=auto_id).first()
     if not root:
         return render(request, "tree_not_found.html", {"auto_id": auto_id})
 
-    # ✅ Render avatar-based dynamic tree
+    # ✅ Prefetch children instead of left_child/right_child
+    root = Member.objects.prefetch_related("children").get(auto_id=auto_id)
+
+    # Render pyramid/tree HTML
     return render(request, "herbalapp/dynamic_tree.html", {
         "root_member": root
     })
-
-# ======================================================
-# TREE VIEW (FINAL AVATAR VERSION)
-# ======================================================
 
 from django.shortcuts import render, get_object_or_404
 from django.urls import reverse
 from .models import Member
 
+from django.shortcuts import render, get_object_or_404
+from django.db.models import Prefetch
+from .models import Member
 
+# ======================================================
+# TREE VIEW HELPER
+# ======================================================
 def _normalize_member_id(auto_id):
     """Convert numeric ID → business auto_id."""
     if str(auto_id).isdigit():
         if str(auto_id) == "1":
-            return "rocky001"
+            return "rocky001"  # Root member
         try:
             pk_member = Member.objects.get(id=int(auto_id))
             return pk_member.auto_id
-        except:
+        except Member.DoesNotExist:
             return None
     return auto_id
 
 
-from django.shortcuts import render, get_object_or_404
-from herbalapp.models import Member
+# ======================================================
+# MAIN TREE VIEW
+# ======================================================
+def tree_view(request, auto_id=None):
+    """
+    Show a member tree starting from a root.
+    - Default: rocky005
+    - Accepts numeric PK or auto_id
+    """
+    if not auto_id:
+        auto_id = "rocky005"  # Default root
 
-def member_tree_root(request):
-    """Show tree starting from Rocky005 as root."""
-    # Rocky005 fetch
-    root = get_object_or_404(Member, auto_id="rocky005")
+    # Normalize
+    auto_id = _normalize_member_id(auto_id)
+    if not auto_id:
+        return render(request, "tree_not_found.html", {"auto_id": auto_id})
+
+    # ✅ Prefetch children relation
+    root_member = get_object_or_404(
+        Member.objects.prefetch_related(Prefetch("children")),
+        auto_id=auto_id
+    )
+
     return render(request, "herbalapp/dynamic_tree.html", {
-        "root_member": root
+        "root_member": root_member
     })
 
 
+# ======================================================
+# MEMBER NOT FOUND VIEW
+# ======================================================
+def member_not_found(request, member_id=None):
+    return render(request, 'herbalapp/member_not_found.html', {'member_id': member_id})
+
+
+# ======================================================
+# MEMBER TREE VIEW
+# ======================================================
 def member_tree(request, auto_id):
-    """Show tree starting from any member."""
+    """Show tree starting from any member with prefetch optimization."""
+
     auto_id = _normalize_member_id(auto_id)
     if not auto_id:
         return render(request, "tree_not_found.html", {"auto_id": auto_id})
 
-    root = get_object_or_404(Member, auto_id=auto_id)
+    root = get_object_or_404(
+        Member.objects.prefetch_related(Prefetch("children")),
+        auto_id=auto_id
+    )
+
     return render(request, "herbalapp/dynamic_tree.html", {
         "root_member": root
     })
 
 
 # ======================================================
-# DYNAMIC TREE (FINAL AVATAR VERSION)
+# DYNAMIC TREE VIEW
 # ======================================================
-
-from django.shortcuts import render, get_object_or_404
-from django.urls import reverse
-from django.http import JsonResponse
-from .models import Member
-
-
 def dynamic_tree(request, auto_id):
-    """Avatar-based dynamic tree for any member."""
+    """Avatar-based dynamic tree with optimized prefetch."""
+
     auto_id = _normalize_member_id(auto_id)
     if not auto_id:
         return render(request, "tree_not_found.html", {"auto_id": auto_id})
 
-    member = get_object_or_404(Member, auto_id=auto_id)
+    member = get_object_or_404(
+        Member.objects.prefetch_related(Prefetch("children")),
+        auto_id=auto_id
+    )
 
-    # ✅ Always use the new avatar-based dynamic tree
     return render(request, "herbalapp/dynamic_tree.html", {
         "root_member": member
     })
-
-
-def place_member(request):
-    members = Member.objects.all().order_by("auto_id")
-    return render(request, "place_member.html", {"members": members})
-
-
-def join(request):
-    return render(request, "join.html", {"page_title": "Join Us"})
-
-
-def shop_login(request):
-    return render(request, "shop_login.html", {"page_title": "Shop Login"})
 
 from django.http import JsonResponse
 from django.utils import timezone
 from datetime import timedelta
 from .models import Member
 
-
 def member_detail_json(request, auto_id):
-
-    # ✅ Normalize ID: convert numeric → business auto_id
+    # -------------------------
+    # Normalize numeric → business auto_id
+    # -------------------------
     if str(auto_id).isdigit():
         if str(auto_id) == "1":
             auto_id = "rocky001"
@@ -932,34 +1164,52 @@ def member_detail_json(request, auto_id):
             try:
                 pk_member = Member.objects.get(id=int(auto_id))
                 auto_id = pk_member.auto_id
-            except:
+            except Member.DoesNotExist:
                 return JsonResponse({"error": "Member not found"}, status=404)
 
-    # ✅ Load using business auto_id
+    # -------------------------
+    # Load member
+    # -------------------------
     try:
         member = Member.objects.get(auto_id=auto_id)
     except Member.DoesNotExist:
         return JsonResponse({"error": "Member not found"}, status=404)
 
-    # ✅ Self BV calculation
-    bv_data = member.calculate_bv()
+    # -------------------------
+    # BV calculation
+    # -------------------------
+    bv_data = member.calculate_bv()  # Should return self_bv, left_bv, right_bv, total_bv
 
-    # ✅ Last month BV calculation
+    # -------------------------
+    # Last month BV
+    # -------------------------
     last_month_start = (timezone.now().replace(day=1) - timedelta(days=1)).replace(day=1)
-    last_month_end = last_month_start.replace(day=28) + timedelta(days=4)
-    last_month_end = last_month_end - timedelta(days=last_month_end.day)
+    last_month_end = (last_month_start.replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(days=1)
 
     last_month_orders = member.order_set.filter(
         status="Paid",
         created_at__date__gte=last_month_start,
         created_at__date__lte=last_month_end
     )
+    last_month_bv = sum(o.product.bv_value * o.quantity for o in last_month_orders) if last_month_orders else 0
 
-    last_month_bv = sum(
-        o.product.bv_value * o.quantity for o in last_month_orders
-    ) if last_month_orders else 0
+    # -------------------------
+    # Sponsor / Binary / Flashout / Carry forward
+    # -------------------------
+    # These fields assume your Member model has helper methods to calculate per rules:
+    # - member.get_sponsor_income()
+    # - member.get_binary_income()
+    # - member.get_flashout_units()
+    # - member.get_carry_forward_pairs()
 
-    # ✅ Response JSON
+    sponsor_income = getattr(member, "get_sponsor_income", lambda: 0)()
+    binary_income = getattr(member, "get_binary_income", lambda: 0)()
+    flashout_units = getattr(member, "get_flashout_units", lambda: 0)()
+    carry_forward_pairs = getattr(member, "get_carry_forward_pairs", lambda: 0)()
+
+    # -------------------------
+    # JSON response
+    # -------------------------
     data = {
         "auto_id": member.auto_id,
         "name": member.name,
@@ -969,12 +1219,17 @@ def member_detail_json(request, auto_id):
         "right_bv": float(bv_data.get("right_bv", 0)),
         "total_bv": float(bv_data.get("total_bv", 0)),
         "last_month_bv": float(last_month_bv),
+        "sponsor_income": float(sponsor_income),
+        "binary_income": float(binary_income),
+        "flashout_units": int(flashout_units),
+        "carry_forward_pairs": int(carry_forward_pairs),
     }
 
     return JsonResponse(data)
 
 
 from django.shortcuts import render as _render, get_object_or_404 as _get
+from django.db.models import Prefetch
 from .models import Member as _Member
 
 # -------------------------
@@ -989,31 +1244,44 @@ def _normalize_member_id(auto_id):
         try:
             pk_member = _Member.objects.get(id=int(auto_id))
             return pk_member.auto_id
-        except:
+        except _Member.DoesNotExist:
             return None
     return auto_id
 
 
 def member_tree_modern(request, auto_id):
-
     auto_id = _normalize_member_id(auto_id)
     if not auto_id:
         return _render(request, "tree_not_found.html", {"auto_id": auto_id})
 
-    root = _get(_Member, auto_id=auto_id)
+    # ✅ Prefetch children for recursion
+    root = _get(
+        _Member.objects.prefetch_related(Prefetch("children")),
+        auto_id=auto_id
+    )
 
-    return render(request, "herbalapp/dynamic_tree.html", {
+    return _render(request, "herbalapp/dynamic_tree.html", {
         "root_member": root
     })
 
 
-def member_tree_modern_root(request):
+from django.shortcuts import render as _render
+from django.db.models import Prefetch
+from .models import Member as _Member
 
-    root = _Member.objects.filter(auto_id="rocky001").first()
+def member_tree_modern_root(request):
+    """
+    Show the genealogy tree starting from rocky005 as root.
+    """
+
+    root = _Member.objects.filter(auto_id="rocky005").prefetch_related(
+        Prefetch("children")
+    ).first()
+
     if not root:
         return _render(request, "tree_not_found.html", {"message": "No root member found."})
 
-    return render(request, "herbalapp/dynamic_tree.html", {
+    return _render(request, "herbalapp/dynamic_tree.html", {
         "root_member": root
     })
 
@@ -1084,47 +1352,20 @@ def edit_sponsor(request, auto_id):
 # ======================================================
 # INCOME PAGE WITH FILTERS (FINAL VERSION)
 # ======================================================
-from django.db.models import Sum, F, Q
-from django.utils.dateparse import parse_date
+from django.db.models import Sum, F
+from django.shortcuts import render
 
 def income_view(request):
 
     incomes = Income.objects.all()
 
-    # ✅ Filters
-    auto_id = request.GET.get("auto_id")
-    name = request.GET.get("name")
-    date_from = request.GET.get("from")
-    date_to = request.GET.get("to")
+    # ---------------- FILTER INPUTS ----------------
     min_income = request.GET.get("min")
     max_income = request.GET.get("max")
 
-    # ✅ Apply filters safely
-    if auto_id:
-        incomes = incomes.filter(member__member_id__icontains=auto_id)
-
-    if name:
-        incomes = incomes.filter(member__name__icontains=name)
-
-    if date_from:
-        incomes = incomes.filter(created_at__date__gte=parse_date(date_from))
-
-    if date_to:
-        incomes = incomes.filter(created_at__date__lte=parse_date(date_to))
-
-    if min_income:
-        incomes = incomes.filter(
-            (F('binary_income') + F('sponsor_income') + F('salary_income') + F('flash_out_bonus')) >= float(min_income)
-        )
-
-    if max_income:
-        incomes = incomes.filter(
-            (F('binary_income') + F('sponsor_income') + F('salary_income') + F('flash_out_bonus')) <= float(max_income)
-        )
-
-    # ✅ Annotate total income per row
+    # ---------------- ANNOTATE FIRST ----------------
     incomes = incomes.annotate(
-        total_income = (
+        total_income=(
             F('binary_income') +
             F('sponsor_income') +
             F('salary_income') +
@@ -1132,14 +1373,16 @@ def income_view(request):
         )
     )
 
-    # ✅ Grand total
+    # ---------------- INCOME RANGE FILTER ----------------
+    if min_income:
+        incomes = incomes.filter(total_income__gte=float(min_income))
+
+    if max_income:
+        incomes = incomes.filter(total_income__lte=float(max_income))
+
+    # ---------------- GRAND TOTAL ----------------
     total_income_all = incomes.aggregate(
-        total=Sum(
-            F('binary_income') +
-            F('sponsor_income') +
-            F('salary_income') +
-            F('flash_out_bonus')
-        )
+        total=Sum('total_income')
     )['total'] or 0
 
     context = {
@@ -1147,7 +1390,7 @@ def income_view(request):
         "total_income_all": total_income_all,
     }
 
-    return render(request, "income_report.html", context)
+    return render(request, "herbalapp/income_report.html", context)
 
 # ======================================================
 # EXPORT INCOME TO EXCEL (multi-sheet + charts)
@@ -1593,44 +1836,77 @@ def member_register(request):
     return render(request, "member_register.html")
 
 
-from django.shortcuts import render, get_object_or_404, redirect
+# herbalapp/views.py
+
+from django.shortcuts import get_object_or_404, redirect, render
 from django.contrib import messages
-from herbalapp.models import Member
+from django.db import transaction
+from django.utils import timezone
+
+from .models import Member
 
 
+# ---------------------------------
+# AUTO ID GENERATOR (SAFE)
+# ---------------------------------
+def generate_auto_id():
+    last = (
+        Member.objects
+        .filter(auto_id__startswith="rocky")
+        .order_by("-id")
+        .first()
+    )
+    if last and last.auto_id[5:].isdigit():
+        return f"rocky{int(last.auto_id[5:]) + 1:03d}"
+    return "rocky001"
+
+
+# ---------------------------------
+# ADD MEMBER UNDER PARENT
+# ---------------------------------
+from django.db import transaction
+from django.shortcuts import get_object_or_404, render, redirect
+from django.contrib import messages
+from .models import Member
+
+@transaction.atomic
 def add_member_under_parent(request, parent_id, position):
+
     parent = get_object_or_404(Member, auto_id=parent_id)
-
     position = position.lower()
-    if position not in ["left", "right"]:
-        messages.error(request, "Invalid position selected.")
+
+    if position not in ("left", "right"):
+        messages.error(request, "Invalid position.")
         return redirect("member_list")
 
-    # ❌ Block if already occupied
-    if position == "left" and parent.left_child:
-        messages.error(request, f"{parent.name} already has a LEFT child.")
-        return redirect("member_list")
+    # Block duplicate side
+    if position == "left" and Member.objects.filter(parent=parent, side="left").exists():
+        messages.error(request, f"{parent.auto_id} LEFT side already filled.")
+        return redirect("tree_view", parent.auto_id)
 
-    if position == "right" and parent.right_child:
-        messages.error(request, f"{parent.name} already has a RIGHT child.")
-        return redirect("member_list")
+    if position == "right" and Member.objects.filter(parent=parent, side="right").exists():
+        messages.error(request, f"{parent.auto_id} RIGHT side already filled.")
+        return redirect("tree_view", parent.auto_id)
 
-    # =========================
-    # GET → SHOW FORM
-    # =========================
+    # GET → form
     if request.method == "GET":
         return render(
             request,
-            "herbalapp/add_member_form.html",   # ✅ CORRECT TEMPLATE
-            {
-                "parent": parent,
-                "side": position,
-            }
+            "herbalapp/add_member_form.html",
+            {"parent": parent, "side": position}
         )
 
-    # =========================
-    # POST → SAVE MEMBER
-    # =========================
+    # -------------------------
+    # AUTO ID GENERATION
+    # -------------------------
+    last_member = Member.objects.order_by("-id").first()
+    if last_member and last_member.auto_id:
+        last_num = int(last_member.auto_id.replace("rocky", ""))
+        auto_id = f"rocky{last_num + 1:03d}"
+    else:
+        auto_id = "rocky001"
+
+    # POST data
     name = request.POST.get("name")
     phone = request.POST.get("phone")
     email = request.POST.get("email")
@@ -1638,41 +1914,20 @@ def add_member_under_parent(request, parent_id, position):
     place = request.POST.get("place")
     district = request.POST.get("district")
     pincode = request.POST.get("pincode")
-    sponsor_id = request.POST.get("sponsor_id")
+    sponsor_auto_id = request.POST.get("sponsor_id")
     avatar = request.FILES.get("avatar")
 
-    # -------------------------
-    # ✅ Sponsor validation
-    # -------------------------
+    # Sponsor validation
     sponsor = None
-    if sponsor_id:
-        sponsor = Member.objects.filter(auto_id=sponsor_id).first()
+    if sponsor_auto_id:
+        sponsor = Member.objects.filter(auto_id=sponsor_auto_id).first()
         if not sponsor:
-            messages.error(request, "Invalid Sponsor ID.")
+            messages.error(request, "Invalid Sponsor ID")
             return redirect(request.path)
 
-    # -------------------------
-    # ✅ AUTO MEMBER ID (BACKEND ONLY)
-    # -------------------------
-    last_member = (
-        Member.objects
-        .filter(auto_id__startswith="rocky")
-        .order_by("-auto_id")
-        .first()
-    )
-
-    if last_member:
-        last_num = int(last_member.auto_id.replace("rocky", ""))
-    else:
-        last_num = 0
-
-    auto_member_id = f"rocky{last_num + 1:03d}"
-
-    # -------------------------
-    # ✅ CREATE MEMBER
-    # -------------------------
+    # ✅ CREATE MEMBER (FIXED)
     new_member = Member.objects.create(
-        auto_id=auto_member_id,   # ✅ GENERATED HERE
+        auto_id=auto_id,
         name=name,
         phone=phone,
         email=email,
@@ -1684,21 +1939,12 @@ def add_member_under_parent(request, parent_id, position):
         parent=parent,
         side=position,
         avatar=avatar,
-        is_active=True,
+        is_active=False,
     )
-
-    # -------------------------
-    # ✅ ATTACH TO TREE
-    # -------------------------
-    if position == "left":
-        parent.left_child = new_member
-    else:
-        parent.right_child = new_member
-    parent.save()
 
     messages.success(
         request,
-        f"New member {name} ({auto_member_id}) added under {parent.name} on {position.upper()} side."
+        f"Member {new_member.auto_id} added under {parent.auto_id} ({position.upper()})"
     )
 
     return redirect("tree_view", parent.auto_id)
@@ -1848,12 +2094,10 @@ from django.shortcuts import render
 import datetime
 from herbalapp.models import DailyIncomeReport
 
-
 def income_report(request):
-
     date_str = request.GET.get("date")
 
-    # ✅ Parse date safely
+    # Parse date safely
     if date_str:
         for fmt in ("%Y-%m-%d", "%d-%m-%Y"):
             try:
@@ -1861,14 +2105,13 @@ def income_report(request):
                 break
             except ValueError:
                 target_date = None
-
         if target_date is None:
             target_date = datetime.date.today()
     else:
         target_date = datetime.date.today()
 
-    # ✅ Fetch reports for the selected date
-    reports = DailyIncomeReport.objects.filter(date=target_date).order_by("member__member_id")
+    # Fetch reports for the selected date
+    reports = DailyIncomeReport.objects.filter(date=target_date).order_by("member__auto_id")
 
     return render(request, "income_report.html", {
         "today": target_date,

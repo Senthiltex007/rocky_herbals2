@@ -21,6 +21,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'herbalapp.apps.HerbalappConfig',
+    'django_extensions',
 ]
 
 MIDDLEWARE = [

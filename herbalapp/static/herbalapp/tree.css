@@ -1,172 +1,115 @@
-/* ===============================
-   GLOBAL RESET
-================================ */
-* {
-  box-sizing: border-box;
-}
-
+/* ================= GLOBAL ================= */
 body {
-  font-family: "Segoe UI", Arial, sans-serif;
-  background: #f4f6f9;
-  margin: 0;
-  padding: 20px;
+  background: #f4f8ff;
+  font-family: Arial, sans-serif;
 }
 
-/* ===============================
-   TREE WRAPPER
-================================ */
+/* ================= TREE ROOT ================= */
 .pyramid-tree {
   display: flex;
   justify-content: center;
-  margin-top: 40px;
+  padding: 30px;
+  overflow-x: auto;
 }
 
-/* ===============================
-   NODE CONTAINER
-================================ */
+/* ================= NODE ================= */
 .pyramid-node {
-  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
+  position: relative;
 }
 
-/* ===============================
-   MEMBER CARD
-================================ */
+/* ================= MEMBER BOX ================= */
 .member {
   background: #ffffff;
-  border-radius: 14px;
-  padding: 14px 16px;
-  min-width: 200px;
+  border-radius: 12px;
+  padding: 10px 14px;
+  min-width: 140px;
   text-align: center;
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+  box-shadow: 0 4px 10px rgba(0,0,0,0.15);
   position: relative;
-  z-index: 2;
 }
 
-/* ===============================
-   AVATAR
-================================ */
-.avatar {
-  width: 70px;
-  height: 70px;
+/* avatar – REMOVE SQUARE */
+.member .avatar {
+  width: 60px;
+  height: 60px;
   border-radius: 50%;
+  border: 3px solid #0d6efd;
   object-fit: cover;
-  border: 4px solid #0d6efd;
-  background: #ffffff;
-  display: block;
-  margin: 0 auto 8px auto;
+  margin-bottom: 6px;
 }
 
-/* ===============================
-   MEMBER INFO
-================================ */
-.member-info {
-  font-size: 14px;
-  line-height: 1.4;
-  color: #222;
-}
-
-/* ===============================
-   ADD LINKS
-================================ */
-.add-links {
-  margin-top: 8px;
-}
-
-.add-links a {
-  display: inline-block;
-  font-size: 12px;
-  margin: 2px 4px;
-  padding: 4px 8px;
-  background: #0d6efd;
-  color: #fff;
-  border-radius: 6px;
-  text-decoration: none;
-}
-
-.add-links a:hover {
-  background: #084298;
-}
-
-/* ===============================
-   CHILDREN CONTAINER (KEY FIX)
-================================ */
+/* ================= CHILDREN CONTAINER ================= */
 .children {
-  position: absolute;
-  top: calc(100% + 60px);
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  gap: 100px;
-}
-
-/* ===============================
-   CHILD WRAPPER
-================================ */
-.child {
-  position: relative;
   display: flex;
   justify-content: center;
+  margin-top: 40px;
+  position: relative;
 }
 
-/* ===============================
-   VERTICAL LINE FROM PARENT
-================================ */
-.pyramid-node::after {
-  content: "";
-  position: absolute;
-  top: 100%;
-  left: 50%;
-  width: 4px;
-  height: 40px;
-  background: #0d6efd;
-  transform: translateX(-50%);
-}
-
-/* ===============================
-   HORIZONTAL CONNECTOR (PERFECT)
-================================ */
+/* vertical line from parent */
 .children::before {
   content: "";
   position: absolute;
   top: -40px;
-  left: 0;
-  right: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 4px;
+  height: 40px;
+  background: #0d6efd;
+}
+
+/* ================= CHILD ================= */
+.child {
+  position: relative;
+  margin: 0 35px;
+}
+
+/* horizontal connecting line */
+.child::before {
+  content: "";
+  position: absolute;
+  top: -20px;
+  left: -35px;
+  width: calc(100% + 70px);
   height: 4px;
   background: #0d6efd;
 }
 
-/* ===============================
-   VERTICAL LINE TO EACH CHILD
-================================ */
-.child::before {
+/* vertical up line to child */
+.child::after {
   content: "";
   position: absolute;
-  top: -40px;
+  top: -20px;
   left: 50%;
-  width: 4px;
-  height: 40px;
-  background: #0d6efd;
   transform: translateX(-50%);
+  width: 4px;
+  height: 20px;
+  background: #0d6efd;
 }
 
-/* ===============================
-   MOBILE RESPONSIVE
-================================ */
+/* ================= ADD LINKS ================= */
+.add-links {
+  margin-top: 6px;
+}
+.add-links a {
+  display: inline-block;
+  font-size: 12px;
+  margin: 2px;
+  text-decoration: none;
+  color: #0d6efd;
+}
+
+/* ================= MOBILE FIX ================= */
 @media (max-width: 768px) {
-  .children {
-    gap: 40px;
+  .child {
+    margin: 0 20px;
   }
 
   .member {
-    min-width: 160px;
-  }
-
-  .avatar {
-    width: 60px;
-    height: 60px;
+    min-width: 120px;
   }
 }
 

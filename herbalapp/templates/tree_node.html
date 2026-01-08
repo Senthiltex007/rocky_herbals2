@@ -1,0 +1,18 @@
+<div class="tree-node">
+  <div class="member-box">
+    <img src="{% if member.avatar %}{{ member.avatar.url }}{% else %}/static/herbalapp/default-avatar.png{% endif %}">
+    <strong>{{ member.name }}</strong><br>
+    {{ member.auto_id }}
+  </div>
+
+  {% if member.children.all %}
+  <div class="children">
+    {% for child in member.children.all %}
+      <div class="child">
+        {% include "tree_node.html" with member=child %}
+      </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+</div>
+
