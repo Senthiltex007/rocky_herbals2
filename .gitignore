@@ -42,3 +42,8 @@ media/
 .vscode/
 .idea/
 
+SAFE_BACKUP/
+herbalapp_backup_*/
+legacy_unused/
+__pycache__/
+*.pyc
