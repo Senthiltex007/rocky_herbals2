@@ -1,0 +1,53 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Income Report</title>
+  <link rel="stylesheet" href="{% static 'herbalapp/tree.css' %}">
+</head>
+<body>
+  <div class="container">
+    <h2>Income Report for {{ today }}</h2>
+
+    <!-- Date Filter Form -->
+    <form method="get" style="margin-bottom:20px;">
+      <label>Select Date:</label>
+      <input type="date" name="date" value="{{ today|date:'Y-m-d' }}">
+      <button type="submit">Filter</button>
+    </form>
+
+    <p>Total Reports: {{ count }}</p>
+
+    <table border="1" cellpadding="8" cellspacing="0">
+      <thead>
+        <tr>
+          <th>Member ID</th>
+          <th>Name</th>
+          <th>Sponsor Income</th>
+          <th>Binary Income</th>
+          <th>Flash Bonus</th>
+          <th>Salary</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for report in reports %}
+        <tr>
+          <td>{{ report.member.auto_id }}</td>
+          <td>{{ report.member.name }}</td>
+          <td>{{ report.sponsor_income }}</td>
+          <td>{{ report.binary_income }}</td>
+          <td>{{ report.flash_bonus }}</td>
+          <td>{{ report.salary }}</td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="6">No income records found for {{ today }}.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</body>
+</html>
+
