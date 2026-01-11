@@ -1,4 +1,4 @@
-# rocky_herbals/urls.py
+# herbalapp/urls.py
 
 from django.contrib import admin
 from django.urls import path
@@ -14,11 +14,11 @@ urlpatterns = [
     path('about/', views.about, name='about'),
     path('contact/', views.contact, name='contact'),
     path('join/', views.join, name='join'),
-    path('shop-login/', views.shop_login, name='shop_login'),
+    # path('shop-login/', views.shop_login, name='shop_login'),  # Commented: Not defined
 
     # ===================== TREE / PYRAMID VIEWS =====================
-    path('tree/root/', views.member_tree_root, name='member_tree_root'),
-    path('tree/', views.member_tree_root, name='member_tree_root_default'),
+    path('tree/root/', views.member_tree_modern_root, name='member_tree_root'),
+    path('tree/', views.member_tree_modern_root, name='member_tree_root_default'),
     path('tree/<str:auto_id>/', views.tree_view, name='tree_view'),
     path('tree/dynamic/<str:auto_id>/', views.dynamic_tree, name='dynamic_tree'),
     path('tree/modern/', views.member_tree_modern_root, name='member_tree_modern_root'),
@@ -34,18 +34,9 @@ urlpatterns = [
     path('member/add/', views.add_member_form, name='add_member_form'),
 
     # MAIN ADD MEMBER URL
-    path(
-        'member/add/<str:parent_id>/<str:position>/',
-        views.add_member_under_parent,
-        name='add_member'
-    ),
-
+    path('member/add/<str:parent_id>/<str:position>/', views.add_member_under_parent, name='add_member'),
     # 🔑 ALIAS (FIX FOR TREE TEMPLATE)
-    path(
-        'member/add/<str:parent_id>/<str:position>/',
-        views.add_member_under_parent,
-        name='add_member_under_parent'
-    ),
+    path('member/add/<str:parent_id>/<str:position>/', views.add_member_under_parent, name='add_member_under_parent'),
 
     # ===================== EDIT / DELETE MEMBER =====================
     path('member/edit/<str:auto_id>/', views.edit_member, name='edit_member'),
@@ -71,16 +62,16 @@ urlpatterns = [
 
     # ===================== COMMISSION / INCOME =====================
     path('commission/credit/<str:auto_id>/', views.credit_commission, name='credit_commission'),
-    path("income/", views.income_view, name="income_page"),
-    path("income/export/", views.export_income_excel, name="export_income_excel"),
+    path('income/', views.income_view, name='income_page'),
+    path('income/export/', views.export_income_excel, name='export_income_excel'),
     path('export-income/', views.export_members_income, name='export_income'),
-    path("income_report/", views.income_report, name="income_report"),
-    path("income_chart/<str:auto_id>/", views.income_chart, name="income_chart"),
+    path('income_report/', views.income_report, name='income_report'),
+    path('income_chart/<str:auto_id>/', views.income_chart, name='income_chart'),
 
     # ===================== RANK / SALARY REPORTS =====================
-    path("rank-report/", views.rank_report, name="rank_report"),
-    path("salary-report/", views.salary_report, name="salary_report"),
-    path("member/<str:auto_id>/rank/", views.member_rank_detail, name="member_rank_detail"),
+    path('rank-report/', views.rank_report, name='rank_report'),
+    path('salary-report/', views.salary_report, name='salary_report'),
+    path('member/<str:auto_id>/rank/', views.member_rank_detail, name='member_rank_detail'),
 ]
 
 # ===================== STATIC / MEDIA =====================

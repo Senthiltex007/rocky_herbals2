@@ -42,6 +42,13 @@ class Member(models.Model):
 
     is_active = models.BooleanField(default=False)
 
+    lifetime_pairs = models.IntegerField(default=0)  # track total completed pairs for eligibility
+
+    def update_lifetime_pairs(self, new_pairs=1):
+        self.lifetime_pairs += new_pairs
+        self.save(update_fields=['lifetime_pairs'])
+
+
     # -------------------------
     # BUSINESS VOLUME & RANK
     # -------------------------
@@ -185,6 +192,14 @@ class Member(models.Model):
 
     left_new_today = models.IntegerField(default=0)
     right_new_today = models.IntegerField(default=0)
+    # BINARY CARRY FORWARD
+    left_carry_forward = models.IntegerField(default=0)
+    right_carry_forward = models.IntegerField(default=0)
+
+    # DAILY JOIN TRACKING
+    left_joins_today = models.IntegerField(default=0)
+    right_joins_today = models.IntegerField(default=0)
+
 
     # -------------------------
     # STOCK POINT LEVEL (for commission)
@@ -459,7 +474,8 @@ class Income(models.Model):
 
     def __str__(self):
         return f"Income for {self.member.name} on {self.date}"
-
+    class Meta:
+        unique_together = ("member", "date")
 
 # ==========================================================
 # COMMISSION MODEL
@@ -563,13 +579,21 @@ class IncomeRecord(models.Model):
 
 
 class CommissionRecord(models.Model):
-    member = models.ForeignKey(Member, on_delete=models.CASCADE)
+    member = models.ForeignKey(
+        Member,
+        on_delete=models.CASCADE,
+        related_name="earned_commissions"
+    )
+    source_member = models.ForeignKey(
+        Member,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="generated_commissions"
+    )
     level = models.CharField(max_length=20)
     amount = models.DecimalField(max_digits=12, decimal_places=2)
     created_at = models.DateTimeField(auto_now_add=True)
-
-    def __str__(self):
-        return f"{self.member.name} - Level {self.level}"
 
 
 class BonusRecord(models.Model):
@@ -645,6 +669,7 @@ class RankPayoutLog(models.Model):
 # ==========================================================
 from decimal import Decimal
 from django.db import models
+from herbalapp.models import Member  # Make sure Member is imported
 
 class DailyIncomeReport(models.Model):
     member = models.ForeignKey(Member, on_delete=models.CASCADE)
@@ -664,11 +689,11 @@ class DailyIncomeReport(models.Model):
     binary_pairs_paid = models.IntegerField(default=0)
     binary_income = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
 
-    # Flashout income
+    # Flashout income (repurchase wallet)
     flashout_units = models.IntegerField(default=0)
     flashout_wallet_income = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
 
-    # Washout
+    # Washout (no income)
     washed_pairs = models.IntegerField(default=0)
 
     # BV snapshots (repurchase only)
@@ -687,6 +712,7 @@ class DailyIncomeReport(models.Model):
 
     class Meta:
         unique_together = ('member', 'date')
+        ordering = ['-date', 'member']  # Optional: newest first
 
     def __str__(self):
         return f"Daily Report for {self.member.name} on {self.date}"

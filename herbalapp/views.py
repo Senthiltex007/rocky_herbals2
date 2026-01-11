@@ -1793,18 +1793,30 @@ from .models import Member
 def member_register(request):
 
     if request.method == "POST":
+
+        # -------- BASIC DETAILS --------
         name = request.POST.get("name", "").strip()
         mobile = request.POST.get("mobile", "").strip()
         email = request.POST.get("email", "").strip()
         auto_id = request.POST.get("auto_id", "").strip()
+
         place = request.POST.get("place", "").strip()
         district = request.POST.get("district", "").strip()
         pincode = request.POST.get("pincode", "").strip()
         aadhar = request.POST.get("aadhar", "").strip()
 
-        # ✅ Basic validation
-        if not name or not mobile or not auto_id:
-            messages.error(request, "Name, Mobile, and Auto ID are required.")
+        # -------- MLM CRITICAL FIELDS --------
+        placement_id = request.POST.get("placement_id", "").strip()
+        sponsor_id = request.POST.get("sponsor_id", "").strip()
+        side = request.POST.get("side", "").strip()   # left / right
+
+        # -------- VALIDATIONS --------
+        if not all([name, mobile, auto_id, placement_id, sponsor_id, side]):
+            messages.error(request, "All required fields must be filled.")
+            return redirect("member_register")
+
+        if side not in ["left", "right"]:
+            messages.error(request, "Invalid side selected.")
             return redirect("member_register")
 
         if len(mobile) != 10 or not mobile.isdigit():
@@ -1815,12 +1827,25 @@ def member_register(request):
             messages.error(request, f"Auto ID {auto_id} already exists.")
             return redirect("member_register")
 
-        # ✅ Save to DB
+        # -------- RESOLVE PLACEMENT PARENT --------
+        try:
+            parent = Member.objects.get(auto_id=placement_id)
+        except Member.DoesNotExist:
+            messages.error(request, "Invalid placement ID.")
+            return redirect("member_register")
+
+        # -------- SAVE MEMBER --------
         Member.objects.create(
             name=name,
             phone=mobile,
             email=email,
             auto_id=auto_id,
+
+            placement_id=placement_id,   # STRING auto_id
+            sponsor_id=sponsor_id,       # STRING auto_id
+            parent=parent,               # FK
+            side=side,                   # left / right
+
             place=place,
             district=district,
             pincode=pincode,
@@ -1829,7 +1854,7 @@ def member_register(request):
 
         messages.success(
             request,
-            f"Member {name} added successfully! 📞 Mobile: {mobile}"
+            f"Member {name} added successfully under {placement_id} ({side})."
         )
         return redirect("member_list")
 
@@ -2034,17 +2059,19 @@ def add_member_form(request):
 
         # ✅ Create Member
         new = Member.objects.create(
-            auto_id=auto_id,
-            name=request.POST.get('name'),
-            phone=request.POST.get('phone'),
-            email=request.POST.get('email'),
-            aadhar=request.POST.get('aadhar'),
-            place=request.POST.get('place'),
-            district=request.POST.get('district'),
-            pincode=request.POST.get('pincode'),
-            parent=placement,
-            sponsor=sponsor,
-            side=side
+                auto_id=auto_id,
+                name=request.POST.get('name'),
+                phone=request.POST.get('phone'),
+                email=request.POST.get('email'),
+                aadhar=request.POST.get('aadhar'),
+                place=request.POST.get('place'),
+                district=request.POST.get('district'),
+                pincode=request.POST.get('pincode'),
+
+                parent=placement,
+                placement_id=placement.auto_id,
+                sponsor_id=sponsor.auto_id,
+                side=side
         )
 
         # ✅ Attach Child
@@ -2074,9 +2101,9 @@ def income_chart(request, auto_id):
     # ✅ Load member safely using business auto_id
     member = get_object_or_404(Member, auto_id=auto_id)
 
-    # ✅ Correct filter (ForeignKey → member__member_id)
+    # ✅ Correct filter (ForeignKey → member)
     reports = DailyIncomeReport.objects.filter(
-        member__member_id=auto_id
+        member=member
     ).order_by('date')
 
     dates = [str(r.date) for r in reports]
