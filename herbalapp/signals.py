@@ -1,17 +1,45 @@
 # herbalapp/signals.py
+# ==========================================================
+# SAFE SIGNALS FILE (NO MLM ENGINES)
+# ==========================================================
+
 from django.db.models.signals import post_save
 from django.dispatch import receiver
-from herbalapp.models import Member
-from herbalapp.management.commands.mlm_run_daily import calculate_member_income_for_day as process_member_daily
-from datetime import date
+from django.utils import timezone
+
+from herbalapp.models import Member, DailyIncomeReport
+
+ROOT_ID = "rocky004"
+
 
 @receiver(post_save, sender=Member)
-def auto_run_daily_on_new_member(sender, instance, created, **kwargs):
-    if created:
-        root = instance
-        while root.placement:
-            root = root.placement  # find root member
+def create_daily_report_on_join(sender, instance, created, **kwargs):
+    """
+    SAFE SIGNAL
+    - Only ensures DailyIncomeReport exists
+    - NO income calculation here
+    - NO MLM engine calls
+    """
 
-        run_date = date.today()  # default: today
-        process_member_daily(root, run_date)
+    if not created:
+        return
+
+    if instance.auto_id == ROOT_ID:
+        return
+
+    run_date = timezone.localdate()
+
+    DailyIncomeReport.objects.get_or_create(
+        member=instance,
+        date=run_date,
+        defaults={
+            "binary_eligibility_income": 0,
+            "binary_income": 0,
+            "flashout_wallet_income": 0,
+            "sponsor_income": 0,
+            "total_income": 0,
+        }
+    )
+
+    # ⚠️ DO NOT call instance.save() inside signal
 

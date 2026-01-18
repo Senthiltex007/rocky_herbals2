@@ -3,59 +3,27 @@
 <head>
     <meta charset="UTF-8">
     <title>Income Report - {{ run_date }}</title>
-
-    <!-- Bootstrap -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-
     <style>
-        body {
-            background: #f8f9fa;
-        }
-        .report-card {
-            background: #fff;
-            border-radius: 10px;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.08);
-            padding: 20px;
-        }
-        table th {
-            background: #0d6efd;
-            color: #fff;
-            text-align: center;
-            vertical-align: middle;
-        }
-        table td {
-            text-align: center;
-            vertical-align: middle;
-        }
-        tfoot td {
-            background: #e9f2ff;
-            font-weight: bold;
-        }
-        .total-highlight {
-            color: #198754;
-            font-weight: bold;
-        }
+        body { background: #f8f9fa; }
+        .report-card { background: #fff; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.08); padding: 20px; }
+        table th { background: #0d6efd; color: #fff; text-align: center; vertical-align: middle; }
+        table td { text-align: center; vertical-align: middle; }
+        tfoot td { background: #e9f2ff; font-weight: bold; }
+        .total-highlight { color: #198754; font-weight: bold; }
     </style>
 </head>
 <body>
-
 <div class="container my-4">
-
     <div class="report-card">
 
-        <h3 class="text-center mb-3">
-            💰 Income Report
-        </h3>
+        <h3 class="text-center mb-3">💰 Daily Income Report</h3>
 
-        <p class="text-center text-muted mb-4">
-            Run Date : <strong>{{ run_date }}</strong>
-        </p>
-
-        {% if error_msg %}
-            <div class="alert alert-danger text-center">
-                {{ error_msg }}
-            </div>
-        {% endif %}
+        <form method="get" class="mb-3 text-center">
+            <label for="date">Select Date:</label>
+            <input type="date" name="date" id="date" value="{{ run_date }}" class="form-control d-inline-block w-auto">
+            <button type="submit" class="btn btn-primary">Filter</button>
+        </form>
 
         <div class="table-responsive">
             <table class="table table-bordered table-hover align-middle">
@@ -69,27 +37,27 @@
                         <th>Wallet</th>
                         <th>Salary</th>
                         <th>Total</th>
+                        <th>Chart</th>
                     </tr>
                 </thead>
                 <tbody>
-                    {% for rec in members %}
+                    {% for rec in reports %}
                     <tr>
                         <td>{{ rec.member.auto_id }}</td>
                         <td>{{ rec.member.name }}</td>
-                        <td>{{ rec.eligibility_income }}</td>
-                        <td>{{ rec.binary_income }}</td>
-                        <td>{{ rec.sponsor_income }}</td>
-                        <td>{{ rec.wallet_income }}</td>
-                        <td>{{ rec.salary_income }}</td>
-                        <td class="total-highlight">
-                            {{ rec.total_income }}
+                        <td>{{ rec.binary_eligibility_income|default:"0" }}</td>
+                        <td>{{ rec.binary_income|default:"0" }}</td>
+                        <td>{{ rec.sponsor_income|default:"0" }}</td>
+                        <td>{{ rec.wallet_income|default:"0" }}</td>
+                        <td>{{ rec.salary_income|default:"0" }}</td>
+                        <td class="total-highlight">{{ rec.total_income|default:"0" }}</td>
+                        <td>
+                            <a href="{% url 'income_chart' rec.member.auto_id %}?date={{ run_date }}" class="btn btn-sm btn-primary">📊 Chart</a>
                         </td>
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="8" class="text-center text-danger">
-                            No income records found
-                        </td>
+                        <td colspan="9" class="text-center text-danger">No income records found</td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -101,9 +69,8 @@
                         <td>{{ totals.total_sponsor|default:"0" }}</td>
                         <td>{{ totals.total_wallet|default:"0" }}</td>
                         <td>{{ totals.total_salary|default:"0" }}</td>
-                        <td class="total-highlight">
-                            {{ totals.grand_total|default:"0" }}
-                        </td>
+                        <td class="total-highlight">{{ totals.grand_total|default:"0" }}</td>
+                        <td></td>
                     </tr>
                 </tfoot>
             </table>
@@ -114,9 +81,7 @@
         </div>
 
     </div>
-
 </div>
-
 </body>
 </html>
 

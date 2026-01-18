@@ -1,0 +1,95 @@
+/* =============================
+   TREE BASIC
+============================= */
+.tree-container {
+    display: flex;
+    justify-content: center;
+}
+
+.tree-node-wrapper {
+    position: relative;
+    text-align: center;
+    padding: 20px 10px 0;
+}
+
+.node {
+    display: inline-block;
+    padding: 10px 15px;
+    border: 2px solid #4CAF50;
+    border-radius: 8px;
+    background: #f9fff9;
+    min-width: 150px;
+}
+
+/* =============================
+   CHILDREN FLEX
+============================= */
+.children {
+    display: flex;
+    justify-content: center;
+    margin-top: 40px;
+    position: relative;
+}
+
+/* =============================
+   CURVED DOWN LINE FROM PARENT
+============================= */
+.tree-node-wrapper > .node::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 100%;
+    width: 2px;
+    height: 20px;
+    background: #4CAF50;
+}
+
+/* =============================
+   CURVED LEFT & RIGHT ARCS
+============================= */
+.children > .tree-node-wrapper:first-child::before {
+    content: "";
+    position: absolute;
+    top: -20px;
+    right: 50%;
+    width: 50%;
+    height: 30px;
+    border-top: 2px solid #4CAF50;
+    border-right: 2px solid #4CAF50;
+    border-top-right-radius: 30px;
+}
+
+.children > .tree-node-wrapper:last-child::before {
+    content: "";
+    position: absolute;
+    top: -20px;
+    left: 50%;
+    width: 50%;
+    height: 30px;
+    border-top: 2px solid #4CAF50;
+    border-left: 2px solid #4CAF50;
+    border-top-left-radius: 30px;
+}
+
+/* =============================
+   PLACEHOLDER
+============================= */
+.node.placeholder {
+    visibility: hidden;
+}
+
+/* =============================
+   ADD BUTTON
+============================= */
+.add-btn {
+    margin-top: 8px;
+    padding: 5px 10px;
+    font-size: 12px;
+    border: none;
+    background: #4CAF50;
+    color: white;
+    border-radius: 5px;
+    cursor: pointer;
+}
+}
+

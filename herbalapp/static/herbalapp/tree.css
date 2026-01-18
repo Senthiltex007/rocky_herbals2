@@ -1,115 +1,145 @@
-/* ================= GLOBAL ================= */
-body {
-  background: #f4f8ff;
-  font-family: Arial, sans-serif;
+/* ===== TREE CONTAINER ===== */
+.tree-container {
+    overflow: auto;
+    padding: 20px;
+    touch-action: pan-x pan-y;
+    user-select: none;
 }
 
-/* ================= TREE ROOT ================= */
-.pyramid-tree {
-  display: flex;
-  justify-content: center;
-  padding: 30px;
-  overflow-x: auto;
+/* ===== TREE NODE ===== */
+.tree-node {
+    text-align: center;
+    position: relative;
+    padding-top: 50px;
+    transform-origin: top center;
 }
 
-/* ================= NODE ================= */
-.pyramid-node {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  position: relative;
+/* ===== MEMBER CARD ===== */
+.node-card {
+    display: inline-block;
+    background: linear-gradient(135deg,#1e88e5,#0d47a1);
+    color: white;
+    padding: 14px 20px;
+    border-radius: 16px;
+    box-shadow: 0 8px 20px rgba(0,0,0,0.25);
+    position: relative;
+    z-index: 2;
+    min-width: 160px;
+    transition: transform 0.2s;
 }
 
-/* ================= MEMBER BOX ================= */
-.member {
-  background: #ffffff;
-  border-radius: 12px;
-  padding: 10px 14px;
-  min-width: 140px;
-  text-align: center;
-  box-shadow: 0 4px 10px rgba(0,0,0,0.15);
-  position: relative;
+.node-card:hover {
+    transform: scale(1.05);
 }
 
-/* avatar – REMOVE SQUARE */
-.member .avatar {
-  width: 60px;
-  height: 60px;
-  border-radius: 50%;
-  border: 3px solid #0d6efd;
-  object-fit: cover;
-  margin-bottom: 6px;
+/* ===== AVATAR ===== */
+.node-avatar {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    border: 2px solid white;
+    margin-bottom: 8px;
 }
 
-/* ================= CHILDREN CONTAINER ================= */
+/* ===== ADD MEMBER BUTTONS ===== */
+.node-actions {
+    margin-top: 8px;
+}
+
+.add-btn {
+    display: inline-block;
+    padding: 4px 10px;
+    margin: 2px;
+    background: #ff9800;
+    color: white;
+    border-radius: 8px;
+    font-size: 12px;
+    text-decoration: none;
+    transition: background 0.2s;
+}
+
+.add-btn:hover {
+    background: #fb8c00;
+}
+
+/* ===== CHILDREN WRAPPER ===== */
 .children {
-  display: flex;
-  justify-content: center;
-  margin-top: 40px;
-  position: relative;
+    display: flex;
+    justify-content: space-between;
+    position: relative;
+    margin-top: 70px;
 }
 
-/* vertical line from parent */
-.children::before {
-  content: "";
-  position: absolute;
-  top: -40px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 4px;
-  height: 40px;
-  background: #0d6efd;
-}
-
-/* ================= CHILD ================= */
+/* ===== CHILD ===== */
 .child {
-  position: relative;
-  margin: 0 35px;
+    position: relative;
+    display: flex;
+    justify-content: center;
+    width: 50%;
 }
 
-/* horizontal connecting line */
-.child::before {
-  content: "";
-  position: absolute;
-  top: -20px;
-  left: -35px;
-  width: calc(100% + 70px);
-  height: 4px;
-  background: #0d6efd;
+/* ===== CONNECTOR (T-SHAPE) ===== */
+.connector {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 60px;
 }
 
-/* vertical up line to child */
-.child::after {
-  content: "";
-  position: absolute;
-  top: -20px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 4px;
-  height: 20px;
-  background: #0d6efd;
+.connector .vertical {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    width: 4px;
+    height: 30px;
+    background: #1a1a1a;
+    transform: translateX(-50%);
+    z-index: 1;
 }
 
-/* ================= ADD LINKS ================= */
-.add-links {
-  margin-top: 6px;
-}
-.add-links a {
-  display: inline-block;
-  font-size: 12px;
-  margin: 2px;
-  text-decoration: none;
-  color: #0d6efd;
+.connector .horizontal {
+    position: absolute;
+    top: 30px;
+    left: 0;
+    width: 100%;
+    height: 4px;
+    background: #1a1a1a;
+    z-index: 1;
 }
 
-/* ================= MOBILE FIX ================= */
+/* ===== CHILD VERTICAL LINES ===== */
+.child.left::before,
+.child.right::before {
+    content: "";
+    position: absolute;
+    top: 30px;
+    width: 4px;
+    height: 35px;
+    background: #1a1a1a;
+    left: 50%;
+    transform: translateX(-50%);
+}
+
+/* ===== MOBILE RESPONSIVE ===== */
 @media (max-width: 768px) {
-  .child {
-    margin: 0 20px;
-  }
+    .children {
+        flex-direction: column;
+        margin-top: 40px;
+    }
 
-  .member {
-    min-width: 120px;
-  }
+    .child {
+        width: 100%;
+        margin-top: 40px;
+    }
+
+    .connector .horizontal {
+        display: none;
+    }
+
+    .child.left::before,
+    .child.right::before {
+        height: 50px;
+    }
 }
 

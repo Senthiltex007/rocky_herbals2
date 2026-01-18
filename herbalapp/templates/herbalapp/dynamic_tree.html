@@ -2,14 +2,15 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Genealogy Tree</title>
-  <link rel="stylesheet" href="{% static 'herbalapp/tree.css' %}">
+    <title>Genealogy Tree</title>
+    <link rel="stylesheet" href="{% static 'herbalapp/tree.css' %}">
 </head>
 <body>
 
-<div class="pyramid-tree">
-  <h2>Dynamic Genealogy Tree</h2>
-  {% include "herbalapp/tree_node_pyramid.html" with member=root_member %}
+<h2 class="tree-title">Genealogy Tree</h2>
+
+<div class="tree">
+    {% include "herbalapp/tree_node_dynamic.html" with member=root_member %}
 </div>
 
 </body>

@@ -55,27 +55,56 @@ def calculate_member_binary_income_for_day(
             new_binary_eligible = True
             eligibility_income = ELIGIBILITY_BONUS
 
-            # Deduct ONLY eligibility pattern (IMPORTANT FIX)
+            # Deduct eligibility pair from counts
             if L >= 1 and R >= 2:
                 L -= 1
                 R -= 2
             elif L >= 2 and R >= 1:
                 L -= 2
                 R -= 1
-        else:
-            # ❌ Before eligibility → NO income, NO washout
+
+            # -------------------------------
+            # Eligibility day → allow binary income up to 4 pairs
+            # -------------------------------
+            total_pairs_available = min(L, R)
+            binary_pairs_paid = min(total_pairs_available, 4)  # max 4 pairs on eligibility day
+            binary_income = binary_pairs_paid * PAIR_VALUE
+
+            # Deduct binary pairs used
+            L -= binary_pairs_paid
+            R -= binary_pairs_paid
+
+            # -------------------------------
+            # Flashout from remaining pairs after binary pairs
+            # -------------------------------
+            pairs_remaining_after_binary = total_pairs_available - binary_pairs_paid
+            possible_flashout_units = pairs_remaining_after_binary // FLASHOUT_GROUP_SIZE
+            flashout_units = min(possible_flashout_units, MAX_DAILY_FLASHOUTS)
+            flashout_pairs_used = flashout_units * FLASHOUT_GROUP_SIZE
+            flashout_income = flashout_units * FLASHOUT_VALUE
+
+            # Deduct flashout pairs
+            L -= flashout_pairs_used
+            R -= flashout_pairs_used
+
+            # Washout
+            washed_pairs = pairs_remaining_after_binary - flashout_pairs_used
+
+            # Total income for the day = eligibility + binary + flashout
+            total_income = eligibility_income + binary_income + flashout_income
+
             return {
-                "new_binary_eligible": False,
-                "eligibility_income": 0,
-                "binary_pairs_paid": 0,
-                "binary_income": 0,
-                "flashout_units": 0,
-                "flashout_pairs_used": 0,
-                "flashout_income": 0,
-                "washed_pairs": 0,
+                "new_binary_eligible": new_binary_eligible,
+                "eligibility_income": eligibility_income,
+                "binary_pairs_paid": binary_pairs_paid,
+                "binary_income": binary_income,
+                "flashout_units": flashout_units,
+                "flashout_pairs_used": flashout_pairs_used,
+                "flashout_income": flashout_income,
+                "washed_pairs": washed_pairs,
                 "left_cf_after": L,
                 "right_cf_after": R,
-                "total_income": 0,
+                "total_income": total_income,
             }
 
     # -------------------------------

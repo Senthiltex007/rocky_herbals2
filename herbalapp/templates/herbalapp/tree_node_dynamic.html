@@ -1,0 +1,46 @@
+<div class="tree-node">
+
+    <!-- MEMBER CARD WITH AVATAR -->
+    <div class="node-card">
+        {% if member.avatar %}
+        <img src="{{ member.avatar.url }}" alt="{{ member.name }}" class="node-avatar">
+        {% endif %}
+        <div class="node-id">{{ member.auto_id }}</div>
+        <div class="node-name">{{ member.name }}</div>
+
+        <!-- ADD MEMBER BUTTONS -->
+        <div class="node-actions">
+            {% if not member.left_child %}
+            <a href="{% url 'add_member' member.auto_id 'left' %}" class="add-btn">+ Left</a>
+            {% endif %}
+            {% if not member.right_child %}
+            <a href="{% url 'add_member' member.auto_id 'right' %}" class="add-btn">+ Right</a>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if member.left_child or member.right_child %}
+    <div class="children">
+
+        {% if member.left_child %}
+        <div class="child left">
+            {% include "herbalapp/tree_node_dynamic.html" with member=member.left_child %}
+        </div>
+        {% endif %}
+
+        {% if member.right_child %}
+        <div class="child right">
+            {% include "herbalapp/tree_node_dynamic.html" with member=member.right_child %}
+        </div>
+        {% endif %}
+
+        <!-- T-SHAPE CONNECTOR -->
+        <div class="connector">
+            <div class="vertical"></div>
+            <div class="horizontal"></div>
+        </div>
+
+    </div>
+    {% endif %}
+</div>
+

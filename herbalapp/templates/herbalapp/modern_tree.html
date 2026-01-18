@@ -1,0 +1,25 @@
+{% load static %}
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Modern Genealogy Tree</title>
+  <link rel="stylesheet" href="{% static 'css/modern_tree.css' %}">
+</head>
+<body>
+<h2 style="text-align:center;">Genealogy Tree</h2>
+
+<div class="tree-container">
+    {% include "herbalapp/modern_tree_node.html" with member=root_member %}
+</div>
+
+<script>
+  document.querySelectorAll(".toggle-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      let childContainer = btn.closest(".tree-node").querySelector(".children");
+      if(childContainer) childContainer.classList.toggle("collapsed");
+    });
+  });
+</script>
+</body>
+</html>
+

@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="ta">
+<head>
+    <meta charset="UTF-8">
+    <title>மெம்பர் காணவில்லை</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f8f8f8;
+            text-align: center;
+            padding-top: 100px;
+        }
+        .box {
+            background-color: #fff;
+            padding: 40px 50px;
+            display: inline-block;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+        h2 {
+            color: #333;
+        }
+        p {
+            margin-top: 15px;
+            color: #555;
+        }
+        a {
+            margin-top: 20px;
+            display: inline-block;
+            color: #007BFF;
+            text-decoration: none;
+            font-weight: bold;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="box">
+        <h2>இந்த ID-க்கான மெம்பர் காணப்படவில்லை</h2>
+        {% if member_id %}
+            <p>மெம்பர் ID: <strong>{{ member_id }}</strong></p>
+        {% endif %}
+        <a href="/tree/root/">மூல மெம்பர்களுக்கு செல்லவும்</a>
+    </div>
+</body>
+</html>
+
