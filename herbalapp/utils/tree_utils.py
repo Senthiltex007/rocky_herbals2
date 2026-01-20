@@ -1,106 +1,43 @@
 # herbalapp/utils/tree_utils.py
-# ----------------------------------------------------------
-# ✅ Extra genealogy tree utilities
-# ----------------------------------------------------------
+# --------------------------------------------------
+# ✅ TREE HELPERS (NO INCOME LOGIC)
+# --------------------------------------------------
 
 from herbalapp.models import Member
-from herbalapp.utils.tree import ascend_to_root, count_subtree, print_tree
-from herbalapp.utils.tree_json import build_tree_json
-from herbalapp.mlm_engine_binary import calculate_member_binary_income_for_day
-import datetime
 
 
-def get_root_info(member: Member):
+def get_children(member: Member):
+    """Return direct children (placement based)"""
+    return Member.objects.filter(placement=member)
+
+
+def count_leg(member: Member, side: str):
     """
-    Return root ancestor info for a given member.
+    Count members in LEFT or RIGHT leg (recursive)
+    side = "L" or "R"
     """
-    root = ascend_to_root(member)
+
+    def _count(node):
+        total = 0
+        children = Member.objects.filter(placement=node)
+        for c in children:
+            total += 1
+            total += _count(c)
+        return total
+
+    if side == "L" and member.left_child:
+        return _count(member.left_child)
+
+    if side == "R" and member.right_child:
+        return _count(member.right_child)
+
+    return 0
+
+
+def get_leg_summary(member: Member):
+    """Return left/right counts"""
     return {
-        "root_auto_id": root.auto_id,
-        "root_name": root.name,
+        "left": count_leg(member, "L"),
+        "right": count_leg(member, "R"),
     }
-
-
-def get_subtree_counts(member: Member):
-    """
-    Return left/right subtree counts for a given member.
-    """
-    return {
-        "left_count": count_subtree(member, "left"),
-        "right_count": count_subtree(member, "right"),
-    }
-
-
-def get_income_snapshot(member: Member):
-    """
-    Run binary income engine for member and return snapshot.
-    """
-    run_date = datetime.date.today()
-    result = calculate_member_binary_income_for_day(
-        left_joins_today=0,
-        right_joins_today=0,
-        left_cf_before=0,
-        right_cf_before=0,
-        binary_eligible=member.binary_eligible,
-        member=member,
-        run_date=run_date
-    )
-    return {
-        "eligibility_bonus": result["eligibility_income"],
-        "binary_income": result["binary_income"],
-        "flashout_income": result["flashout_income"],
-        "sponsor_income_credit": result["child_total_for_sponsor"],
-        "left_cf": result["left_cf"],
-        "right_cf": result["right_cf"],
-        "binary_eligible": result["binary_eligible"],
-        "flash_units_used": result["flashout_units"],
-    }
-
-
-def get_tree_json(root_auto_id: str):
-    """
-    Build JSON for genealogy tree starting from root_auto_id.
-    """
-    try:
-        root = Member.objects.get(auto_id=root_auto_id)
-    except Member.DoesNotExist:
-        return {"error": f"Member {root_auto_id} not found"}
-    return build_tree_json(root)
-
-
-def debug_tree(root_auto_id: str):
-    """
-    Full debug: tree text + counts + income snapshot.
-    """
-    try:
-        root = Member.objects.get(auto_id=root_auto_id)
-    except Member.DoesNotExist:
-        return f"❌ Member {root_auto_id} not found"
-
-    header = f"Genealogy Tree Debug for {root.auto_id} - {root.name}\n"
-    header += "=============================================\n"
-    tree_str = print_tree(root, prefix="", is_left=True)
-
-    counts = get_subtree_counts(root)
-    income = get_income_snapshot(root)
-
-    counts_str = (
-        f"\nSubtree Counts:\n"
-        f" - Left subtree count: {counts['left_count']}\n"
-        f" - Right subtree count: {counts['right_count']}\n"
-    )
-
-    income_str = (
-        f"\nIncome Snapshot:\n"
-        f" - Eligibility bonus: ₹{income['eligibility_bonus']}\n"
-        f" - Binary income: ₹{income['binary_income']}\n"
-        f" - Flashout income: ₹{income['flashout_income']}\n"
-        f" - Sponsor credited: ₹{income['sponsor_income_credit']}\n"
-        f" - Carry forward left: {income['left_cf']}\n"
-        f" - Carry forward right: {income['right_cf']}\n"
-        f" - Binary eligible: {income['binary_eligible']}\n"
-        f" - Flash units used: {income['flash_units_used']}\n"
-    )
-
-    return header + tree_str + counts_str + income_str
 

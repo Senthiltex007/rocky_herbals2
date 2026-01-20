@@ -1,5 +1,4 @@
 # herbalapp/mlm_engine_binary_runner.py
-
 from decimal import Decimal
 from django.db import transaction
 from herbalapp.models import DailyIncomeReport
@@ -10,18 +9,29 @@ from herbalapp.mlm_engine_binary import calculate_member_binary_income_for_day
 def run_binary_engine(member, run_date):
     report, _ = DailyIncomeReport.objects.get_or_create(
         member=member,
-        date=run_date
+        date=run_date,
+        defaults={
+            "binary_eligibility_income": Decimal("0"),
+            "binary_income": Decimal("0"),
+            "flashout_units": 0,
+            "flashout_wallet_income": Decimal("0"),
+            "sponsor_income": Decimal("0"),
+            "total_income": Decimal("0"),
+            "left_cf": 0,
+            "right_cf": 0,
+            "sponsor_processed": False,
+        }
     )
 
-    # reset daily values
-    report.binary_income = Decimal("0.00")
-    report.binary_eligibility_income = Decimal("0.00")
-    report.flashout_units = 0
-    report.total_income = Decimal("0.00")
+    # -------------------------------
+    # TODAY joins (do NOT subtract CF)
+    # -------------------------------
+    left_today = 1 if member.left_child() else 0
+    right_today = 1 if member.right_child() else 0
 
-    left_today = (1 if member.left_child() else 0) - report.left_cf
-    right_today = (1 if member.right_child() else 0) - report.right_cf
-
+    # -------------------------------
+    # calculate binary income using rules
+    # -------------------------------
     res = calculate_member_binary_income_for_day(
         left_today,
         right_today,
@@ -30,28 +40,27 @@ def run_binary_engine(member, run_date):
         member.binary_eligible
     )
 
-    # ✅ STRICT: binary only if REAL 1:1 pair
-    if res.get("binary_pairs_paid", 0) > 0:
-        report.binary_income = Decimal(res["binary_income"])
-    else:
-        report.binary_income = Decimal("0.00")
-
-    # eligibility bonus
+    # -------------------------------
+    # update report fields
+    # -------------------------------
+    report.binary_income = Decimal(res["binary_income"])
     report.binary_eligibility_income = Decimal(res["eligibility_income"])
-
-    # carry forward
+    report.flashout_units = res["flashout_units"]
+    report.flashout_wallet_income = Decimal(res.get("flashout_income", 0))
     report.left_cf = res["left_cf_after"]
     report.right_cf = res["right_cf_after"]
-
-    # total (NO sponsor here)
     report.total_income = (
         report.binary_income +
-        report.binary_eligibility_income
+        report.binary_eligibility_income +
+        report.flashout_wallet_income +
+        report.sponsor_income
     )
 
     report.save()
 
-    # update member eligibility flag
+    # -------------------------------
+    # update member eligibility flag (lifetime)
+    # -------------------------------
     if res["new_binary_eligible"] and not member.binary_eligible:
         member.binary_eligible = True
         member.save(update_fields=["binary_eligible"])

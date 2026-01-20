@@ -534,15 +534,15 @@ from .models import Member
 # =========================
 # 🔒 ADMIN CHECK
 # =========================
-def is_admin(user):
-    return user.is_authenticated and user.is_staff
+# ⚠️ DUPLICATE – MARKED FOR REVIEW
+#     return user.is_authenticated and user.is_staff
 
 
-# =========================
-# 👥 MEMBER LIST
-# =========================
-@login_required
-@user_passes_test(is_admin)
+# # =========================
+# # 👥 MEMBER LIST
+# # =========================
+# @login_required
+# @user_passes_test(is_admin)
 def member_list(request):
     members = Member.objects.all().order_by("id")
     return render(request, "member_list.html", {"members": members})
@@ -590,11 +590,26 @@ def delete_member(request, auto_id):
     return redirect("member_list")
 
 
+from django.contrib.auth.decorators import login_required, user_passes_test
+from django.shortcuts import render, redirect, get_object_or_404
+from django.contrib import messages
+from django.db import transaction
+
+from .models import Member
+
+
 # =========================
-# 🔁 REPLACE / MOVE MEMBER
+# 🔒 ADMIN CHECK
 # =========================
-@login_required
-@user_passes_test(is_admin)
+# ⚠️ DUPLICATE – MARKED FOR REVIEW
+#     return user.is_authenticated and user.is_staff
+
+
+# # =========================
+# # 🔁 REPLACE / MOVE MEMBER
+# # =========================
+# @login_required
+# @user_passes_test(is_admin)
 def replace_member(request, auto_id):
 
     # ✅ auto_id safe lookup
@@ -1059,6 +1074,37 @@ def _normalize_member_id(auto_id):
     return auto_id
 
 
+# ======================================================
+# MAIN TREE VIEW
+# ======================================================
+# ⚠️ DUPLICATE – MARKED FOR REVIEW
+#     """
+#     Show a member tree starting from a root.
+#     - Default: rocky005
+#     - Accepts numeric PK or auto_id
+#     """
+#     if not auto_id:
+#         auto_id = "rocky005"  # Default root
+
+#     # Normalize
+#     auto_id = _normalize_member_id(auto_id)
+#     if not auto_id:
+#         return render(request, "tree_not_found.html", {"auto_id": auto_id})
+
+#     # ✅ Prefetch children relation
+#     root_member = get_object_or_404(
+#         Member.objects.prefetch_related(Prefetch("children")),
+#         auto_id=auto_id
+#     )
+
+#     return render(request, "herbalapp/dynamic_tree.html", {
+#         "root_member": root_member
+#     })
+
+
+# # ======================================================
+# # MEMBER NOT FOUND VIEW
+# # ======================================================
 def member_not_found(request, member_id=None):
     return render(request, 'herbalapp/member_not_found.html', {'member_id': member_id})
 
@@ -1190,17 +1236,17 @@ from .models import Member as _Member
 # Modern Tree (FINAL AVATAR VERSION)
 # -------------------------
 
-def _normalize_member_id(auto_id):
-    """Convert numeric PK → business auto_id."""
-    if str(auto_id).isdigit():
-        if str(auto_id) == "1":
-            return "rocky001"
-        try:
-            pk_member = _Member.objects.get(id=int(auto_id))
-            return pk_member.auto_id
-        except _Member.DoesNotExist:
-            return None
-    return auto_id
+# ⚠️ DUPLICATE – MARKED FOR REVIEW
+#     """Convert numeric PK → business auto_id."""
+#     if str(auto_id).isdigit():
+#         if str(auto_id) == "1":
+#             return "rocky001"
+#         try:
+#             pk_member = _Member.objects.get(id=int(auto_id))
+#             return pk_member.auto_id
+#         except _Member.DoesNotExist:
+#             return None
+#     return auto_id
 
 
 def member_tree_modern(request, auto_id):
@@ -1705,13 +1751,13 @@ def dashboard(request):
 
 # ✅ Members list
 @login_required
-def member_list(request):
-    members = Member.objects.all().order_by("auto_id")
-    return render(request, "member_list.html", {"members": members})
+# ⚠️ DUPLICATE – MARKED FOR REVIEW
+#     members = Member.objects.all().order_by("auto_id")
+#     return render(request, "member_list.html", {"members": members})
 
 
-# ✅ Products page
-@login_required
+# # ✅ Products page
+# @login_required
 def products(request):
     return render(request, "products.html")
 
@@ -1935,12 +1981,13 @@ from django.db import transaction
 from .models import Member
 from decimal import Decimal
 
+
 # ===============================================================
 # ADD MEMBER VIEW
 # - Auto ID
 # - Correct binary placement (parent + side)
 # - Sponsor linking
-# - Tree-safe (auto side)
+# - NO left_child / right_child (IMPORTANT)
 # ===============================================================
 @transaction.atomic
 def add_member_form(request):
@@ -1956,12 +2003,15 @@ def add_member_form(request):
         new_member_id = "rocky001"
 
     # ===================================================
-    # PREFILL PARENT FROM TREE CLICK (?parent=rocky005)
+    # PREFILL PLACEMENT FROM TREE CLICK (?parent=rocky005)
     # ===================================================
     parent_code = request.GET.get("parent")
-    parent_member = None
+    placement_member_id = ""
+
     if parent_code:
-        parent_member = Member.objects.filter(auto_id=parent_code).first()
+        parent = Member.objects.filter(auto_id=parent_code).first()
+        if parent:
+            placement_member_id = parent.auto_id
 
     # ===================================================
     # FORM SUBMIT
@@ -1969,8 +2019,8 @@ def add_member_form(request):
     if request.method == "POST":
 
         auto_id = request.POST.get("auto_id")
+        placement_code = request.POST.get("placement_id")
         sponsor_code = request.POST.get("sponsor_id")
-        parent_code = request.POST.get("parent_id")  # clicked from tree
 
         # ---------------- VALIDATIONS ----------------
         if Member.objects.filter(auto_id=auto_id).exists():
@@ -1979,12 +2029,12 @@ def add_member_form(request):
                 "auto_id": new_member_id
             })
 
+        placement = Member.objects.filter(auto_id=placement_code).first()
         sponsor = Member.objects.filter(auto_id=sponsor_code).first()
-        parent = Member.objects.filter(auto_id=parent_code).first() or parent_member
 
-        if not parent:
+        if not placement:
             return render(request, "add_member.html", {
-                "error": "Invalid parent ID",
+                "error": "Invalid placement ID",
                 "auto_id": new_member_id
             })
 
@@ -1995,28 +2045,23 @@ def add_member_form(request):
             })
 
         # ===================================================
-        # AUTO SIDE & PLACEMENT DETECTION (TREE-SAFE)
+        # AUTO SIDE DETECTION (MODEL BASED – CORRECT)
         # ===================================================
-        def find_next_available(member):
-            left = Member.objects.filter(parent=member, side='left').first()
-            right = Member.objects.filter(parent=member, side='right').first()
+        left_exists = Member.objects.filter(parent=placement, side='left').exists()
+        right_exists = Member.objects.filter(parent=placement, side='right').exists()
 
-            if not left:
-                return member, 'left'
-            if not right:
-                return member, 'right'
-
-            # Recursively check left subtree
-            result = find_next_available(left)
-            if result:
-                return result
-            # Recursively check right subtree
-            return find_next_available(right)
-
-        placement, side = find_next_available(parent)
+        if not left_exists:
+            side = 'left'
+        elif not right_exists:
+            side = 'right'
+        else:
+            return render(request, "add_member.html", {
+                "error": "Both left and right legs are already filled",
+                "auto_id": new_member_id
+            })
 
         # ===================================================
-        # CREATE MEMBER
+        # CREATE MEMBER (TREE SAFE)
         # ===================================================
         new_member = Member.objects.create(
             auto_id=auto_id,
@@ -2028,9 +2073,9 @@ def add_member_form(request):
             district=request.POST.get("district"),
             pincode=request.POST.get("pincode"),
 
-            parent=placement,   # 🔥 Binary tree position
+            parent=placement,   # 🔥 Binary tree link
             side=side,          # 🔥 left / right
-            sponsor=sponsor     # 🔥 Sponsor / referral
+            sponsor=sponsor     # 🔥 Sponsor tree
         )
 
         messages.success(
@@ -2045,7 +2090,7 @@ def add_member_form(request):
     # ===================================================
     return render(request, "add_member.html", {
         "auto_id": new_member_id,
-        "placement_member_id": parent_member.auto_id if parent_member else ""
+        "placement_member_id": placement_member_id
     })
 
 

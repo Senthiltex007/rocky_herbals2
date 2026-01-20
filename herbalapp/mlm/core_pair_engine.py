@@ -1,6 +1,7 @@
 # ==========================================================
-# herbalapp/utils/mlm_daily_final_engine.py
+# herbalapp/mlm/core_pair_engine.py
 # ==========================================================
+
 from decimal import Decimal
 from django.db import transaction
 from django.utils import timezone
@@ -111,6 +112,7 @@ def calculate_binary(member, left_today, right_today, left_cf, right_cf):
         "total_income": total_income,
     }
 
+"""
 # ----------------------------------------------------------
 # 2️⃣ SPONSOR INCOME RULES
 # ----------------------------------------------------------
@@ -127,7 +129,7 @@ def get_sponsor_receiver(child):
         return child.sponsor
 
 def can_receive_sponsor_income(sponsor):
-    return sponsor.left_child() is not None and sponsor.right_child() is not None
+    return sponsor.left_child() is not None and sponsor.right_child() is not None """
 
 # ----------------------------------------------------------
 # 3️⃣ FULL DAILY ENGINE
@@ -162,30 +164,43 @@ def run_daily_engine(run_date=None):
             member.binary_eligible = True
             member.save(update_fields=["binary_eligible"])
 
+    """
     # -------------------------------
-    # Step 2: Sponsor Income
+    # 2️⃣ SPONSOR INCOME
     # -------------------------------
     for child in members:
         child_report = DailyIncomeReport.objects.get(member=child, date=run_date)
-        if hasattr(child_report, "sponsor_processed") and child_report.sponsor_processed:
+
+        # Skip if already processed
+        if getattr(child_report, "sponsor_processed", False):
             continue
 
+        # Determine eligible sponsor
         sponsor = get_sponsor_receiver(child)
+
+        # No sponsor → mark processed
         if not sponsor:
             child_report.sponsor_processed = True
             child_report.save(update_fields=["sponsor_processed"])
             continue
 
-        sponsor_amount = (child_report.binary_eligibility_income or 0) + (child_report.binary_income or 0)
+        # Sponsor amount = child eligibility + binary income
+        sponsor_amount = (child_report.binary_eligibility_income or Decimal("0")) + \
+                         (child_report.binary_income or Decimal("0"))
 
+        # Only credit if sponsor completed 1:1 pair (Rule #3)
         if sponsor_amount > 0 and can_receive_sponsor_income(sponsor):
             sponsor_report, _ = DailyIncomeReport.objects.get_or_create(member=sponsor, date=run_date)
+
+            # Add sponsor amount
             sponsor_report.sponsor_income += sponsor_amount
             sponsor_report.total_income += sponsor_amount
+
             sponsor_report.save(update_fields=["sponsor_income", "total_income"])
 
+        # Mark child processed to avoid double counting
         child_report.sponsor_processed = True
-        child_report.save(update_fields=["sponsor_processed"])
+        child_report.save(update_fields=["sponsor_processed"])"""
 
     # -------------------------------
     # Step 3: Final Total

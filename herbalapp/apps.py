@@ -6,5 +6,5 @@ class HerbalappConfig(AppConfig):
     name = "herbalapp"
 
     def ready(self):
-        import herbalapp.signals
+        pass
 
