@@ -3,6 +3,8 @@ from django.db import models, transaction
 from django.utils import timezone
 from decimal import Decimal
 from collections import deque
+from django.core.exceptions import ValidationError
+from herbalapp.utils.auto_id import generate_auto_id  # ✅ new auto_id logic
 
 # ==========================================================
 # AUTO COUNTER FOR ROCKY IDs
@@ -27,11 +29,18 @@ class Member(models.Model):
         default="",
         help_text="Optional secondary ID"
     )
-    name = models.CharField(max_length=200)
 
     class Meta:
         db_table = "herbalapp_member"   # ✅ explicit table name
         ordering = ["name"]             # ✅ default ordering in queries
+
+    # =========================
+    # ROOT DELETE PROTECTION
+    # =========================
+    def delete(self, *args, **kwargs):
+        if self.auto_id in ["rocky001", "rocky002"]:
+            raise ValidationError("ROOT members cannot be deleted")
+        super().delete(*args, **kwargs)
 
 
     # -------------------------
@@ -179,10 +188,7 @@ class Member(models.Model):
         # =========================
         if not self.auto_id:
             with transaction.atomic():
-                counter, _ = RockCounter.objects.select_for_update().get_or_create(name='member')
-                counter.last += 1
-                self.auto_id = f"rocky{counter.last:03d}"
-                counter.save()
+                self.auto_id = generate_auto_id()  # ✅ use new safe generator from auto_id.py
 
         # =========================
         # AUTO MEMBER_ID (secondary)

@@ -4,7 +4,7 @@ from decimal import Decimal
 from django.db import transaction
 from herbalapp.models import Member, DailyIncomeReport
 
-ROOT_ID = "rocky004"
+ROOT_ID = "rocky001"
 
 
 def is_sponsor_binary_eligible(member: Member) -> bool:

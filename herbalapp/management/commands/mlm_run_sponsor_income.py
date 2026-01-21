@@ -10,7 +10,7 @@ class Command(BaseCommand):
         today = timezone.localdate()
         self.stdout.write(self.style.NOTICE(f"🚀 Running Sponsor Income Engine for {today}"))
 
-        for member in Member.objects.exclude(auto_id="rocky004"):
+        for member in Member.objects.exclude(auto_id="rocky001"):
             run_sponsor_engine(member, today=today)
 
         self.stdout.write(self.style.SUCCESS("🎯 Sponsor Income Engine Completed"))

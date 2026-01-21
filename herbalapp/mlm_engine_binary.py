@@ -6,13 +6,25 @@ from django.db import transaction
 from django.utils import timezone
 from herbalapp.models import Member, DailyIncomeReport
 
-ROOT_ID = "rocky004"
+ROOT_ID = "rocky001"
 PAIR_VALUE = Decimal("500")
 ELIGIBILITY_BONUS = Decimal("500")
 DAILY_BINARY_PAIR_LIMIT = 5
 FLASHOUT_GROUP_SIZE = 5
 FLASHOUT_VALUE = 1000
 MAX_DAILY_FLASHOUTS = 9
+# ==========================================================
+# DOWNLINE COUNT HELPER  ✅ ADD THIS
+# ==========================================================
+def count_all_descendants(member):
+    if not member:
+        return 0
+    count = 1  # include this member itself
+    if member.left_child():
+        count += count_all_descendants(member.left_child())
+    if member.right_child():
+        count += count_all_descendants(member.right_child())
+    return count
 
 # ----------------------------------------------------------
 # 1️⃣ BINARY & ELIGIBILITY CALCULATION
@@ -110,25 +122,20 @@ def calculate_binary(member, left_today, right_today, left_cf, right_cf):
         "right_cf_after": right_cf_after,
         "total_income": total_income,
     }
-
+"""
 # ----------------------------------------------------------
-# 2️⃣ SPONSOR INCOME RULES
+# 2️⃣ SPONSOR INCOME RULES (FIXED)
 # ----------------------------------------------------------
 def get_sponsor_receiver(child):
-    if not child.sponsor or child.sponsor.auto_id == ROOT_ID:
+    """
+    Sponsor always receives income if not ROOT
+    """
+    if not child.sponsor:
         return None
-
-    if child.sponsor_id == child.placement_id:
-        # placement == sponsor → sponsor income to placement parent
-        if child.placement and child.placement.parent and child.placement.parent.auto_id != ROOT_ID:
-            return child.placement.parent
+    if child.sponsor.auto_id == ROOT_ID:
         return None
-    else:
-        return child.sponsor
-
-def can_receive_sponsor_income(sponsor):
-    return sponsor.left_child() is not None and sponsor.right_child() is not None
-
+    return child.sponsor
+"""
 # ----------------------------------------------------------
 # 3️⃣ FULL DAILY ENGINE
 # ----------------------------------------------------------
@@ -145,8 +152,8 @@ def run_daily_engine(run_date=None):
     for member in members:
         report, _ = DailyIncomeReport.objects.get_or_create(member=member, date=run_date)
 
-        left_today = 1 if member.left_child() else 0
-        right_today = 1 if member.right_child() else 0
+        left_today = count_all_descendants(member.left_child())
+        right_today = count_all_descendants(member.right_child())
 
         res = calculate_binary(member, left_today, right_today, report.left_cf, report.right_cf)
 
@@ -162,30 +169,32 @@ def run_daily_engine(run_date=None):
             member.binary_eligible = True
             member.save(update_fields=["binary_eligible"])
 
+            member.save(update_fields=["binary_eligible"])
+    """
     # -------------------------------
-    # Step 2: Sponsor Income
+    # Step 2: Sponsor Income (Fixed)
     # -------------------------------
     for child in members:
         child_report = DailyIncomeReport.objects.get(member=child, date=run_date)
-        if hasattr(child_report, "sponsor_processed") and child_report.sponsor_processed:
-            continue
 
         sponsor = get_sponsor_receiver(child)
         if not sponsor:
-            child_report.sponsor_processed = True
-            child_report.save(update_fields=["sponsor_processed"])
             continue
 
+        # Only credit if child has binary or eligibility income today
         sponsor_amount = (child_report.binary_eligibility_income or 0) + (child_report.binary_income or 0)
 
-        if sponsor_amount > 0 and can_receive_sponsor_income(sponsor):
-            sponsor_report, _ = DailyIncomeReport.objects.get_or_create(member=sponsor, date=run_date)
-            sponsor_report.sponsor_income += sponsor_amount
-            sponsor_report.total_income += sponsor_amount
-            sponsor_report.save(update_fields=["sponsor_income", "total_income"])
+        if sponsor_amount > 0:
+            # Check sponsor has both legs (binary eligibility condition)
+            if sponsor.left_child() and sponsor.right_child():
+                sponsor_report, _ = DailyIncomeReport.objects.get_or_create(
+                    member=sponsor,
+                    date=run_date
+                )
+                sponsor_report.sponsor_income += sponsor_amount
+                sponsor_report.total_income += sponsor_amount
+                sponsor_report.save(update_fields=["sponsor_income", "total_income"]) """
 
-        child_report.sponsor_processed = True
-        child_report.save(update_fields=["sponsor_processed"])
 
     # -------------------------------
     # Step 3: Final Total
