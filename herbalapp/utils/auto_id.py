@@ -1,14 +1,16 @@
 # herbalapp/utils/auto_id.py
 
-from herbalapp.models import Member
-
 DEFAULT_PREFIX = "rocky"
 
 def generate_auto_id(prefix: str = DEFAULT_PREFIX) -> str:
     """
     Generate sequential auto_id with configurable prefix.
     Example: rocky004, rocky005...
+    ✅ Circular import safe
     """
+    # 🔹 Lazy import to avoid circular import
+    from herbalapp.models import Member
+
     last = Member.objects.filter(auto_id__startswith=prefix).order_by("-auto_id").first()
 
     if last and last.auto_id:
