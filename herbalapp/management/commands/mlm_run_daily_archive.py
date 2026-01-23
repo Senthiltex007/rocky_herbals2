@@ -21,7 +21,7 @@ class Command(BaseCommand):
         # -------------------------------
         # CORE PAIR ENGINE
         # -------------------------------
-        members = Member.objects.exclude(auto_id="rocky004").order_by("auto_id")
+        members = Member.objects.exclude(auto_id="rocky001").order_by("auto_id")
 
         for member in members:
             run_core_pair_engine(member, today=today)

@@ -563,7 +563,7 @@ def delete_member(request, auto_id):
         member = get_object_or_404(Member, auto_id=auto_id)
 
     # 🚫 Protect ROOT / Dummy members
-    if member.auto_id in ["rocky001", "rocky004"]:
+    if member.auto_id in ["rocky001", "rocky001"]:
         messages.error(request, "❌ Root member cannot be deleted.")
         return redirect("member_list")
 
@@ -616,7 +616,7 @@ def replace_member(request, auto_id):
     member = get_object_or_404(Member, auto_id=auto_id)
 
     # 🚫 Protect root / dummy members
-    if member.auto_id in ["rocky001", "rocky004"]:
+    if member.auto_id in ["rocky001", "rocky001"]:
         messages.error(request, "❌ Root member cannot be moved.")
         return redirect("member_list")
 

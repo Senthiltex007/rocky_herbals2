@@ -1,6 +1,8 @@
 # ==========================================================
 # herbalapp/utils/mlm_daily_engine_final.py
+# FULL DATE-DRIVEN MLM DAILY ENGINE
 # ==========================================================
+
 from decimal import Decimal
 from django.db import transaction
 from django.utils import timezone
@@ -9,7 +11,7 @@ from django.dispatch import receiver
 
 from herbalapp.models import Member, DailyIncomeReport
 
-ROOT_ID = "rocky004"
+ROOT_ID = "rocky001"
 
 PAIR_VALUE = Decimal("500")
 ELIGIBILITY_BONUS = Decimal("500")
@@ -22,7 +24,9 @@ MAX_FLASHOUT_UNITS_PER_DAY = 9
 # 1️⃣ Binary + Eligibility Engine
 # ==========================================================
 def run_binary_engine(member: Member, run_date):
-
+    """
+    Process binary eligibility + daily binary + flashout
+    """
     report, _ = DailyIncomeReport.objects.get_or_create(
         member=member,
         date=run_date,
@@ -38,11 +42,11 @@ def run_binary_engine(member: Member, run_date):
         }
     )
 
-    # =========================
-    # TODAY joins
-    # =========================
-    left_today = 1 if member.left_child() else 0
-    right_today = 1 if member.right_child() else 0
+    # -------------------------------
+    # TODAY joins (DATE-BASED ONLY)
+    # -------------------------------
+    left_today = 0
+    right_today = 0
 
     L = left_today + report.left_cf
     R = right_today + report.right_cf
@@ -57,9 +61,9 @@ def run_binary_engine(member: Member, run_date):
     # -------------------------
     if not member.binary_eligible and ((L >= 2 and R >= 1) or (L >= 1 and R >= 2)):
         new_binary_eligible = True
-        eligibility_income = ELIGIBILITY_BONUS
+        result["eligibility_income"] = ELIGIBILITY_BONUS
 
-        # Deduct eligibility pair
+        # Deduct eligibility pair from carry-forward
         if L >= 2 and R >= 1:
             L -= 2
             R -= 1
@@ -70,7 +74,7 @@ def run_binary_engine(member: Member, run_date):
         # Binary income max 4 pairs on eligibility day
         total_pairs = min(L, R)
         binary_pairs_paid = min(total_pairs, 4)
-        binary_income = binary_pairs_paid * PAIR_VALUE
+        binary_income = paid_pairs * PAIR_VALUE
         L -= binary_pairs_paid
         R -= binary_pairs_paid
 
@@ -86,7 +90,7 @@ def run_binary_engine(member: Member, run_date):
         # Normal day after eligibility
         total_pairs = min(L, R)
         binary_pairs_paid = min(total_pairs, DAILY_BINARY_PAIR_LIMIT)
-        binary_income = binary_pairs_paid * PAIR_VALUE
+        binary_income = paid_pairs * PAIR_VALUE
         L -= binary_pairs_paid
         R -= binary_pairs_paid
 
@@ -119,31 +123,45 @@ def run_binary_engine(member: Member, run_date):
         member.binary_eligible = True
         member.save(update_fields=["binary_eligible"])
 
+
 # ==========================================================
 # 2️⃣ Sponsor Engine
 # ==========================================================
 def get_sponsor_receiver(child: Member):
+    """
+    Determine correct sponsor as per rules:
+    1️⃣ placement_id == sponsor_id → placement.parent
+    2️⃣ placement_id != sponsor_id → sponsor directly
+    """
     if not child.sponsor:
         return None
     if child.sponsor.auto_id == ROOT_ID:
         return None
 
-    # Rule 1: placement == sponsor → placement.parent
+    # Rule 1
     if child.placement_id == child.sponsor_id:
-        if child.placement and child.placement.parent:
+        if child.placement and getattr(child.placement, "parent", None):
             if child.placement.parent.auto_id != ROOT_ID:
                 return child.placement.parent
         return None
 
-    # Rule 2: placement != sponsor → sponsor directly
+    # Rule 2
     return child.sponsor
 
+
 def can_receive_sponsor_income(sponsor: Member):
+    """
+    Rule 3: Sponsor must have 1:1 pair completed
+    """
     left = 1 if sponsor.left_child() else 0
     right = 1 if sponsor.right_child() else 0
     return left >= 1 and right >= 1
 
+
 def run_sponsor_engine(child: Member, run_date):
+    """
+    Credit sponsor income if eligible
+    """
     child_report = DailyIncomeReport.objects.get(member=child, date=run_date)
     if child_report.sponsor_processed:
         return
@@ -158,7 +176,11 @@ def run_sponsor_engine(child: Member, run_date):
                      (child_report.binary_income or Decimal("0"))
 
     if sponsor_amount > 0 and can_receive_sponsor_income(sponsor):
-        sponsor_report, _ = DailyIncomeReport.objects.get_or_create(member=sponsor, date=run_date)
+        sponsor_report, _ = DailyIncomeReport.objects.get_or_create(
+            member=sponsor,
+            date=run_date,
+            defaults={"sponsor_income": Decimal("0"), "total_income": Decimal("0")}
+        )
         sponsor_report.sponsor_income += sponsor_amount
         sponsor_report.total_income += sponsor_amount
         sponsor_report.save(update_fields=["sponsor_income", "total_income"])
@@ -166,15 +188,24 @@ def run_sponsor_engine(child: Member, run_date):
     child_report.sponsor_processed = True
     child_report.save(update_fields=["sponsor_processed"])
 
+
 # ==========================================================
-# 3️⃣ Daily Engine Wrapper
+# 3️⃣ Daily Engine Wrapper (DATE-DRIVEN)
 # ==========================================================
 @transaction.atomic
-def run_daily_engine(run_date=None):
+def run_daily_engine(run_date=None, members=None):
+    """
+    Run binary + sponsor + total income calculations
+    Only process members provided or joined on run_date
+    """
     if not run_date:
         run_date = timezone.localdate()
 
-    members = Member.objects.filter(is_active=True).order_by("id")
+    if members is None:
+        members = Member.objects.filter(
+            is_active=True,
+            created_at__date=run_date
+        ).order_by("id")
 
     # 1️⃣ Binary + Eligibility
     for member in members:
@@ -185,7 +216,8 @@ def run_daily_engine(run_date=None):
         run_sponsor_engine(member, run_date)
 
     # 3️⃣ Recalculate total_income
-    for report in DailyIncomeReport.objects.filter(date=run_date):
+    reports = DailyIncomeReport.objects.filter(date=run_date, member__in=members)
+    for report in reports:
         report.total_income = (
             report.binary_eligibility_income +
             report.binary_income +
@@ -194,11 +226,18 @@ def run_daily_engine(run_date=None):
         )
         report.save(update_fields=["total_income"])
 
+
 # ==========================================================
 # 4️⃣ Auto-run signal on new member join
 # ==========================================================
 @receiver(post_save, sender=Member)
 def auto_run_engine_on_new_member(sender, instance, created, **kwargs):
-    if created and instance.auto_id != ROOT_ID:
-        run_daily_engine()
+    """
+    Only runs for newly joined members, ROOT excluded
+    """
+    if not created or instance.auto_id == ROOT_ID:
+        return
+
+    run_date = instance.created_at.date()  # or instance.joined_date
+    run_daily_engine(run_date=run_date, members=[instance])
 

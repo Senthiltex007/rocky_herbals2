@@ -52,7 +52,7 @@ class Member(models.Model):
     avatar = models.ImageField(upload_to='avatars/', blank=True, null=True)
 
     activation_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
-    is_active = models.BooleanField(default=False)
+    is_active = models.BooleanField(default=True)
 
     # -------------------------
     # ADDRESS / KYC
@@ -581,4 +581,12 @@ class DailyIncomeReport(models.Model):
 
     def __str__(self):
         return f"Daily Report for {self.member.auto_id} on {self.date}"
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['member', 'date'],
+                name='unique_member_date_report'
+            )
+        ]
 

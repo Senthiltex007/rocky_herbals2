@@ -1,54 +1,55 @@
 # ==========================================================
-# herbalapp/utils/mlm_daily_final_engine.py
+# herbalapp/mlm_engine_binary_runner.py
 # ==========================================================
 from decimal import Decimal
 from django.db import transaction
 from django.utils import timezone
 from herbalapp.models import Member, DailyIncomeReport
 
-ROOT_ID = "rocky001"
 PAIR_VALUE = Decimal("500")
 ELIGIBILITY_BONUS = Decimal("500")
 DAILY_BINARY_PAIR_LIMIT = 5
 FLASHOUT_GROUP_SIZE = 5
 FLASHOUT_VALUE = 1000
 MAX_DAILY_FLASHOUTS = 9
-# ==========================================================
-# DOWNLINE COUNT HELPER  ✅ ADD THIS
-# ==========================================================
+
+
 def count_all_descendants(member):
     if not member:
         return 0
-    count = 1  # include this member itself
-    if member.left_child():
-        count += count_all_descendants(member.left_child())
-    if member.right_child():
-        count += count_all_descendants(member.right_child())
-    return count
 
-# ----------------------------------------------------------
-# 1️⃣ BINARY & ELIGIBILITY CALCULATION
-# ----------------------------------------------------------
+    # Find left and right children using parent+side
+    left_child = Member.objects.filter(parent=member, side='L').first()
+    right_child = Member.objects.filter(parent=member, side='R').first()
+
+    left_count = count_all_descendants(left_child) if left_child else 0
+    right_count = count_all_descendants(right_child) if right_child else 0
+
+    # Count this member + descendants
+    return 1 + left_count + right_count
 def calculate_binary(member, left_today, right_today, left_cf, right_cf):
+    """
+    Calculates binary, eligibility, flashout incomes
+    """
     L = left_today + left_cf
     R = right_today + right_cf
 
     new_binary_eligible = member.binary_eligible
-    eligibility_income = 0
+    # eligibility_income init removed (using result dict)
     binary_pairs_paid = 0
-    binary_income = 0
+    binary_income = Decimal("0")
     flashout_units = 0
     flashout_pairs_used = 0
-    flashout_income = 0
+    flashout_income = Decimal("0")
     washed_pairs = 0
 
     # -------------------------------
-    # Binary Eligibility Check
+    # Eligibility check
     # -------------------------------
     if not member.binary_eligible:
         if (L >= 2 and R >= 1) or (L >= 1 and R >= 2):
             new_binary_eligible = True
-            eligibility_income = ELIGIBILITY_BONUS
+            result["eligibility_income"] = ELIGIBILITY_BONUS
 
             # Deduct eligibility pair
             if L >= 2 and R >= 1:
@@ -59,8 +60,8 @@ def calculate_binary(member, left_today, right_today, left_cf, right_cf):
                 R -= 2
 
             total_pairs_available = min(L, R)
-            binary_pairs_paid = min(total_pairs_available, 4)
-            binary_income = binary_pairs_paid * PAIR_VALUE
+            binary_pairs_paid = min(total_pairs_available, DAILY_BINARY_PAIR_LIMIT)
+            binary_income = washed_pairs * PAIR_VALUE
             L -= binary_pairs_paid
             R -= binary_pairs_paid
 
@@ -72,11 +73,12 @@ def calculate_binary(member, left_today, right_today, left_cf, right_cf):
             R -= flashout_pairs_used
 
             washed_pairs = pairs_remaining_after_binary - flashout_pairs_used
-            total_income = eligibility_income + binary_income + flashout_income
+
+            total_income = result["eligibility_income"] + binary_income + flashout_income
 
             return {
                 "new_binary_eligible": new_binary_eligible,
-                "eligibility_income": eligibility_income,
+                "eligibility_income": result["eligibility_income"],
                 "binary_pairs_paid": binary_pairs_paid,
                 "binary_income": binary_income,
                 "flashout_units": flashout_units,
@@ -93,7 +95,7 @@ def calculate_binary(member, left_today, right_today, left_cf, right_cf):
     # -------------------------------
     total_pairs_available = min(L, R)
     binary_pairs_paid = min(total_pairs_available, DAILY_BINARY_PAIR_LIMIT)
-    binary_income = binary_pairs_paid * PAIR_VALUE
+    binary_income = washed_pairs * PAIR_VALUE
     L -= binary_pairs_paid
     R -= binary_pairs_paid
 
@@ -107,11 +109,11 @@ def calculate_binary(member, left_today, right_today, left_cf, right_cf):
     washed_pairs = pairs_remaining_after_binary - flashout_pairs_used
     left_cf_after = L
     right_cf_after = R
-    total_income = eligibility_income + binary_income + flashout_income
+    total_income = result["eligibility_income"] + binary_income + flashout_income
 
     return {
         "new_binary_eligible": new_binary_eligible,
-        "eligibility_income": eligibility_income,
+        "eligibility_income": result["eligibility_income"],
         "binary_pairs_paid": binary_pairs_paid,
         "binary_income": binary_income,
         "flashout_units": flashout_units,
@@ -122,84 +124,53 @@ def calculate_binary(member, left_today, right_today, left_cf, right_cf):
         "right_cf_after": right_cf_after,
         "total_income": total_income,
     }
-"""
-# ----------------------------------------------------------
-# 2️⃣ SPONSOR INCOME RULES (FIXED)
-# ----------------------------------------------------------
-def get_sponsor_receiver(child):
+
+
+@transaction.atomic
+def run_binary_engine(member, run_date=None):
     """
-    Sponsor always receives income if not ROOT
+    Run binary & eligibility engine for a member and return daily report
     """
-    if not child.sponsor:
-        return None
-    if child.sponsor.auto_id == ROOT_ID:
-        return None
-    return child.sponsor
-"""
-# ----------------------------------------------------------
-# 3️⃣ FULL DAILY ENGINE
-# ----------------------------------------------------------
+    if not run_date:
+        run_date = timezone.now().date()
+
+    report, _ = DailyIncomeReport.objects.get_or_create(member=member, date=run_date)
+
+    left_today = count_all_descendants(Member.objects.filter(parent=member, side='L').first())
+    right_today = count_all_descendants(Member.objects.filter(parent=member, side='R').first())
+
+    res = calculate_binary(member, left_today, right_today, report.left_cf, report.right_cf)
+
+    # ✅ Safe Decimal assignment
+    report.binary_income = res.get("binary_income", Decimal("0"))
+    report.binary_eligibility_income = res.get("result[\"eligibility_income\"]", Decimal("0"))
+    report.flashout_units = res.get("flashout_units", 0)
+    report.left_cf = res.get("left_cf_after", 0)
+    report.right_cf = res.get("right_cf_after", 0)
+    report.total_income = (
+        (report.binary_income or Decimal("0"))
+        + (report.binary_eligibility_income or Decimal("0"))
+        + (report.sponsor_income or Decimal("0"))
+    )
+    report.save()
+
+    if res["new_binary_eligible"] and not member.binary_eligible:
+        member.binary_eligible = True
+        member.save(update_fields=["binary_eligible"])
+
+    return report
+
+
 @transaction.atomic
 def run_daily_engine(run_date=None):
+    """
+    Run engine for all active members
+    """
     if not run_date:
         run_date = timezone.now().date()
 
     members = Member.objects.filter(is_active=True).order_by("id")
 
-    # -------------------------------
-    # Step 1: Binary + Eligibility
-    # -------------------------------
     for member in members:
-        report, _ = DailyIncomeReport.objects.get_or_create(member=member, date=run_date)
-
-        left_today = count_all_descendants(member.left_child())
-        right_today = count_all_descendants(member.right_child())
-
-        res = calculate_binary(member, left_today, right_today, report.left_cf, report.right_cf)
-
-        report.binary_income = res["binary_income"]
-        report.binary_eligibility_income = res["eligibility_income"]
-        report.flashout_units = res["flashout_units"]
-        report.left_cf = res["left_cf_after"]
-        report.right_cf = res["right_cf_after"]
-        report.total_income = res["binary_income"] + res["eligibility_income"]
-        report.save()
-
-        if res["new_binary_eligible"] and not member.binary_eligible:
-            member.binary_eligible = True
-            member.save(update_fields=["binary_eligible"])
-
-            member.save(update_fields=["binary_eligible"])
-    """
-    # -------------------------------
-    # Step 2: Sponsor Income (Fixed)
-    # -------------------------------
-    for child in members:
-        child_report = DailyIncomeReport.objects.get(member=child, date=run_date)
-
-        sponsor = get_sponsor_receiver(child)
-        if not sponsor:
-            continue
-
-        # Only credit if child has binary or eligibility income today
-        sponsor_amount = (child_report.binary_eligibility_income or 0) + (child_report.binary_income or 0)
-
-        if sponsor_amount > 0:
-            # Check sponsor has both legs (binary eligibility condition)
-            if sponsor.left_child() and sponsor.right_child():
-                sponsor_report, _ = DailyIncomeReport.objects.get_or_create(
-                    member=sponsor,
-                    date=run_date
-                )
-                sponsor_report.sponsor_income += sponsor_amount
-                sponsor_report.total_income += sponsor_amount
-                sponsor_report.save(update_fields=["sponsor_income", "total_income"]) """
-
-
-    # -------------------------------
-    # Step 3: Final Total
-    # -------------------------------
-    for report in DailyIncomeReport.objects.filter(date=run_date):
-        report.total_income = (report.binary_income or 0) + (report.binary_eligibility_income or 0) + (report.sponsor_income or 0)
-        report.save(update_fields=["total_income"])
+        run_binary_engine(member, run_date)
 

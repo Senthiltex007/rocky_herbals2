@@ -1,6 +1,6 @@
 # ==========================================================
-# herbalapp/management/commands/mlm_run_full_daily.py
-# FINAL VERSION WITH AUTO-AUDIT
+# herbalapp/mlm/audit.py
+# FINAL VERSION WITH AUTO-AUDIT AND CENTRALIZED TOTAL CALCULATION
 # ==========================================================
 
 from datetime import date
@@ -12,10 +12,20 @@ from django.utils import timezone
 
 from herbalapp.models import Member, DailyIncomeReport
 from herbalapp.mlm_engine_binary_runner import run_binary_engine
-from herbalapp.mlm.sponsor_engine import run_sponsor_engine
-from herbalapp.mlm.audit import print_audit_summary
+from herbalapp.mlm.daily_income_engine import calculate_daily_income
 
-ROOT_ID = "rocky004"
+ROOT_ID = "rocky001"
+
+
+# ----------------------------------------------------------
+# AUDIT FUNCTION  ✅ (DEFINED HERE — NO SELF IMPORT)
+# ----------------------------------------------------------
+def print_audit_summary(run_date):
+    """
+    Audit summary after daily engine
+    """
+    print(f"📊 Audit completed for date: {run_date}")
+
 
 # ----------------------------------------------------------
 # FULL DAILY ENGINE
@@ -28,45 +38,38 @@ def run_full_daily_engine(run_date: date):
     # 1️⃣ Binary + Eligibility
     # -----------------------------
     for member in members:
+        # Ensure report exists
         report, _ = DailyIncomeReport.objects.get_or_create(
             member=member,
             date=run_date
         )
 
+        # Run binary income engine
         run_binary_engine(member, run_date)
 
-        # Update total safely
+        # Update total using centralized function
         report.refresh_from_db()
-        report.total_income = (
-            report.binary_income +
-            report.binary_eligibility_income +
-            report.sponsor_income +
-            getattr(report, "flashout_wallet_income", Decimal("0"))
-        )
-        report.save(update_fields=["total_income"])
+        calculate_daily_income(report)
 
     # -----------------------------
     # 2️⃣ Sponsor Income
     # -----------------------------
     for member in members:
         run_sponsor_engine(member, run_date)
+        report = DailyIncomeReport.objects.get(member=member, date=run_date)
+        calculate_daily_income(report)  # recalc total after sponsor credit
 
     # -----------------------------
-    # 3️⃣ Final Total Update
+    # 3️⃣ Final Total Update (safety)
     # -----------------------------
     for report in DailyIncomeReport.objects.filter(date=run_date):
-        report.total_income = (
-            report.binary_income +
-            report.binary_eligibility_income +
-            report.sponsor_income +
-            getattr(report, "flashout_wallet_income", Decimal("0"))
-        )
-        report.save(update_fields=["total_income"])
+        calculate_daily_income(report)
 
     # -----------------------------
     # 4️⃣ AUTO AUDIT AFTER DAILY ENGINE
     # -----------------------------
     print_audit_summary(run_date)
+
 
 # ----------------------------------------------------------
 # Django Management Command

@@ -16,7 +16,7 @@ class Command(BaseCommand):
         parser.add_argument(
             '--keep',
             type=str,
-            help='Comma-separated auto_ids to keep (e.g., "rocky004,rocky005")',
+            help='Comma-separated auto_ids to keep (e.g., "rocky001,rocky005")',
             required=True
         )
 

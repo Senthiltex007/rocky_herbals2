@@ -563,7 +563,7 @@ def delete_member(request, auto_id):
         member = get_object_or_404(Member, auto_id=auto_id)
 
     # 🚫 Protect ROOT / Dummy members
-    if member.auto_id in ["rocky001", "rocky004"]:
+    if member.auto_id in ["rocky001", "rocky001"]:
         messages.error(request, "❌ Root member cannot be deleted.")
         return redirect("member_list")
 
@@ -601,7 +601,7 @@ def replace_member(request, auto_id):
     member = get_object_or_404(Member, auto_id=auto_id)
 
     # 🚫 Protect root / dummy members
-    if member.auto_id in ["rocky001", "rocky004"]:
+    if member.auto_id in ["rocky001", "rocky001"]:
         messages.error(request, "❌ Root member cannot be moved.")
         return redirect("member_list")
 
@@ -1225,10 +1225,10 @@ from .models import Member as _Member
 
 def member_tree_modern_root(request):
     """
-    Show the genealogy tree starting from rocky005 as root.
+    Show the genealogy tree starting from rocky002 as root.
     """
 
-    root = _Member.objects.filter(auto_id="rocky005").prefetch_related(
+    root = _Member.objects.filter(auto_id="rocky002").prefetch_related(
         Prefetch("children")
     ).first()
 

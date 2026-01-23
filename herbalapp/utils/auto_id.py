@@ -5,7 +5,7 @@ DEFAULT_PREFIX = "rocky"
 def generate_auto_id(prefix: str = DEFAULT_PREFIX) -> str:
     """
     Generate sequential auto_id with configurable prefix.
-    Example: rocky004, rocky005...
+    Example: rocky001, rocky005...
     ✅ Circular import safe
     """
     # 🔹 Lazy import to avoid circular import

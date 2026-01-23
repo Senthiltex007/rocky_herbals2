@@ -60,7 +60,6 @@ def calculate_member_binary_income_for_day(left_today, right_today, left_cf_befo
     # 0️⃣ Safety guard: if cannot become eligible
     # -------------------------------
     if not binary_eligible and ((L < 2 and R < 1) and (L < 1 and R < 2)):
-        # Cannot become eligible yet, no binary income
         remaining_pairs = min(L, R)
         flashout_units = min(remaining_pairs // FLASHOUT_PAIR_UNIT, MAX_FLASHOUT_UNITS)
         flashout_income = flashout_units * Decimal("1000")
@@ -91,7 +90,7 @@ def calculate_member_binary_income_for_day(left_today, right_today, left_cf_befo
         new_binary_eligible = True
         eligibility_income = ELIGIBILITY_BONUS
 
-        # Deduct first pair (1:2 or 2:1) from L/R
+        # Deduct first pair (1:2 or 2:1)
         if L >= 2 and R >= 1:
             L -= 2
             R -= 1
@@ -101,7 +100,7 @@ def calculate_member_binary_income_for_day(left_today, right_today, left_cf_befo
 
         # Max 4 pairs for binary income on eligibility day
         total_pairs_available = min(L, R)
-        binary_pairs_paid = min(total_pairs_available, 4)  # ✅ 4 pairs max on eligibility day
+        binary_pairs_paid = min(total_pairs_available, 4)
         binary_income = binary_pairs_paid * PAIR_VALUE
         L -= binary_pairs_paid
         R -= binary_pairs_paid
@@ -186,7 +185,6 @@ def get_sponsor_receiver(child: Member):
 
 def can_receive_sponsor_income(sponsor: Member):
     return bool(sponsor.left_child() and sponsor.right_child())
-
 # ----------------------------------------------------------
 # FULL DAILY ENGINE (untouched except binary calculation)
 # ----------------------------------------------------------
@@ -219,8 +217,22 @@ def run_full_daily_engine(run_date: date):
         report.flashout_wallet_income = Decimal("0.00")
         report.sponsor_processed = False
 
-        left_today = count_all_descendants(member.left_child())
-        right_today = count_all_descendants(member.right_child())
+        # -------------------------------
+        # TODAY joins (DATE BASED ONLY)
+        # -------------------------------
+        left_today = Member.objects.filter(
+            placement_id=member.id,
+            side='left',             # ✅ Changed from 'position' to 'side'
+            joined_date=run_date,    # ✅ Corrected field name
+            is_active=True
+        ).count()
+
+        right_today = Member.objects.filter(
+            placement_id=member.id,
+            side='right',            # ✅ Changed from 'position' to 'side'
+            joined_date=run_date,    # ✅ Corrected field name
+            is_active=True
+        ).count()
 
         res = calculate_member_binary_income_for_day(
             left_today,
@@ -230,20 +242,34 @@ def run_full_daily_engine(run_date: date):
             member.binary_eligible,
         )
 
-        report.binary_income = res["binary_income"]
-        report.binary_eligibility_income = res["eligibility_income"]
-        report.flashout_wallet_income = res["flashout_income"]
+        report.binary_income = Decimal(res["binary_income"])
+        report.binary_eligibility_income = Decimal(res["eligibility_income"])
+        report.flashout_wallet_income = Decimal(res.get("flashout_income", 0))
         report.left_cf = res["left_cf_after"]
         report.right_cf = res["right_cf_after"]
-        report.save()
+        report.total_income = (
+            report.binary_income
+            + report.binary_eligibility_income
+            + report.flashout_wallet_income
+            + report.sponsor_income
+        )
+        report.save(update_fields=[
+            "binary_income",
+            "binary_eligibility_income",
+            "flashout_wallet_income",
+            "left_cf",
+            "right_cf",
+            "total_income"
+        ])
 
         if res["new_binary_eligible"] and not member.binary_eligible:
             member.binary_eligible = True
             member.save(update_fields=["binary_eligible"])
             print(f"✅ {member.member_id} is now binary eligible and credited ₹500")
 
+
     # ------------------------------------------------------
-    # 2️⃣ Sponsor Income (RUN ONLY ONCE) - untouched
+    # 2️⃣ Sponsor Income (FINAL – CLEAN VERSION)
     # ------------------------------------------------------
     for child in members:
         child_report = DailyIncomeReport.objects.get(
@@ -251,7 +277,7 @@ def run_full_daily_engine(run_date: date):
             date=run_date,
         )
 
-        # ✅ IMPORTANT: child must have earned income today
+        # child earned nothing today
         if (
             (child_report.binary_income or 0) == 0
             and (child_report.binary_eligibility_income or 0) == 0
@@ -265,62 +291,65 @@ def run_full_daily_engine(run_date: date):
 
         # Rule 1: placement == sponsor → placement parent
         if child.placement_id == child.sponsor_id:
-            if child.placement and child.placement.parent:
-                if child.placement.parent.auto_id != ROOT_ID:
-                    sponsor = child.placement.parent
+            if (
+                child.placement
+                and child.placement.parent
+                and child.placement.parent.auto_id != ROOT_ID
+            ):
+                sponsor = child.placement.parent
         else:
-            # Rule 2: placement != sponsor → sponsor id
+            # Rule 2: placement != sponsor → sponsor
             if child.sponsor and child.sponsor.auto_id != ROOT_ID:
                 sponsor = child.sponsor
 
-        # Rule 2.5: If sponsor exists but sponsor is ROOT or blocked,
-        # credit sponsor income to child itself
-        if sponsor and sponsor.auto_id == ROOT_ID:
-            sponsor = child
+        # ❌ Dummy never earns
+        if not sponsor or sponsor.auto_id == ROOT_ID:
+            child_report.sponsor_processed = True
+            child_report.save(update_fields=["sponsor_processed"])
+            continue
 
-        # ✅ Calculate sponsor amount from child income (ONCE)
-        sponsor_amount = (
+        # Rule 3: sponsor must have 1:1
+        if not (sponsor.left_child() and sponsor.right_child()):
+            child_report.sponsor_processed = True
+            child_report.save(update_fields=["sponsor_processed"])
+            continue
+
+        sponsor_amount = Decimal(
             (child_report.binary_income or 0)
             + (child_report.binary_eligibility_income or 0)
         )
 
-        # Rule 3: sponsor must already have completed 1:1 under his legs
-        if sponsor:
-            if not (sponsor.left_child() and sponsor.right_child()):
-                child_report.sponsor_processed = True
-                child_report.save(update_fields=["sponsor_processed"])
-                continue
+        if sponsor_amount > 0:
+            sponsor_report, _ = DailyIncomeReport.objects.get_or_create(
+                member=sponsor,
+                date=run_date,
+                defaults={
+                    "binary_income": Decimal("0"),
+                    "binary_eligibility_income": Decimal("0"),
+                    "sponsor_income": Decimal("0"),
+                    "flashout_wallet_income": Decimal("0"),
+                    "total_income": Decimal("0"),
+                },
+            )
 
-            # ✅ FINAL RECEIVER CORRECTION
-            # Sponsor checks eligibility, income credited to FINAL receiver (child)
-            receiver = child
+            sponsor_report.sponsor_income = Decimal(sponsor_report.sponsor_income or 0) + sponsor_amount
+            sponsor_report.total_income = (
+                sponsor_report.binary_income
+                + sponsor_report.binary_eligibility_income
+                + sponsor_report.flashout_wallet_income
+                + sponsor_report.sponsor_income
+            )
+            sponsor_report.save(update_fields=["sponsor_income", "total_income"])
 
-            if sponsor_amount > 0:
-                sponsor_report, _ = DailyIncomeReport.objects.get_or_create(
-                    member=receiver,
-                    date=run_date,
-                    defaults={
-                        "binary_income": 0,
-                        "binary_eligibility_income": 0,
-                        "sponsor_income": 0,
-                        "flashout_wallet_income": 0,
-                        "total_income": 0,
-                    },
-                )
+            sponsor.sponsor_income = Decimal(sponsor.sponsor_income or 0) + sponsor_amount
+            sponsor.main_wallet = Decimal(sponsor.main_wallet or 0) + sponsor_amount
+            sponsor.save(update_fields=["sponsor_income", "main_wallet"])
 
-                sponsor_report.sponsor_income += sponsor_amount
-                sponsor_report.total_income += sponsor_amount
-                sponsor_report.save(
-                    update_fields=["sponsor_income", "total_income"]
-                )
-
-                print(
-                    f"✅ Sponsor income {sponsor_amount} credited to "
-                    f"{receiver.member_id} (eligibility checked on {sponsor.member_id})"
-                )
+            print(f"✅ Sponsor income {sponsor_amount} credited to {sponsor.member_id}")
 
         child_report.sponsor_processed = True
         child_report.save(update_fields=["sponsor_processed"])
+
 
     # ------------------------------------------------------
     # 3️⃣ Final Total
@@ -333,18 +362,6 @@ def run_full_daily_engine(run_date: date):
             + report.flashout_wallet_income
         )
         report.save(update_fields=["total_income"])
-
-# ----------------------------------------------------------
-# AUTO RUN SIGNAL WHEN NEW MEMBER ADDED - untouched
-# ----------------------------------------------------------
-@receiver(post_save, sender=Member)
-def auto_run_daily_for_new_member(sender, instance, created, **kwargs):
-    if not created or instance.auto_id == ROOT_ID:
-        return
-    run_date = timezone.localdate()
-    DailyIncomeReport.objects.get_or_create(member=instance, date=run_date)
-    run_full_daily_engine(run_date)
-
 # ----------------------------------------------------------
 # Django Command - untouched
 # ----------------------------------------------------------
