@@ -4,7 +4,6 @@
 from decimal import Decimal
 from collections import deque
 from django.db import transaction
-from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from django.contrib.auth import authenticate, login
 from django.contrib.auth.decorators import login_required
@@ -1182,7 +1181,6 @@ def member_detail_json(request, auto_id):
     return JsonResponse(data)
 
 
-from django.shortcuts import render as _render, get_object_or_404 as _get
 from django.db.models import Prefetch
 from .models import Member as _Member
 
@@ -1817,7 +1815,6 @@ def member_register(request):
 
 # herbalapp/views.py
 
-from django.shortcuts import get_object_or_404, redirect, render
 from django.contrib import messages
 from django.db import transaction
 from django.utils import timezone
@@ -1844,7 +1841,6 @@ def generate_auto_id():
 # ADD MEMBER UNDER PARENT
 # ---------------------------------
 from django.db import transaction
-from django.shortcuts import get_object_or_404, render, redirect
 from django.contrib import messages
 from .models import Member
 
@@ -1876,16 +1872,22 @@ def add_member_under_parent(request, parent_id, position):
         )
 
     # -------------------------
-    # AUTO ID GENERATION
+    # AUTO ID GENERATION (SAFE)
     # -------------------------
-    last_member = Member.objects.order_by("-id").first()
-    if last_member and last_member.auto_id:
-        last_num = int(last_member.auto_id.replace("rocky", ""))
-        auto_id = f"rocky{last_num + 1:03d}"
-    else:
-        auto_id = "rocky001"
+    from django.db import transaction
+    from django.utils import timezone
 
-    # POST data
+    with transaction.atomic():
+        last_member = Member.objects.select_for_update().order_by("-id").first()
+        if last_member and last_member.auto_id:
+            last_num = int(last_member.auto_id.replace("rocky", ""))
+            auto_id = f"rocky{last_num + 1:03d}"
+        else:
+            auto_id = "rocky001"
+
+    # -------------------------
+    # POST DATA
+    # -------------------------
     name = request.POST.get("name")
     phone = request.POST.get("phone")
     email = request.POST.get("email")
@@ -1896,7 +1898,9 @@ def add_member_under_parent(request, parent_id, position):
     sponsor_auto_id = request.POST.get("sponsor_id")
     avatar = request.FILES.get("avatar")
 
-    # Sponsor validation
+    # -------------------------
+    # SPONSOR VALIDATION (FIXED)
+    # -------------------------
     sponsor = None
     if sponsor_auto_id:
         sponsor = Member.objects.filter(auto_id=sponsor_auto_id).first()
@@ -1905,6 +1909,8 @@ def add_member_under_parent(request, parent_id, position):
             return redirect(request.path)
 
     # ✅ CREATE MEMBER (FIXED)
+    from django.utils import timezone
+
     new_member = Member.objects.create(
         auto_id=auto_id,
         name=name,
@@ -1914,11 +1920,13 @@ def add_member_under_parent(request, parent_id, position):
         place=place,
         district=district,
         pincode=pincode,
-        sponsor=sponsor,
-        parent=parent,
-        side=position,
-        avatar=avatar,
-        is_active=False,
+
+        parent=parent,        # 🌳 binary tree
+        placement=parent,     # 🔥 engine uses this
+        side=position,        # left / right
+        sponsor=sponsor,      # sponsor tree
+        joined_date=timezone.localdate(),
+        is_active=True
     )
 
     messages.success(
@@ -2015,6 +2023,14 @@ def add_member_form(request):
 
         placement, side = find_next_available(parent)
 
+        # =============================
+        # SIDE SAFETY (FINAL GUARD)
+        # =============================
+        if side not in ("left", "right"):
+            messages.error(request, "Invalid side detected. Please retry.")
+            return redirect("/tree/")
+
+
         # ===================================================
         # CREATE MEMBER
         # ===================================================
@@ -2040,13 +2056,13 @@ def add_member_form(request):
 
         return redirect("/tree/")
 
-    # ===================================================
-    # INITIAL PAGE LOAD
-    # ===================================================
-    return render(request, "add_member.html", {
-        "auto_id": new_member_id,
-        "placement_member_id": parent_member.auto_id if parent_member else ""
-    })
+        # ===================================================
+        # INITIAL PAGE LOAD
+        # ===================================================
+        return render(request, "add_member.html", {
+            "auto_id": new_member_id,
+            "placement_member_id": parent_member.auto_id if parent_member else ""
+        })
 
 
 from django.shortcuts import render, get_object_or_404

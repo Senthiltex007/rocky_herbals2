@@ -12,5 +12,4 @@ class HerbalappConfig(AppConfig):
         Auto-load signals on app startup.
         Ensures `post_save` for Member triggers date-driven MLM engine.
         """
-        import herbalapp.signals  # noqa: F401
 
