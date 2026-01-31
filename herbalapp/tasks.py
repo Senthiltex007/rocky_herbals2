@@ -1,20 +1,27 @@
-from django.db import transaction
-from django.db.models import F
 from django.utils import timezone
-from .models import RankReward
+from celery import shared_task
 
-def run_monthly_rank_payouts():
-    """
-    Run monthly payouts for all active RankRewards.
-    Credits monthly income until duration is complete.
-    """
-    today = timezone.now().date()
-    rewards = RankReward.objects.filter(
-        active=True,
-        months_paid__lt=F("duration_months")
-    ).order_by("id")
+# ❌ FINAL ENGINE IMPORT REMOVE
+# from herbalapp.mlm.final_master_engine import run_full_daily_engine
+# from herbalapp.mlm.engine_lock import run_with_lock
 
-    for reward in rewards:
-        with transaction.atomic():
-            reward.credit_monthly_income()
+#from herbalapp.mlm.preview_engine import run_preview_engine
+
+# ----------------------------------------------------------
+# Celery Task: PREVIEW ONLY (SAFE)
+# ----------------------------------------------------------
+@shared_task(
+    bind=True,
+    autoretry_for=(Exception,),
+    retry_backoff=5,
+    retry_kwargs={"max_retries": 3},
+)
+def run_engine_task(self):
+    """
+    ⚠️ PREVIEW ONLY
+    - Binary preview
+    - No sponsor
+    - No total lock
+    """
+    run_preview_engine(timezone.localdate())
 

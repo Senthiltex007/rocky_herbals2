@@ -1,67 +1,64 @@
-# ==========================================================
 # herbalapp/mlm/sponsor_engine.py
-# ==========================================================
+
 from decimal import Decimal
-from herbalapp.models import Member
+from django.db import transaction
+from herbalapp.models import DailyIncomeReport, Member
+from herbalapp.mlm.filters import get_valid_sponsor_children
 
 ROOT_ID = "rocky001"
 
-
-# ----------------------------------------------------------
-# Check if a member is binary eligible (1:1 pair)
-# ----------------------------------------------------------
-def is_sponsor_binary_eligible(member: Member) -> bool:
+@transaction.atomic
+def run_sponsor_income_safe(run_date):
     """
-    Sponsor eligibility rule: must have at least one member on each leg
+    ✅ Safe Sponsor Income Engine
+    Rules applied:
+    1️⃣ If placement_id == sponsor_id → placement itself gets sponsor income (except ROOT)
+    2️⃣ If placement_id != sponsor_id → sponsor gets sponsor income (except ROOT)
+    3️⃣ Sponsor must have completed at least one 1:1 pair (binary_eligible=True)
     """
-    left = member.left_child()
-    right = member.right_child()
-    return bool(left and right)
+    print("🔄 Running Safe Sponsor Engine")
 
+    children = get_valid_sponsor_children(run_date)
 
-# ----------------------------------------------------------
-# Determine the correct sponsor receiver for a child
-# ----------------------------------------------------------
-def get_sponsor_receiver(child: Member):
-    """
-    Decide which member should receive sponsor income for this child
-    RULES:
-    1️⃣ If placement == sponsor → parent of placement receives
-    2️⃣ If placement != sponsor → sponsor directly receives
-    3️⃣ Must satisfy binary eligibility (1:1)
-    Returns: Member instance or None
-    """
-    if not child.sponsor or child.sponsor.auto_id == ROOT_ID:
-        return None
+    for child in children:
+        child_report, _ = DailyIncomeReport.objects.get_or_create(
+            member=child,
+            date=run_date
+        )
 
-    # Rule 1: self-sponsor case → placement.parent
-    if child.placement_id == child.sponsor_id:
-        parent = child.placement.parent if child.placement else None
-        if parent and parent.auto_id != ROOT_ID:
-            return parent
-        return None
+        if child_report.sponsor_processed:
+            continue
 
-    # Rule 2: normal sponsor
-    return child.sponsor
+        receiver = None
 
+        # Rule 1: placement == sponsor → placement itself
+        if child.parent_id == child.sponsor_id:
+            if child.parent and child.parent.auto_id != ROOT_ID:
+                receiver = child.parent
+        else:
+            # Rule 2: placement != sponsor → sponsor
+            if child.sponsor and child.sponsor.auto_id != ROOT_ID:
+                receiver = child.sponsor
 
-# ----------------------------------------------------------
-# Calculate sponsor amount helper (does NOT credit)
-# ----------------------------------------------------------
-def calculate_sponsor_amount(child_report):
-    """
-    Sponsor income for this child = child's binary + eligibility income
-    Flashout is NOT included.
-    Returns Decimal amount (to be credited by main engine)
-    """
-    return (
-        (child_report.binary_income or Decimal("0")) +
-        (child_report.binary_eligibility_income or Decimal("0"))
-    )
+        # Rule 3: sponsor must be binary eligible
+        if receiver and not receiver.binary_eligible:
+            receiver = None
 
-# ==========================================================
-# Note:
-# - This script no longer credits sponsor_income anywhere.
-# - Use only for helper calculations inside main engine.
-# ==========================================================
+        sponsor_amount = child_report.binary_income + child_report.binary_eligibility_income
+
+        if receiver and sponsor_amount > 0:
+            receiver_report, _ = DailyIncomeReport.objects.get_or_create(
+                member=receiver,
+                date=run_date
+            )
+            receiver_report.sponsor_income += sponsor_amount
+            receiver_report.total_income += sponsor_amount
+            receiver_report.save(update_fields=["sponsor_income", "total_income"])
+
+            child_report.sponsor_processed = True
+            child_report.save(update_fields=["sponsor_processed"])
+
+            print(f"✅ Sponsor income {sponsor_amount} credited to {receiver.auto_id}, child: {child.auto_id}")
+
+    print("✅ Safe Sponsor Engine Completed")
 

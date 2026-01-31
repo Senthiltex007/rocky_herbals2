@@ -33,10 +33,17 @@ urlpatterns = [
     # ===================== ADD MEMBER ROUTES =====================
     path('member/add/', views.add_member_form, name='add_member_form'),
 
-    # MAIN ADD MEMBER URL
-    path('member/add/<str:parent_id>/<str:position>/', views.add_member_under_parent, name='add_member'),
-    # 🔑 ALIAS (FIX FOR TREE TEMPLATE)
-    path('member/add/<str:parent_id>/<str:position>/', views.add_member_under_parent, name='add_member_under_parent'),
+    # 🔑 FIX: Add alias 'add_member' for template compatibility
+    path(
+        'member/add/<str:parent_id>/<str:position>/',
+        views.add_member_under_parent,
+        name='add_member_under_parent'
+    ),
+    path(
+        'member/add/<str:parent_id>/<str:position>/',
+        views.add_member_under_parent,
+        name='add_member'  # Alias for tree template
+    ),
 
     # ===================== EDIT / DELETE MEMBER =====================
     path('member/edit/<str:auto_id>/', views.edit_member, name='edit_member'),

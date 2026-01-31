@@ -1,9 +1,10 @@
 from django.contrib import admin
 from django.utils.html import format_html
+from django.db.models import Sum
 from .models import (
-    Member, Payment, Income, Commission, Product, Order,
+    Member, Payment, Commission, Product, Order,
     IncomeRecord, CommissionRecord, BonusRecord, RockCounter,
-    RankReward, RankPayoutLog
+    RankReward, RankPayoutLog, DailyIncomeReport
 )
 
 # ==========================================================
@@ -14,7 +15,7 @@ class MemberAdmin(admin.ModelAdmin):
     list_display = (
         "id", "auto_id_display", "name", "sponsor", "package", "total_bv_display",
         "binary_income_display", "sponsor_income_display",
-        "flashout_income_display", "salary_display",
+        "flashout_income_display", "salary_income_display",
         "current_rank", "joined_date", "active"
     )
     search_fields = ("auto_id", "name", "phone", "email")
@@ -26,33 +27,50 @@ class MemberAdmin(admin.ModelAdmin):
         return format_html("<strong>{}</strong>", obj.auto_id)
     auto_id_display.short_description = "Auto ID"
 
-    # ✅ Total BV (Left + Right)
+    # ✅ Total BV (Left / Right)
     def total_bv_display(self, obj):
         return f"{obj.total_left_bv} / {obj.total_right_bv}"
     total_bv_display.short_description = "Left / Right BV"
 
     # ✅ Binary Income
     def binary_income_display(self, obj):
-        total = Income.objects.filter(member=obj).aggregate_sum("binary_income")
-        return total or 0
+        total = DailyIncomeReport.objects.filter(
+            member=obj
+        ).aggregate(
+            total=Sum("binary_income")
+        )["total"] or 0
+        return total
     binary_income_display.short_description = "Binary Income"
 
     # ✅ Sponsor Income
     def sponsor_income_display(self, obj):
-        total = Income.objects.filter(member=obj).aggregate_sum("sponsor_income")
-        return total or 0
+        total = DailyIncomeReport.objects.filter(
+            member=obj
+        ).aggregate(
+            total=Sum("sponsor_income")
+        )["total"] or 0
+        return total
     sponsor_income_display.short_description = "Sponsor Income"
 
-    # ✅ Flashout Income
+    # ✅ Flashout Bonus
     def flashout_income_display(self, obj):
-        total = Income.objects.filter(member=obj).aggregate_sum("flash_bonus")
-        return total or 0
+        total = DailyIncomeReport.objects.filter(
+            member=obj
+        ).aggregate(
+            total=Sum("flash_bonus")
+        )["total"] or 0
+        return total
     flashout_income_display.short_description = "Flashout Bonus"
 
-    # ✅ Salary (Rank Reward Monthly Salary)
-    def salary_display(self, obj):
-        return obj.salary or 0
-    salary_display.short_description = "Monthly Salary"
+    # ✅ Salary Income
+    def salary_income_display(self, obj):
+        total = DailyIncomeReport.objects.filter(
+            member=obj
+        ).aggregate(
+            total=Sum("salary_income")
+        )["total"] or 0
+        return total
+    salary_income_display.short_description = "Salary Income"
 
 
 # ==========================================================
@@ -63,20 +81,6 @@ class PaymentAdmin(admin.ModelAdmin):
     list_display = ("id", "member", "amount", "status", "date")
     search_fields = ("member__name", "status")
     list_filter = ("status", "date")
-
-
-# ==========================================================
-# ✅ INCOME ADMIN (FIXED flash_bonus)
-# ==========================================================
-@admin.register(Income)
-class IncomeAdmin(admin.ModelAdmin):
-    list_display = (
-        "id", "member", "date",
-        "binary_pairs", "binary_income",
-        "sponsor_income", "flash_bonus", "salary_income"
-    )
-    search_fields = ("member__name",)
-    list_filter = ("date",)
 
 
 # ==========================================================
@@ -118,6 +122,7 @@ admin.site.register(IncomeRecord)
 admin.site.register(CommissionRecord)
 admin.site.register(BonusRecord)
 admin.site.register(RockCounter)
+
 
 # ✅ Admin Branding
 admin.site.site_header = "🌿 Rocky Herbals Administration"

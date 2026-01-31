@@ -12,6 +12,7 @@ from django.http import HttpResponse, JsonResponse
 from django.urls import reverse
 from django.views.decorators.csrf import csrf_exempt
 from django.db.models import Sum
+from herbalapp.models import DailyIncomeReport
 
 
 import csv
@@ -39,7 +40,6 @@ from .models import (
     Member,
     Product,
     Payment,
-    Income,
     CommissionRecord,
     BonusRecord,
     Order,
@@ -446,7 +446,7 @@ from django.contrib.auth import authenticate, login
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.db.models import Sum
 
-from .models import Member, Payment, Product, Income
+from .models import Member, Payment, Product
 
 
 # =========================
@@ -514,7 +514,9 @@ def admin_dashboard(request):
         "unpaid_members": unpaid_members,
         "income": total_income,
         "products_count": Product.objects.count(),
-        "income_count": Income.objects.count(),
+        "income_count": DailyIncomeReport.objects.count(),
+        incomes : DailyIncomeReport.objects.all()
+
     }
 
     return render(request, "admin_dashboard.html", context)
@@ -1352,26 +1354,16 @@ def edit_sponsor(request, auto_id):
 # ======================================================
 # INCOME PAGE WITH FILTERS (FINAL VERSION)
 # ======================================================
-from django.db.models import Sum, F
-from django.shortcuts import render
+from django.db.models import Sum
+from herbalapp.models import DailyIncomeReport
 
 def income_view(request):
 
-    incomes = Income.objects.all()
+    incomes = DailyIncomeReport.objects.select_related("member")
 
     # ---------------- FILTER INPUTS ----------------
     min_income = request.GET.get("min")
     max_income = request.GET.get("max")
-
-    # ---------------- ANNOTATE FIRST ----------------
-    incomes = incomes.annotate(
-        total_income=(
-            F('binary_income') +
-            F('sponsor_income') +
-            F('salary_income') +
-            F('flash_out_bonus')
-        )
-    )
 
     # ---------------- INCOME RANGE FILTER ----------------
     if min_income:

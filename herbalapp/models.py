@@ -1,10 +1,53 @@
 # herbalapp/models.py
-from django.db import models, transaction
+from django.db import models
 from django.utils import timezone
 from decimal import Decimal
-from collections import deque
-from django.core.exceptions import ValidationError
-from herbalapp.utils.auto_id import generate_auto_id  # ✅ new auto_id logic
+
+class EngineLock(models.Model):
+    """
+    Global day-level lock for MLM daily engine.
+    Ensures engine runs ONLY once per date
+    (manual / celery / retry safe)
+    """
+
+    run_date = models.DateField(
+        unique=True,
+        help_text="Engine run date (local timezone date)"
+    )
+
+    is_running = models.BooleanField(
+        default=True,
+        help_text="True while engine is executing"
+    )
+
+    started_at = models.DateTimeField(
+        default=timezone.now,
+        help_text="Engine start timestamp"
+    )
+
+    finished_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Engine completion timestamp"
+    )
+
+    class Meta:
+        db_table = "engine_lock"
+        verbose_name = "Daily Engine Lock"
+        verbose_name_plural = "Daily Engine Locks"
+
+    def mark_finished(self):
+        """
+        Call ONLY when engine completed successfully
+        """
+        self.is_running = False
+        self.finished_at = timezone.now()
+        self.save(update_fields=["is_running", "finished_at"])
+
+    def __str__(self):
+        status = "RUNNING" if self.is_running else "FINISHED"
+        return f"EngineLock({self.run_date} → {status})"
+
 
 # ==========================================================
 # AUTO COUNTER FOR ROCKY IDs
@@ -34,6 +77,28 @@ class Member(models.Model):
         db_table = "herbalapp_member"   # ✅ explicit table name
         ordering = ["name"]             # ✅ default ordering in queries
 
+
+    # ==========================================================
+    # PLACEMENT ELIGIBILITY CHECK (1:2 or 2:1)
+    # ==========================================================
+    def is_placement_complete(self):
+        """
+        Returns True if member has either 1:2 or 2:1 completed
+        """
+        # Count children on each side
+        left_count = Member.objects.filter(parent=self, side='left').count()
+        right_count = Member.objects.filter(parent=self, side='right').count()
+
+        if (left_count >= 1 and right_count >= 2) or (left_count >= 2 and right_count >= 1):
+            return True
+        return False
+
+    def left_child(self):
+        return Member.objects.filter(parent=self, side="left").first()
+
+    def right_child(self):
+        return Member.objects.filter(parent=self, side="right").first()
+
     # =========================
     # ROOT DELETE PROTECTION
     # =========================
@@ -53,7 +118,7 @@ class Member(models.Model):
 
     activation_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     is_active = models.BooleanField(default=True)
-
+    sponsor_income_given = models.BooleanField(default=False)
     # -------------------------
     # ADDRESS / KYC
     # -------------------------
@@ -345,29 +410,6 @@ class Payment(models.Model):
     def __str__(self):
         return f"{self.member.auto_id} - {self.status} - {self.amount}"
 
-
-# ==========================================================
-# INCOME MODEL (Daily consolidated per member)
-# ==========================================================
-class Income(models.Model):
-    member = models.ForeignKey(Member, on_delete=models.CASCADE)
-    date = models.DateField(auto_now_add=True)
-
-    # 🔹 New field added
-    binary_pairs = models.IntegerField(default=0)
-
-    binary_income = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
-    sponsor_income = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
-    flash_bonus = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
-    salary_income = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
-
-    class Meta:
-        unique_together = ("member", "date")
-
-    def __str__(self):
-        return f"Income for {self.member.auto_id} on {self.date}"
-
-
 # ==========================================================
 # COMMISSION MODEL
 # ==========================================================
@@ -532,6 +574,9 @@ class DailyIncomeReport(models.Model):
     eligibility_income = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     flash_bonus = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     salary = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    sponsor_today_processed = models.BooleanField(default=False, help_text='Prevent sponsor double credit in same day')
+    total_income_locked = models.BooleanField(default=False, help_text='Lock total_income once finalized')
+    earned_fresh_binary_today = models.BooleanField(default=False)
 
     # Join counts
     left_joins = models.IntegerField(default=0)
@@ -589,4 +634,20 @@ class DailyIncomeReport(models.Model):
                 name='unique_member_date_report'
             )
         ]
+# herbalapp/models.py
+
+class SponsorIncomeLog(models.Model):
+    sponsor = models.ForeignKey(Member, on_delete=models.CASCADE)
+    child = models.ForeignKey(
+        Member,
+        on_delete=models.CASCADE,
+        related_name="sponsor_income_child"
+    )
+    date = models.DateField()
+
+    class Meta:
+        unique_together = ("sponsor", "child", "date")
+
+    def __str__(self):
+        return f"{self.date} | {self.sponsor.auto_id} <- {self.child.auto_id}"
 
