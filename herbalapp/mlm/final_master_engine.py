@@ -342,29 +342,15 @@ def can_receive_sponsor_income(member: Member):
     return member.binary_eligible is True
 
 # ----------------------------------------------------------
-# FULL DAILY ENGINE (FINAL SAFE VERSION)
+# FULL DAILY ENGINE – CORRECTED BLOCK (SAFE & AUDIT CLEAN)
 # ----------------------------------------------------------
 def run_full_daily_engine(run_date: date):
-
-    # 🔒 GLOBAL DAY LOCK (FIRST LINE)
-   # try:
-       # lock = EngineLock.objects.create(
-            #run_date=run_date,
-            #is_running=True,
-            #started_at=timezone.now()
-        #)
-    #except IntegrityError:
-        # Row already exists, fetch existing lock
-        #lock = EngineLock.objects.get(run_date=run_date)
-        #print(f"⛔ Engine already ran for {run_date}")
-        #return
-
     print(f"🚀 Running MLM Master Engine for {run_date}")
+
     # 🔁 HARD RESET: EarnedToday flag (engine ↔ shell sync)
     DailyIncomeReport.objects.filter(date=run_date).update(
         earned_fresh_binary_today=False,
     )
-
 
     members = Member.objects.filter(
         is_active=True,
@@ -375,17 +361,17 @@ def run_full_daily_engine(run_date: date):
     # MEMBER LOOP – LIFETIME BINARY ELIGIBILITY
     # ==================================================
     for member in members:
-
         became_binary_eligible_today = False
 
+        # Count descendants for eligibility check
         left_cnt = count_all_descendants(member, "left")
         right_cnt = count_all_descendants(member, "right")
 
+        # 🔹 Lifetime binary eligibility check
         if (
             (left_cnt >= 2 and right_cnt >= 1) or
             (left_cnt >= 1 and right_cnt >= 2)
         ) and not member.binary_eligible:
-
             member.binary_eligible = True
             member.save(update_fields=["binary_eligible"])
             became_binary_eligible_today = True
@@ -414,46 +400,45 @@ def run_full_daily_engine(run_date: date):
         )
 
         # --------------------------------------------------
-        # ✅ STEP 3: HARD DAILY RESET (IDEMPOTENT)
+        # ✅ HARD DAILY RESET (CASH + WALLET SEPARATION SAFE)
         # --------------------------------------------------
         report.binary_income = Decimal("0.00")
         report.binary_eligibility_income = Decimal("0.00")
         report.flashout_wallet_income = Decimal("0.00")
         report.total_income = Decimal("0.00")
+        report.earned_fresh_binary_today = False
+        report.total_income_locked = False
 
-        # ❗ CF must reset DAILY
+        # ❗ Carry Forward from yesterday
         yesterday = run_date - timedelta(days=1)
         yesterday_report = DailyIncomeReport.objects.filter(
-                member=member,
-                date=yesterday
+            member=member,
+            date=yesterday
         ).first()
 
         left_cf_before = yesterday_report.left_cf if yesterday_report else 0
         right_cf_before = yesterday_report.right_cf if yesterday_report else 0
 
-        report.earned_fresh_binary_today = False
-        report.total_income_locked = False
-
         report.save(update_fields=[
-                "binary_income",
-                "binary_eligibility_income",
-                "flashout_wallet_income",
-                "sponsor_income",
-                "total_income",
-                "earned_fresh_binary_today",
-                "total_income_locked",
+            "binary_income",
+            "binary_eligibility_income",
+            "flashout_wallet_income",
+            "total_income",
+            "earned_fresh_binary_today",
+            "total_income_locked",
         ])
 
-        # 🔹 Today joins + total descendants (corrected)
-        left_total = count_all_descendants(member, side="left")
-        right_total = count_all_descendants(member, side="right")
+        # --------------------------------------------------
+        # 🔹 Only run binary income calculation if eligible
+        # --------------------------------------------------
+        if member.binary_eligible or became_binary_eligible_today:
 
-        # 🔹 Add carry forward from yesterday
-        left_available = left_total + left_cf_before
-        right_available = right_total + right_cf_before
+            # Count total descendants (TODAY)
+            left_total = count_all_descendants(member, side="left")
+            right_total = count_all_descendants(member, side="right")
 
-        # 🔹 Today binary & eligibility calculation
-        res = calculate_member_binary_income_for_day(
+            # Binary & CF calculation (logic unchanged)
+            res = calculate_member_binary_income_for_day(
                 member,
                 left_today=left_total,
                 right_today=right_total,
@@ -461,13 +446,16 @@ def run_full_daily_engine(run_date: date):
                 right_cf_before=right_cf_before,
                 binary_eligible=member.binary_eligible,
                 became_binary_eligible_today=became_binary_eligible_today
-        )
+            )
 
-        # 🔒 Atomic update for member + report
-        with transaction.atomic():
+            # --------------------------------------------------
+            # 🔒 ATOMIC UPDATE (CONSISTENT STATE)
+            # --------------------------------------------------
+            with transaction.atomic():
+
                 if became_binary_eligible_today:
-                        member.binary_eligible = True
-                        member.save(update_fields=["binary_eligible"])
+                    member.binary_eligible = True
+                    member.save(update_fields=["binary_eligible"])
 
                 report.binary_income = res["binary_income"]
                 report.binary_eligibility_income = res["eligibility_income"]
@@ -475,28 +463,38 @@ def run_full_daily_engine(run_date: date):
                 report.left_cf = res["left_cf_after"]
                 report.right_cf = res["right_cf_after"]
 
-                if res["eligibility_income"] > 0 or res["binary_pairs_paid"] > 0:
-                        report.earned_fresh_binary_today = True
+                if (
+                    res["binary_pairs_paid"] > 0
+                    or res["eligibility_income"] > 0
+                ):
+                    report.earned_fresh_binary_today = True
 
+                # ✅ TOTAL = CASH ONLY (CRITICAL FIX)
                 report.total_income = (
-                        report.binary_income
-                        + report.binary_eligibility_income
-                        + report.flashout_wallet_income
+                    report.binary_income
+                    + report.binary_eligibility_income
+                    + report.sponsor_income
                 )
-                report.save(
-                        update_fields=[
-                                "binary_income",
-                                "binary_eligibility_income",
-                                "flashout_wallet_income",
-                                "left_cf",
-                                "right_cf",
-                                "earned_fresh_binary_today",
-                                "total_income",
-                        ]
-                )
+
+                report.save(update_fields=[
+                    "binary_income",
+                    "binary_eligibility_income",
+                    "flashout_wallet_income",
+                    "left_cf",
+                    "right_cf",
+                    "earned_fresh_binary_today",
+                    "total_income",
+                ])
+
+        else:
+            # 🔹 Not eligible → only carry forward
+            report.left_cf = left_cf_before
+            report.right_cf = right_cf_before
+            report.save(update_fields=["left_cf", "right_cf"])
+            print(f"⛔ {member.auto_id} skipped binary income (not eligible)")
 
     # ==================================================
-    # 2️⃣ SPONSOR INCOME – DUPLICATE SAFE (FINAL)
+    # 2️⃣ SPONSOR INCOME – DUPLICATE SAFE (FIXED)
     # ==================================================
     for child in get_valid_sponsor_children(run_date):
 
@@ -505,17 +503,8 @@ def run_full_daily_engine(run_date: date):
             date=run_date
         )
 
-        # 🔒 SINGLE SOURCE OF TRUTH (child-level atomic lock)
-        updated = DailyIncomeReport.objects.filter(
-            member=child,
-            date=run_date,
-        ).update(sponsor_today_processed=True)
-
-        if updated == 0:
-            continue  # ❌ already processed in earlier run
-
         # --------------------------------------------------
-        # Determine correct sponsor receiver
+        # Determine correct sponsor receiver (Rule 1 & 2)
         # --------------------------------------------------
         receiver = None
 
@@ -528,20 +517,35 @@ def run_full_daily_engine(run_date: date):
             if child.sponsor and child.sponsor.auto_id != ROOT_ID:
                 receiver = child.sponsor
 
-        # Rule 3: sponsor must be binary eligible
-        if receiver and not receiver.binary_eligible:
-            receiver = None
-
-        sponsor_amount = (
-            child_report.binary_income
-            + child_report.binary_eligibility_income
-        )
-
-        if not receiver or sponsor_amount <= 0:
+        # Rule 3: receiver must be binary eligible
+        if not receiver or not receiver.binary_eligible:
             continue
 
         # --------------------------------------------------
-        # Credit sponsor income (append-only)
+        # 🔒 Child-level lock (AFTER receiver confirmed)
+        # --------------------------------------------------
+        updated = DailyIncomeReport.objects.filter(
+            member=child,
+            date=run_date,
+            sponsor_today_processed=False
+        ).update(sponsor_today_processed=True)
+
+        if updated == 0:
+            continue  # ❌ already processed earlier
+
+        # --------------------------------------------------
+        # Sponsor amount (Eligibility + Binary ONLY)
+        # --------------------------------------------------
+        sponsor_amount = (
+            child_report.binary_eligibility_income
+            + child_report.binary_income
+        )
+
+        if sponsor_amount <= 0:
+            continue
+
+        # --------------------------------------------------
+        # Credit sponsor income
         # --------------------------------------------------
         with transaction.atomic():
             receiver_report, _ = DailyIncomeReport.objects.get_or_create(
@@ -553,11 +557,6 @@ def run_full_daily_engine(run_date: date):
             receiver_report.save(
                 update_fields=["sponsor_income", "total_income"]
             )
-
-        print(
-            f"✅ Sponsor income {sponsor_amount} credited to "
-            f"{receiver.auto_id}, child: {child.auto_id}"
-        )
 
     # ==================================================
     # 3️⃣ FINAL TOTAL LOCK

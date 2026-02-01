@@ -2218,3 +2218,30 @@ def member_rank_detail(request, auto_id):
         "rank_info": rank_info,
     })
 
+from django.http import JsonResponse
+from datetime import date
+from .models import DailyIncomeReport
+
+@login_required
+def income_api(request):
+    date_str = request.GET.get("date")
+
+    if date_str:
+        report_date = date_str
+    else:
+        report_date = date.today()
+
+    qs = DailyIncomeReport.objects.filter(date=report_date)
+
+    data = []
+    for row in qs:
+        data.append({
+            "member_id": row.member.auto_id,
+            "binary_income": float(row.binary_income),
+            "eligible_income": float(row.eligible_income),
+            "sponsor_income": float(row.sponsor_income),
+            "total_income": float(row.total_income),
+        })
+
+    return JsonResponse({"data": data})
+
