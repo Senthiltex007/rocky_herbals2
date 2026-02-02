@@ -1,27 +1,33 @@
-from django.utils import timezone
+# herbalapp/tasks.py
+
 from celery import shared_task
+from datetime import date
+from herbalapp.models import Member
+from herbalapp.mlm.final_master_engine import run_full_daily_engine
 
-# ❌ FINAL ENGINE IMPORT REMOVE
-# from herbalapp.mlm.final_master_engine import run_full_daily_engine
-# from herbalapp.mlm.engine_lock import run_with_lock
-
-#from herbalapp.mlm.preview_engine import run_preview_engine
-
-# ----------------------------------------------------------
-# Celery Task: PREVIEW ONLY (SAFE)
-# ----------------------------------------------------------
-@shared_task(
-    bind=True,
-    autoretry_for=(Exception,),
-    retry_backoff=5,
-    retry_kwargs={"max_retries": 3},
-)
-def run_engine_task(self):
+@shared_task
+def update_income_task(member_auto_id):
     """
-    ⚠️ PREVIEW ONLY
-    - Binary preview
-    - No sponsor
-    - No total lock
+    Celery task to update income for a member.
+    This task no longer duplicates engine logic.
+    It calls the production-ready MLM engine.
     """
-    run_preview_engine(timezone.localdate())
+
+    try:
+        # 🔹 Get the member object (just for logging)
+        member = Member.objects.get(auto_id=member_auto_id)
+        run_date = date.today()
+
+        print(f"🚀 Triggered MLM Engine for all members by {member.auto_id}")
+
+        # 🔹 Call the real engine for today
+        run_full_daily_engine(run_date)
+
+        return f"✅ Income update completed for {member_auto_id}"
+
+    except Member.DoesNotExist:
+        return f"❌ Member {member_auto_id} does not exist"
+
+    except Exception as e:
+        return f"❌ Failed to update income for {member_auto_id}: {e}"
 

@@ -1,19 +1,16 @@
 # herbalapp/signals.py
-# 🚫 SIGNAL TEMPORARILY DISABLED FOR MLM ENGINE TESTING
 
-# from django.db.models.signals import post_save
-# from django.dispatch import receiver
-# from herbalapp.models import Member
-# from herbalapp.tasks import run_engine_task
+from django.db.models.signals import post_save
+from django.dispatch import receiver
+from herbalapp.models import Member
+from herbalapp.tasks import update_income_task
 
-# @receiver(post_save, sender=Member)
-# def run_engine_after_member_save(sender, instance, created, **kwargs):
-#     """
-#     Trigger MLM engine automatically after a new member is saved.
-#     Only runs once per new member.
-#     """
-#     if not created:
-#         return
-#
-#     run_engine_task.delay()
+@receiver(post_save, sender=Member)
+def run_income_update_on_new_member(sender, instance, created, **kwargs):
+    """
+    Trigger automatic income update for new members.
+    """
+    if created:
+        # 🔹 Call celery task for this member
+        update_income_task.delay(instance.auto_id)
 

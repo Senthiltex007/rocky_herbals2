@@ -79,6 +79,8 @@ urlpatterns = [
     path('rank-report/', views.rank_report, name='rank_report'),
     path('salary-report/', views.salary_report, name='salary_report'),
     path('member/<str:auto_id>/rank/', views.member_rank_detail, name='member_rank_detail'),
+    path("api/income/", views.income_api, name="income_api"),
+
 ]
 
 # ===================== STATIC / MEDIA =====================

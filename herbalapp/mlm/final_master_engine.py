@@ -127,11 +127,11 @@ def force_run_daily(run_date):
 # =============================================================
 if __name__ == "__main__":
     import sys
-    from datetime import date
+    from datetime import datetime, date
 
     # Usage: python mlm_engine.py 2026-01-29
     if len(sys.argv) > 1:
-        run_date = sys.argv[1]
+        run_date = datetime.strptime(sys.argv[1], "%Y-%m-%d").date()  # convert string to date
     else:
         run_date = date.today()
 
@@ -289,6 +289,89 @@ def calculate_member_binary_income_for_day(
         "right_cf_after": R,
         "total_income": total_income,
     }
+def apply_sponsor_for_child(child, child_report, run_date):
+    """
+    FINAL Sponsor Income Logic
+    --------------------------
+    Rule 1: placement_id == sponsor_id → placement gets income
+    Rule 2: placement_id != sponsor_id → sponsor gets income
+    Rule 3: receiver must be binary eligible (1:1 completed)
+    Rule 4: Rocky001 never receives sponsor income
+    Rule 5: Binary + Eligibility ONLY (no flashout)
+    Rule 6: Duplicate-safe (per day, per child)
+    """
+
+    # 🔴 ROOT never generates sponsor income
+    if child.auto_id == "rocky001":
+        return
+
+    # 🔒 Duplicate safety
+    if child_report.sponsor_today_processed:
+        return
+
+    # -----------------------------
+    # Rule 1 & 2 – decide receiver
+    # -----------------------------
+    if child.parent_id == child.sponsor_id:
+        receiver = child.parent
+    else:
+        receiver = child.sponsor
+
+    if not receiver:
+        return
+
+    # 🔴 ROOT never receives sponsor income
+    if receiver.auto_id == "rocky001":
+        return
+
+    # -----------------------------
+    # Rule 3 – receiver must be binary eligible
+    # -----------------------------
+    if not receiver.binary_eligible:
+        return
+
+    # -----------------------------
+    # Sponsor amount (NO flashout)
+    # -----------------------------
+    sponsor_amount = (
+        child_report.binary_income +
+        child_report.binary_eligibility_income
+    )
+
+    if sponsor_amount <= 0:
+        return
+
+    # -----------------------------
+    # Credit sponsor income
+    # -----------------------------
+    receiver_report, _ = DailyIncomeReport.objects.get_or_create(
+        member=receiver,
+        date=run_date,
+        defaults={
+            "binary_income": Decimal("0.00"),
+            "binary_eligibility_income": Decimal("0.00"),
+            "sponsor_income": Decimal("0.00"),
+            "flashout_wallet_income": Decimal("0.00"),
+            "total_income": Decimal("0.00"),
+            "left_cf": 0,
+            "right_cf": 0,
+            "earned_fresh_binary_today": False,
+            "sponsor_today_processed": False,
+            "total_income_locked": False,
+        }
+    )
+
+    receiver_report.sponsor_income += sponsor_amount
+    receiver_report.total_income += sponsor_amount
+    receiver_report.save(update_fields=[
+        "sponsor_income",
+        "total_income"
+    ])
+
+    # 🔒 mark child processed
+    child_report.sponsor_today_processed = True
+    child_report.save(update_fields=["sponsor_today_processed"])
+
 
 # ----------------------------------------------------------
 # Sponsor calculation rules (FINAL – NO ROOT CONCEPT)
@@ -348,8 +431,9 @@ def run_full_daily_engine(run_date: date):
     print(f"🚀 Running MLM Master Engine for {run_date}")
 
     # 🔁 HARD RESET: EarnedToday flag (engine ↔ shell sync)
+
     DailyIncomeReport.objects.filter(date=run_date).update(
-        earned_fresh_binary_today=False,
+        earned_fresh_binary_today=False
     )
 
     members = Member.objects.filter(
@@ -494,69 +578,23 @@ def run_full_daily_engine(run_date: date):
             print(f"⛔ {member.auto_id} skipped binary income (not eligible)")
 
     # ==================================================
-    # 2️⃣ SPONSOR INCOME – DUPLICATE SAFE (FIXED)
+    # 2️⃣ SPONSOR INCOME – FINAL CLEAN LOGIC
     # ==================================================
     for child in get_valid_sponsor_children(run_date):
 
-        child_report = DailyIncomeReport.objects.get(
+        child_report = DailyIncomeReport.objects.filter(
             member=child,
             date=run_date
-        )
+        ).first()
 
-        # --------------------------------------------------
-        # Determine correct sponsor receiver (Rule 1 & 2)
-        # --------------------------------------------------
-        receiver = None
-
-        # Rule 1: placement == sponsor → placement itself
-        if child.parent_id == child.sponsor_id:
-            if child.parent and child.parent.auto_id != ROOT_ID:
-                receiver = child.parent
-        else:
-            # Rule 2: placement != sponsor → sponsor
-            if child.sponsor and child.sponsor.auto_id != ROOT_ID:
-                receiver = child.sponsor
-
-        # Rule 3: receiver must be binary eligible
-        if not receiver or not receiver.binary_eligible:
+        if not child_report:
             continue
 
-        # --------------------------------------------------
-        # 🔒 Child-level lock (AFTER receiver confirmed)
-        # --------------------------------------------------
-        updated = DailyIncomeReport.objects.filter(
-            member=child,
-            date=run_date,
-            sponsor_today_processed=False
-        ).update(sponsor_today_processed=True)
-
-        if updated == 0:
-            continue  # ❌ already processed earlier
-
-        # --------------------------------------------------
-        # Sponsor amount (Eligibility + Binary ONLY)
-        # --------------------------------------------------
-        sponsor_amount = (
-            child_report.binary_eligibility_income
-            + child_report.binary_income
+        apply_sponsor_for_child(
+            child=child,
+            child_report=child_report,
+            run_date=run_date
         )
-
-        if sponsor_amount <= 0:
-            continue
-
-        # --------------------------------------------------
-        # Credit sponsor income
-        # --------------------------------------------------
-        with transaction.atomic():
-            receiver_report, _ = DailyIncomeReport.objects.get_or_create(
-                member=receiver,
-                date=run_date
-            )
-            receiver_report.sponsor_income += sponsor_amount
-            receiver_report.total_income += sponsor_amount
-            receiver_report.save(
-                update_fields=["sponsor_income", "total_income"]
-            )
 
     # ==================================================
     # 3️⃣ FINAL TOTAL LOCK

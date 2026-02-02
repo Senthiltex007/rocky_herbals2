@@ -6,6 +6,7 @@ from .models import (
     IncomeRecord, CommissionRecord, BonusRecord, RockCounter,
     RankReward, RankPayoutLog, DailyIncomeReport
 )
+#from .tasks import run_engine_task  # ✅ Celery task import
 
 # ==========================================================
 # ✅ MEMBER ADMIN (UPDATED FOR NEW BINARY + RANK ENGINE)
@@ -72,9 +73,17 @@ class MemberAdmin(admin.ModelAdmin):
         return total
     salary_income_display.short_description = "Salary Income"
 
+    # ✅ Override save_model to trigger engine
+    def save_model(self, request, obj, form, change):
+        super().save_model(request, obj, form, change)
+
+        # 🔹 Only trigger engine for NEW member
+        if not change:
+            run_engine_task.delay()  # Celery async engine run
+
 
 # ==========================================================
-# ✅ PAYMENT ADMIN
+# ✅ OTHER ADMINS (PAYMENT, PRODUCT, RANK)
 # ==========================================================
 @admin.register(Payment)
 class PaymentAdmin(admin.ModelAdmin):
@@ -82,30 +91,18 @@ class PaymentAdmin(admin.ModelAdmin):
     search_fields = ("member__name", "status")
     list_filter = ("status", "date")
 
-
-# ==========================================================
-# ✅ PRODUCT ADMIN
-# ==========================================================
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
     list_display = ("id", "name", "mrp", "bv_value", "created_at")
     search_fields = ("name",)
     list_filter = ("created_at",)
 
-
-# ==========================================================
-# ✅ RANK REWARD ADMIN
-# ==========================================================
 @admin.register(RankReward)
 class RankRewardAdmin(admin.ModelAdmin):
     list_display = ("member", "rank_title", "monthly_income", "duration_months", "months_paid", "active")
     list_filter = ("rank_title", "active")
     search_fields = ("member__auto_id", "member__name")
 
-
-# ==========================================================
-# ✅ RANK PAYOUT LOG ADMIN
-# ==========================================================
 @admin.register(RankPayoutLog)
 class RankPayoutLogAdmin(admin.ModelAdmin):
     list_display = ("member", "rank_reward", "amount", "paid_on")
@@ -114,7 +111,7 @@ class RankPayoutLogAdmin(admin.ModelAdmin):
 
 
 # ==========================================================
-# ✅ DIRECT REGISTRATIONS
+# ✅ OTHER REGISTRATIONS
 # ==========================================================
 admin.site.register(Commission)
 admin.site.register(Order)
@@ -122,7 +119,6 @@ admin.site.register(IncomeRecord)
 admin.site.register(CommissionRecord)
 admin.site.register(BonusRecord)
 admin.site.register(RockCounter)
-
 
 # ✅ Admin Branding
 admin.site.site_header = "🌿 Rocky Herbals Administration"
