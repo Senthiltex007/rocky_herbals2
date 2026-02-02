@@ -64,11 +64,17 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'rocky_herbals2.wsgi.application'
 
-# ✅ SQLite database
+# =========================
+# ✅ PostgreSQL Database
+# =========================
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': 'rockydb',
+        'USER': 'rockyuser',
+        'PASSWORD': 'StrongPassword123',
+        'HOST': 'localhost',
+        'PORT': '5432',
     }
 }
 
@@ -100,8 +106,6 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / "media"
 
-# ✅ ✅ TEMPORARY DEMO FIX — Disable login redirect
-# Django normally redirects to /accounts/login/ when a page requires login.
-# For demo mode, we override it to root so no redirect happens.
+# ✅ TEMPORARY DEMO FIX — Disable login redirect
 LOGIN_URL = '/'
 
