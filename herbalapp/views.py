@@ -10,7 +10,8 @@ from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse, JsonResponse
 from django.urls import reverse
 from django.views.decorators.csrf import csrf_exempt
-from django.db.models import Sum
+from django.db.models import Sum, Value, DecimalField
+from django.db.models.functions import Coalesce
 
 
 import csv
@@ -2108,62 +2109,84 @@ def income_chart(request, auto_id):
     })
 
 from decimal import Decimal
+from datetime import datetime
 from django.shortcuts import render
-from django.utils.dateparse import parse_date
 from django.utils.timezone import localdate
-from django.db.models import Sum
+from django.db.models import Sum, Value, DecimalField
+from django.db.models.functions import Coalesce
 from herbalapp.models import DailyIncomeReport
+
 
 def income_report(request):
     # -----------------------------
-    # Date filter
+    # Date filter (supports DD-MM-YYYY + YYYY-MM-DD)
     # -----------------------------
     date_str = request.GET.get("date")
-    run_date = parse_date(date_str) if date_str else localdate()
+
+    if date_str:
+        try:
+            # UI sends: 07-02-2026
+            run_date = datetime.strptime(date_str, "%d-%m-%Y").date()
+        except ValueError:
+            try:
+                # If browser sends: 2026-02-07
+                run_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+            except ValueError:
+                run_date = localdate()
+    else:
+        run_date = localdate()
 
     # -----------------------------
-    # Ensure report exists for ALL members
+    # Fetch existing reports ONLY (no creating rows here)
     # -----------------------------
-    reports = []
-    members = Member.objects.all().order_by("auto_id")
-
-    for member in members:
-        report, _ = DailyIncomeReport.objects.get_or_create(
-            member=member,
-            date=run_date,
-            defaults={
-                "wallet_income": 0,
-                "binary_income": Decimal("0.00"),
-                "binary_eligibility_income": Decimal("0.00"),
-                "sponsor_income": Decimal("0.00"),
-                "salary_income": Decimal("0.00"),
-                "total_income": Decimal("0.00"),
-            }
-        )
-        reports.append(report)
+    reports = (
+        DailyIncomeReport.objects
+        .select_related("member")
+        .filter(date=run_date)
+        .order_by("member__auto_id")
+    )
 
     # -----------------------------
-    # Totals calculation
+    # Totals
     # -----------------------------
-    totals = {
-        "total_eligibility": sum(r.binary_eligibility_income for r in reports),
-        "total_binary": sum(r.binary_income for r in reports),
-        "total_sponsor": sum(r.sponsor_income for r in reports),
-        "total_wallet": sum(r.flashout_wallet_income for r in reports),
-        "total_salary": sum(r.salary_income for r in reports),
-        "grand_total": sum(r.total_income for r in reports),
-    }
+    totals = reports.aggregate(
+        total_eligibility=Coalesce(
+            Sum("binary_eligibility_income"),
+            Value(Decimal("0.00")),
+            output_field=DecimalField()
+        ),
+        total_binary=Coalesce(
+            Sum("binary_income"),
+            Value(Decimal("0.00")),
+            output_field=DecimalField()
+        ),
+        total_sponsor=Coalesce(
+            Sum("sponsor_income"),
+            Value(Decimal("0.00")),
+            output_field=DecimalField()
+        ),
+        total_wallet=Coalesce(
+            Sum("member__repurchase_wallet"),
+            Value(Decimal("0.00")),
+            output_field=DecimalField()
+        ),
+        total_salary=Coalesce(
+            Sum("salary_income"),
+            Value(Decimal("0.00")),
+            output_field=DecimalField()
+        ),
+        grand_total=Coalesce(
+            Sum("total_income"),
+            Value(Decimal("0.00")),
+            output_field=DecimalField()
+        ),
+    )
 
-    # -----------------------------
-    # Context
-    # -----------------------------
-    context = {
+    return render(request, "herbalapp/income_report.html", {
         "run_date": run_date,
         "reports": reports,
         "totals": totals,
-    }
-
-    return render(request, "herbalapp/income_report.html", context)
+    })
 
 from django.shortcuts import render, get_object_or_404
 from django.db.models import Value
@@ -2238,7 +2261,7 @@ def income_api(request):
         data.append({
             "member_id": row.member.auto_id,
             "binary_income": float(row.binary_income),
-            "eligible_income": float(row.eligible_income),
+            "eligibility_income": float(row.binary_eligibility_income),
             "sponsor_income": float(row.sponsor_income),
             "total_income": float(row.total_income),
         })

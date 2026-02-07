@@ -59,17 +59,19 @@ def generate_auto_id():
 # ----------------------------------------------------
 def calculate_daily_income(report: DailyIncomeReport):
     """
-    SAFE TOTAL CALCULATOR
+    SAFE TOTAL CALCULATOR (CASH TOTAL)
+
+    ✅ Cash Total = eligibility + binary + sponsor + salary (if cash)
+    ❌ Does NOT include flashout_wallet_income (repurchase-only wallet)
     - NO binary logic
     - NO sponsor logic
-    - Just sums already-calculated fields
+    - Just sums already-calculated cash fields
     """
 
     report.total_income = (
         (report.binary_eligibility_income or Decimal("0.00")) +
         (report.binary_income or Decimal("0.00")) +
         (report.sponsor_income or Decimal("0.00")) +
-        (getattr(report, "flashout_wallet_income", Decimal("0.00")) or Decimal("0.00")) +
         (getattr(report, "salary_income", Decimal("0.00")) or Decimal("0.00"))
     )
 

@@ -1,33 +1,17 @@
-# herbalapp/tasks.py
-
 from celery import shared_task
 from datetime import date
-from herbalapp.models import Member
+from django.utils.dateparse import parse_date
+from django.utils import timezone
 from herbalapp.mlm.final_master_engine import run_full_daily_engine
 
 @shared_task
-def update_income_task(member_auto_id):
-    """
-    Celery task to update income for a member.
-    This task no longer duplicates engine logic.
-    It calls the production-ready MLM engine.
-    """
+def run_daily_engine_task(run_date_str=None):
+    # beat args இல்லாமலும், args இருந்தாலும் work ஆகணும்
+    if run_date_str:
+        run_date = parse_date(run_date_str)
+    else:
+        run_date = timezone.localdate()
 
-    try:
-        # 🔹 Get the member object (just for logging)
-        member = Member.objects.get(auto_id=member_auto_id)
-        run_date = date.today()
-
-        print(f"🚀 Triggered MLM Engine for all members by {member.auto_id}")
-
-        # 🔹 Call the real engine for today
-        run_full_daily_engine(run_date)
-
-        return f"✅ Income update completed for {member_auto_id}"
-
-    except Member.DoesNotExist:
-        return f"❌ Member {member_auto_id} does not exist"
-
-    except Exception as e:
-        return f"❌ Failed to update income for {member_auto_id}: {e}"
+    run_full_daily_engine(run_date)
+    return f"OK: MLM engine ran for {run_date}"
 

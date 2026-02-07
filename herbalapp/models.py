@@ -7,8 +7,10 @@ from django.core.exceptions import ValidationError
 class EngineLock(models.Model):
     """
     Global day-level lock for MLM daily engine.
-    Ensures engine runs ONLY once per date
-    (manual / celery / retry safe)
+
+    ✅ Prevents parallel execution (Celery-safe)
+    ✅ Tracks start/finish timestamps
+    ✅ Supports "today rerun" logic from engine_lock.py using finished_at
     """
 
     run_date = models.DateField(
@@ -16,16 +18,20 @@ class EngineLock(models.Model):
         help_text="Engine run date (local timezone date)"
     )
 
+    # ✅ FIX: must start as NOT running
     is_running = models.BooleanField(
-        default=True,
+        default=False,
         help_text="True while engine is executing"
     )
 
+    # ✅ FIX: do NOT default to now (set only when engine starts)
     started_at = models.DateTimeField(
-        default=timezone.now,
+        null=True,
+        blank=True,
         help_text="Engine start timestamp"
     )
 
+    # ✅ Completion marker (used for rerun/cooldown logic)
     finished_at = models.DateTimeField(
         null=True,
         blank=True,
@@ -37,16 +43,21 @@ class EngineLock(models.Model):
         verbose_name = "Daily Engine Lock"
         verbose_name_plural = "Daily Engine Locks"
 
+    def mark_started(self):
+        """Call when engine starts executing."""
+        self.is_running = True
+        self.started_at = timezone.now()
+        self.save(update_fields=["is_running", "started_at"])
+
     def mark_finished(self):
-        """
-        Call ONLY when engine completed successfully
-        """
+        """Call ONLY when engine completed successfully."""
         self.is_running = False
         self.finished_at = timezone.now()
-        self.save(update_fields=["is_running", "finished_at"])
+        self.started_at = None
+        self.save(update_fields=["is_running", "started_at", "finished_at"])
 
     def __str__(self):
-        status = "RUNNING" if self.is_running else "FINISHED"
+        status = "RUNNING" if self.is_running else "FINISHED" if self.finished_at else "IDLE"
         return f"EngineLock({self.run_date} → {status})"
 
 
@@ -64,8 +75,12 @@ class RockCounter(models.Model):
 # ==========================================================
 # MEMBER MODEL (MAIN – MLM ENGINE SAFE)
 # ==========================================================
+from django.db import models
+from django.utils import timezone
+
 class Member(models.Model):
     auto_id = models.CharField(max_length=20, unique=True)
+
     member_id = models.CharField(
         max_length=20,
         blank=True,
@@ -74,10 +89,11 @@ class Member(models.Model):
         help_text="Optional secondary ID"
     )
 
-    class Meta:
-        db_table = "herbalapp_member"   # ✅ explicit table name
-        ordering = ["name"]             # ✅ default ordering in queries
+    joined_date = models.DateField(default=timezone.localdate)
 
+    class Meta:
+        db_table = "herbalapp_member"
+        ordering = ["name"]
 
     # ==========================================================
     # PLACEMENT ELIGIBILITY CHECK (1:2 or 2:1)
@@ -173,7 +189,7 @@ class Member(models.Model):
     # TIMESTAMP
     # -------------------------
     created_at = models.DateTimeField(auto_now_add=True)
-    joined_date = models.DateField(default=timezone.now)
+    joined_date = models.DateField(default=timezone.localdate)
     active = models.BooleanField(default=True)
 
     # -------------------------
@@ -187,6 +203,7 @@ class Member(models.Model):
     # INCOME / COUNTERS
     # -------------------------
     binary_pairs = models.IntegerField(default=0)
+    binary_paid_pairs = models.IntegerField(default=0)
     binary_income = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
     sponsor_income = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
     flash_bonus = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
@@ -198,7 +215,7 @@ class Member(models.Model):
     # BINARY ELIGIBILITY + CARRY FORWARD
     # -------------------------
     binary_eligible = models.BooleanField(default=False)
-    binary_eligible_date = models.DateTimeField(null=True, blank=True)
+    binary_eligible_date = models.DateField(null=True, blank=True)
 
     left_carry_forward = models.IntegerField(default=0)
     right_carry_forward = models.IntegerField(default=0)
@@ -566,81 +583,88 @@ class RankPayoutLog(models.Model):
 # ==========================================================
 # DAILY INCOME REPORT (ENGINE SNAPSHOT)
 # ==========================================================
+from decimal import Decimal
+from django.db import models
+
+# ==========================================================
+# DAILY INCOME REPORT (ENGINE SNAPSHOT)
+# ==========================================================
 class DailyIncomeReport(models.Model):
-    member = models.ForeignKey(Member, on_delete=models.CASCADE)
+    member = models.ForeignKey("Member", on_delete=models.CASCADE)
     date = models.DateField()
+
+    # Carry forward counts
     left_cf = models.IntegerField(default=0)
     right_cf = models.IntegerField(default=0)
+
+    # Binary eligibility
     binary_eligible = models.BooleanField(default=False)
-    eligibility_income = models.DecimalField(max_digits=10, decimal_places=2, default=0)
-    flash_bonus = models.DecimalField(max_digits=10, decimal_places=2, default=0)
-    salary = models.DecimalField(max_digits=10, decimal_places=2, default=0)
-    sponsor_today_processed = models.BooleanField(default=False, help_text='Prevent sponsor double credit in same day')
-    total_income_locked = models.BooleanField(default=False, help_text='Lock total_income once finalized')
+
+    # Income fields
+    eligibility_income = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
+    binary_eligibility_income = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
+    binary_income = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
+    flash_bonus = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
+    flashout_wallet_income = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
+    salary = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
+    salary_income = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
+    sponsor_income = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
+    wallet_income = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal("0.00"))
+    total_income = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal("0.00"))
+
+    # Flags to prevent duplicate credit
+    sponsor_today_processed = models.BooleanField(default=False, help_text="Prevent sponsor double credit in same day")
+    binary_income_processed = models.BooleanField(default=False)
+    eligibility_income_processed = models.BooleanField(default=False)
     earned_fresh_binary_today = models.BooleanField(default=False)
+    total_income_locked = models.BooleanField(default=False, help_text="Lock total_income once finalized")
 
     # Join counts
     left_joins = models.IntegerField(default=0)
     right_joins = models.IntegerField(default=0)
 
-    # Carry forward before/after
+    # Carry forward snapshots
     left_cf_before = models.IntegerField(default=0)
     right_cf_before = models.IntegerField(default=0)
     left_cf_after = models.IntegerField(default=0)
     right_cf_after = models.IntegerField(default=0)
 
-    # Binary income
+    # Binary pairs tracking
     binary_pairs_paid = models.IntegerField(default=0)
-    binary_income = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
 
-    # Flashout income (repurchase wallet)
+    # Flashout tracking
     flashout_units = models.IntegerField(default=0)
-    flashout_wallet_income = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
 
-    # Washout (no income)
+    # Washout tracking (no income)
     washed_pairs = models.IntegerField(default=0)
 
     # BV snapshots (repurchase only)
     total_left_bv = models.BigIntegerField(default=0)
     total_right_bv = models.BigIntegerField(default=0)
 
-    # Salary + rank
-    salary_income = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
+    # Rank
     rank_title = models.CharField(max_length=100, null=True, blank=True)
 
-    # Sponsor income
-    sponsor_income = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
-
-    # Eligibility (if you want to show it separately)
-    binary_eligibility_income = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
-
-    # Total income
-    total_income = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal('0.00'))
-
-    # Optional flags
-    sponsor_processed = models.BooleanField(default=False)
-    wallet_income = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal("0.00"))
-
     class Meta:
-        unique_together = ('member', 'date')
         ordering = ['-date', 'member']
-
-    def __str__(self):
-        return f"Daily Report for {self.member.auto_id} on {self.date}"
-
-    class Meta:
         constraints = [
             models.UniqueConstraint(
                 fields=['member', 'date'],
                 name='unique_member_date_report'
             )
         ]
-# herbalapp/models.py
 
+    def __str__(self):
+        return f"Daily Report for {self.member.auto_id} on {self.date}"
+
+
+# ==========================================================
+# SPONSOR INCOME LOG
+# ==========================================================
 class SponsorIncomeLog(models.Model):
-    sponsor = models.ForeignKey(Member, on_delete=models.CASCADE)
+    sponsor = models.ForeignKey("Member", on_delete=models.CASCADE)
     child = models.ForeignKey(
-        Member,
+        "Member",
         on_delete=models.CASCADE,
         related_name="sponsor_income_child"
     )
@@ -648,6 +672,7 @@ class SponsorIncomeLog(models.Model):
 
     class Meta:
         unique_together = ("sponsor", "child", "date")
+        ordering = ["-date", "sponsor"]
 
     def __str__(self):
         return f"{self.date} | {self.sponsor.auto_id} <- {self.child.auto_id}"

@@ -1,0 +1,245 @@
+git apply fix.patch
+*** a/herbalapp/mlm/final_master_engine.py
+--- b/herbalapp/mlm/final_master_engine.py
+***************
+*** 1,20 ****
+  # ==========================================================
+  # herbalapp/management/commands/mlm_run_full_daily.py
+  # ==========================================================
+  from datetime import date
+  from decimal import Decimal
+  from django.core.management.base import BaseCommand
+  from django.utils.dateparse import parse_date
+  from django.db import transaction, IntegrityError
+  from django.utils import timezone
+  from herbalapp.models import EngineLock
+  from datetime import date, timedelta
+--- 1,20 ----
+  # ==========================================================
+  # herbalapp/management/commands/mlm_run_full_daily.py
+  # ==========================================================
+  from datetime import date
+  from decimal import Decimal
+  from django.core.management.base import BaseCommand
+  from django.utils.dateparse import parse_date
+  from django.db import transaction, IntegrityError
+  from django.utils import timezone
+  from herbalapp.models import EngineLock
+  from datetime import date, timedelta
+***************
+*** 270,343 ****
+  def get_sponsor_receiver(child: Member):
+      """
+      Returns the correct sponsor/placement to credit today based on Rules 1,2,3.
+  
+      Rules:
+      1️⃣ If placement_id == sponsor_id → placement itself gets sponsor income
+         (except Rocky001 → always skip)
+      2️⃣ If placement_id != sponsor_id → sponsor gets sponsor income
+         (except Rocky001 → always skip)
+-     3️⃣ Sponsor must have completed at least one 1:1 pair (binary_eligible=True)
++     3️⃣ Receiver must have completed DIRECT 1:1 (left child + right child)
+      """
+-     if not child.sponsor:
+-         return None
+- 
+-     # Rule 3: Sponsor must have 1:1 pair to receive sponsor income
+-     if not can_receive_sponsor_income(child.sponsor):
+-         return None
+- 
+-     # Rule 1: placement == sponsor → placement itself
+-     if child.placement_id == child.sponsor_id:
+-         if child.placement and child.placement.auto_id != "rocky001":
+-             return child.placement
+-         # Rocky001 dummy → skip
+-         return None
+- 
+-     # Rule 2: placement != sponsor → sponsor
+-     if child.sponsor.auto_id != "rocky001":
+-         return child.sponsor
+- 
+-     # Rocky001 dummy → skip
+-     return None
++     if not child:
++         return None
++ 
++     placement_id = getattr(child, "placement_id", None)
++     sponsor_id   = getattr(child, "sponsor_id", None)
++ 
++     # Rule 1: placement_id == sponsor_id -> placement gets sponsor income
++     if placement_id and sponsor_id and placement_id == sponsor_id:
++         receiver = getattr(child, "placement", None) or getattr(child, "parent", None)
++     else:
++         # Rule 2: placement_id != sponsor_id -> sponsor gets sponsor income
++         receiver = getattr(child, "sponsor", None)
++ 
++     if not receiver:
++         return None
++ 
++     if receiver.auto_id == ROOT_ID:
++         return None
++ 
++     # Rule 3 (A): receiver must have DIRECT 1:1
++     if not can_receive_sponsor_income(receiver):
++         return None
++ 
++     return receiver
+  
+  
+  def can_receive_sponsor_income(member: Member):
+      """
+      Sponsor income eligibility (FINAL RULE):
+  
+      - Member must have reached at least one 1:1 (lifetime)
+      - Once eligible, always eligible
+      - Yesterday eligible → today also can receive sponsor income
+      """
+  
+      if not member:
+          return False
+  
+-     # Lifetime sponsor eligibility based on 1:1 achievement
+-     return member.binary_eligible is True
++     # Rule-3 (A): DIRECT 1:1 required (one direct left + one direct right)
++     left_exists = Member.objects.filter(parent=member, side="left").exists()
++     right_exists = Member.objects.filter(parent=member, side="right").exists()
++     return left_exists and right_exists
+***************
+*** 420,520 ****
+          left_cf_before = yesterday_report.left_cf if yesterday_report else 0
+          right_cf_before = yesterday_report.right_cf if yesterday_report else 0
+  
+-         became_binary_eligible_today = False
+- 
+          # --------------------------------------------------
+          # 🔹 Only run binary income calculation if eligible
+          # --------------------------------------------------
+          if member.binary_eligible or became_binary_eligible_today:
+--- 420,516 ----
+          left_cf_before = yesterday_report.left_cf if yesterday_report else 0
+          right_cf_before = yesterday_report.right_cf if yesterday_report else 0
+  
++         # ❌ DO NOT reset became_binary_eligible_today here.
++         # It is needed for eligibility-day (4 pairs max + locked 1:2/2:1) logic.
+  
+          # --------------------------------------------------
+          # 🔹 Only run binary income calculation if eligible
+          # --------------------------------------------------
+          if member.binary_eligible or became_binary_eligible_today:
+***************
+*** 612,706 ****
+      for child in get_valid_sponsor_children(run_date):
+  
+          child_report = DailyIncomeReport.objects.get(
+              member=child,
+              date=run_date
+          )
+  
+          # --------------------------------------------------
+          # Determine correct sponsor receiver (Rule 1 & 2)
+          # --------------------------------------------------
+          receiver = None
+  
+          # Rule 1: placement == sponsor → placement itself
+          receiver = get_sponsor_receiver(child)
+          if not receiver:
+              continue
+-         else:
+-             # Rule 2: placement != sponsor → sponsor
+-             if child.sponsor and child.sponsor.auto_id != ROOT_ID:
+-                 receiver = child.sponsor
+  
+-         # Rule 3: receiver must be binary eligible
+-         if not receiver or not receiver.binary_eligible:
+-             continue
++ 
++         # Rule 3 (A) already enforced inside get_sponsor_receiver()
+  
+          # --------------------------------------------------
+          # 🔒 Child-level lock (AFTER receiver confirmed)
+          # --------------------------------------------------
+          updated = DailyIncomeReport.objects.filter(
+              member=child,
+              date=run_date,
+              sponsor_today_processed=False
+          ).update(sponsor_today_processed=True)
+  
+          if updated == 0:
+              continue  # ❌ already processed earlier
+  
+          # --------------------------------------------------
+          # Sponsor amount (Eligibility + Binary ONLY)
+          # --------------------------------------------------
+          sponsor_amount = (
+              child_report.binary_eligibility_income
+              + child_report.binary_income
+          )
+  
+          if sponsor_amount <= 0:
+              continue
+  
+          # --------------------------------------------------
+          # Credit sponsor income
+          # --------------------------------------------------
+          with transaction.atomic():
+              receiver_report, _ = DailyIncomeReport.objects.get_or_create(
+                  member=receiver,
+                  date=run_date
+              )
+              receiver_report.sponsor_income += sponsor_amount
+              receiver_report.total_income += sponsor_amount
+              receiver_report.save(
+                  update_fields=["sponsor_income", "total_income"]
+              )
+--- 608,694 ----
+      for child in get_valid_sponsor_children(run_date):
+  
+          child_report = DailyIncomeReport.objects.get(
+              member=child,
+              date=run_date
+          )
+  
+          # --------------------------------------------------
+          # Determine correct sponsor receiver (Rule 1 & 2)
+          # --------------------------------------------------
+          receiver = get_sponsor_receiver(child)
+          if not receiver:
+              continue
+  
+          # --------------------------------------------------
+          # 🔒 Child-level lock (AFTER receiver confirmed)
+          # --------------------------------------------------
+          updated = DailyIncomeReport.objects.filter(
+              member=child,
+              date=run_date,
+              sponsor_today_processed=False
+          ).update(sponsor_today_processed=True)
+  
+          if updated == 0:
+              continue  # ❌ already processed earlier
+  
+          # --------------------------------------------------
+          # Sponsor amount (Eligibility + Binary ONLY)
+          # --------------------------------------------------
+          sponsor_amount = (
+              child_report.binary_eligibility_income
+              + child_report.binary_income
+          )
+  
+          if sponsor_amount <= 0:
+              continue
+  
+          # --------------------------------------------------
+          # Credit sponsor income
+          # --------------------------------------------------
+          with transaction.atomic():
+              receiver_report, _ = DailyIncomeReport.objects.get_or_create(
+                  member=receiver,
+                  date=run_date
+              )
+              receiver_report.sponsor_income += sponsor_amount
+              receiver_report.total_income += sponsor_amount
+              receiver_report.save(
+                  update_fields=["sponsor_income", "total_income"]
+              )
+

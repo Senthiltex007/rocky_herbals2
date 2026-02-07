@@ -3,13 +3,13 @@
 from django.core.management.base import BaseCommand
 from django.utils.dateparse import parse_date
 from datetime import date
-from django.db import transaction
 
 from herbalapp.models import EngineLock
 from herbalapp.mlm.final_master_engine import run_full_daily_engine
 
+
 class Command(BaseCommand):
-    help = "FORCE RUN MLM Engine safely for a specific date (NO duplicate sponsor income)"
+    help = "FORCE RUN MLM Engine safely for a specific date (duplicate-safe)"
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -21,16 +21,22 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         # ✅ Set run_date
         run_date = parse_date(options["date"]) if options.get("date") else date.today()
+        if run_date is None:
+            self.stdout.write(self.style.ERROR("❌ Invalid date format. Use YYYY-MM-DD"))
+            return
+
         self.stdout.write(f"⚡ Force running MLM Engine for {run_date}")
 
-        # 🔒 SAFE ENGINE LOCK
-        lock, created = EngineLock.objects.get_or_create(run_date=run_date)
-        if created:
-            self.stdout.write(self.style.SUCCESS(f"🔒 EngineLock created for {run_date}"))
-        else:
-            self.stdout.write(self.style.WARNING(f"⚠️ EngineLock already exists for {run_date}"))
+        # ✅ FORCE means: clear lock and re-run clean
+        deleted = EngineLock.objects.filter(run_date=run_date).delete()[0]
+        if deleted:
+            self.stdout.write(self.style.WARNING(f"🗑️ Deleted existing EngineLock for {run_date}"))
 
-        # 🚀 Run engine always (idempotent & duplicate-safe)
+        # 🔒 Create fresh lock (optional but nice for audit)
+        EngineLock.objects.get_or_create(run_date=run_date)
+        self.stdout.write(self.style.SUCCESS(f"🔒 EngineLock created for {run_date}"))
+
+        # 🚀 Run engine (engine itself must handle duplicate-safe flags)
         try:
             run_full_daily_engine(run_date)
         except Exception as e:
