@@ -1,0 +1,17 @@
+{% extends "admin/base_site.html" %}
+{% block content %}
+  <h1>Manual MLM Engine Run</h1>
+  <p>Celery / signals இல்லாமல், admin button மூலம் engine run செய்யலாம்.</p>
+
+  <form method="post">
+    {% csrf_token %}
+    <label><b>Run Date (YYYY-MM-DD):</b></label><br>
+    <input type="date" name="run_date" required style="padding:6px; width:220px;">
+    <br><br>
+    <button type="submit" class="button default">Run Engine</button>
+  </form>
+
+  <hr>
+  <p><b>Note:</b> EngineLock table மூலம் duplicate run தடுக்கும்.</p>
+{% endblock %}
+

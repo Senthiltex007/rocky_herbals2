@@ -124,4 +124,58 @@ admin.site.register(RockCounter)
 admin.site.site_header = "🌿 Rocky Herbals Administration"
 admin.site.site_title = "Rocky Herbals Admin"
 admin.site.index_title = "Welcome to Rocky Herbals Dashboard"
+# herbalapp/admin.py
+from django.contrib import admin, messages
+from django.urls import path
+from django.shortcuts import render, redirect
+from django.utils.translation import gettext_lazy as _
+from datetime import datetime
+from herbalapp.models import EngineLock, DailyIncomeReport, SponsorIncomeLog
+
+@admin.register(EngineLock)
+class EngineLockAdmin(admin.ModelAdmin):
+    list_display = ("run_date", "is_running", "started_at", "finished_at")
+    list_filter = ("is_running", "run_date")
+    ordering = ("-run_date",)
+
+    change_list_template = "admin/engine_lock_changelist.html"
+
+    def get_urls(self):
+        urls = super().get_urls()
+        custom_urls = [
+            path("run-engine/", self.admin_site.admin_view(self.run_engine_view), name="run_engine_view"),
+        ]
+        return custom_urls + urls
+
+    def run_engine_view(self, request):
+        if request.method == "POST":
+            date_str = request.POST.get("run_date", "").strip()
+            if not date_str:
+                messages.error(request, "⛔ Date கொடுக்கவில்லை.")
+                return redirect("..")
+
+            try:
+                run_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+            except ValueError:
+                messages.error(request, "⛔ தவறான date format. YYYY-MM-DD format பயன்படுத்தவும்.")
+                return redirect("..")
+
+            # ✅ Run engine
+            from herbalapp.mlm.manual_engine import run_engine_for_date
+            result_msg = run_engine_for_date(run_date)
+
+            if result_msg.startswith("✅"):
+                messages.success(request, result_msg)
+            elif result_msg.startswith("⛔"):
+                messages.warning(request, result_msg)
+            else:
+                messages.error(request, result_msg)
+
+            return redirect("..")
+
+        context = dict(
+            self.admin_site.each_context(request),
+            title="Manual MLM Engine Run",
+        )
+        return render(request, "admin/manual_engine_run.html", context)
 
