@@ -47,3 +47,5 @@ herbalapp_backup_*/
 legacy_unused/
 __pycache__/
 *.pyc
+celerybeat-schedule
+celerybeat-schedule
