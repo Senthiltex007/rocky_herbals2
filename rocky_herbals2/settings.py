@@ -23,6 +23,7 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "billing",
 
     # ✅ Your app config (loads signals in apps.py)
     "herbalapp.apps.HerbalappConfig",
