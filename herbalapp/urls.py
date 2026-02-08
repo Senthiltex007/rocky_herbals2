@@ -5,6 +5,7 @@ from django.urls import path
 from django.conf import settings
 from django.conf.urls.static import static
 from herbalapp import views
+from herbalapp import views_tree
 
 urlpatterns = [
 
@@ -81,6 +82,9 @@ urlpatterns = [
     path('member/<str:auto_id>/rank/', views.member_rank_detail, name='member_rank_detail'),
     path("api/income/", views.income_api, name="income_api"),
 
+    path("tree-modern/<str:root_id>/", views_tree.tree_modern_page, name="tree_modern_page"),
+    path("tree-data/<str:root_id>/", views_tree.tree_data, name="tree_data"),
+    path("member-details/<str:member_id>/", views_tree.member_details_api, name="member_details_api"),
 ]
 
 # ===================== STATIC / MEDIA =====================

@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MLM Tree</title>
+    <script src="https://cdn.jsdelivr.net/npm/cytoscape@3.20.0/dist/cytoscape.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+        }
+        #cy {
+            width: 100%;
+            height: 500px;
+            background-color: #f0f0f0;
+        }
+    </style>
+</head>
+<body>
+    <div id="cy"></div>
+    <script>
+        const rootId = "{{ root_id }}";
+
+        fetch(`/tree-data/${rootId}/`)
+            .then(res => res.json())
+            .then(data => {
+                const cy = cytoscape({
+                    container: document.getElementById('cy'),
+                    elements: data.nodes.concat(data.edges),
+                    style: [
+                        {
+                            selector: 'node',
+                            style: {
+                                'shape': 'ellipse',
+                                'width': 70,
+                                'height': 70,
+                                'background-image': 'data(avatar)',
+                                'background-fit': 'cover',
+                                'background-clip': 'node',
+                                'border-width': 3,
+                                'border-color': '#ffffff',
+                                'label': 'data(id)',
+                                'text-valign': 'bottom',
+                                'text-margin-y': 10
+                            }
+                        },
+                        {
+                            selector: 'edge',
+                            style: {
+                                'width': 2,
+                                'line-color': '#ccc',
+                                'target-arrow-color': '#ccc',
+                                'target-arrow-shape': 'triangle',
+                            }
+                        }
+                    ],
+                    layout: {
+                        name: 'breadthfirst',
+                        directed: true,
+                        padding: 10
+                    }
+                });
+            });
+    </script>
+</body>
+</html>
+
