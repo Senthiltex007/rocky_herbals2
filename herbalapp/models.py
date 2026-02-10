@@ -210,6 +210,8 @@ class Member(models.Model):
     parent_bonus = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
     stock_commission = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
     salary = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
+    rank_checkpoint_bv = models.BigIntegerField(default=0)  # last achieved matched BV point
+    rank_level = models.IntegerField(default=0)             # 0=no rank, 1=First Star, 2=Double Star...
 
     # -------------------------
     # BINARY ELIGIBILITY + CARRY FORWARD

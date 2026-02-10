@@ -85,6 +85,7 @@ urlpatterns = [
     path("tree-modern/<str:root_id>/", views_tree.tree_modern_page, name="tree_modern_page"),
     path("tree-data/<str:root_id>/", views_tree.tree_data, name="tree_data"),
     path("member-details/<str:member_id>/", views_tree.member_details_api, name="member_details_api"),
+    path("member/root-income/", views.member_root_income_dashboard, name="member_root_income")
 ]
 
 # ===================== STATIC / MEDIA =====================

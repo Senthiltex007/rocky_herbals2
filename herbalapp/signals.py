@@ -4,6 +4,11 @@
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 from herbalapp.models import Member
+from herbalapp.models import RankReward
+
+def run_monthly_rank_payout():
+    for rr in RankReward.objects.filter(active=True):
+        rr.credit_monthly_income()
 
 
 @receiver(post_save, sender=Member)

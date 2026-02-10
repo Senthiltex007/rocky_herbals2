@@ -9,6 +9,7 @@ from django.db import transaction, IntegrityError
 from django.utils import timezone
 from herbalapp.mlm.engine_lock import run_with_lock
 from datetime import date, timedelta
+from herbalapp.mlm_rank_engine import process_rank_upgrade
 
 # --------------------------
 # Models
@@ -459,6 +460,8 @@ def run_full_daily_engine(run_date: date):
                     "sponsor_today_processed",
                     "total_income_locked",
                 ])
+
+
                 print(f"⛔ {member.auto_id} skipped (ROOT dummy)")
                 continue
 
@@ -608,6 +611,10 @@ def run_full_daily_engine(run_date: date):
                     "binary_income_processed",
                     "total_income",
                 ])
+
+                # ✅ RANK UPGRADE (lifetime BV)
+                process_rank_upgrade(member)
+
                 continue
 
             res = calculate_member_binary_income_for_day(
@@ -746,6 +753,11 @@ def run_full_daily_engine(run_date: date):
 
     # ✅ IMPORTANT: run through global lock wrapper
     return run_with_lock(run_date, _engine, allow_rerun_today=True, cooldown_minutes=5)
+
+        from herbalapp.mlm_rank_engine import process_rank_upgrade
+
+        # inside daily member loop
+        process_rank_upgrade(member)
 
 # ----------------------------------------------------------
 # Django Command - MANUAL / CRON / CELERY SAFE

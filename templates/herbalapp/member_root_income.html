@@ -1,0 +1,61 @@
+<h2>{{ member.name }} ({{ member.auto_id }})</h2>
+
+<h3>🏦 Wallet</h3>
+<p>Main Wallet: ₹{{ wallet }}</p>
+
+<h3>📌 BV (Life-time)</h3>
+<ul>
+  <li>Left BV: {{ left_bv }}</li>
+  <li>Right BV: {{ right_bv }}</li>
+  <li><b>Matched BV: {{ matched_bv }}</b></li>
+</ul>
+
+<h3>🏆 Rank</h3>
+<ul>
+  <li>Current Rank: <b>{{ current_rank }}</b></li>
+  <li>Rank Level: {{ rank_level }}</li>
+  <li>Rank Checkpoint BV: {{ rank_checkpoint_bv }}</li>
+</ul>
+
+<h3>💰 Lifetime Income Totals</h3>
+<table border="1" cellpadding="6">
+  <tr><td>Binary</td><td>₹{{ totals.total_binary }}</td></tr>
+  <tr><td>Eligibility</td><td>₹{{ totals.total_elig }}</td></tr>
+  <tr><td>Sponsor</td><td>₹{{ totals.total_sponsor }}</td></tr>
+  <tr><td>Flashout Wallet</td><td>₹{{ totals.total_flash }}</td></tr>
+  <tr><td>Salary Income</td><td>₹{{ totals.total_salary }}</td></tr>
+  <tr><td><b>Grand Total</b></td><td><b>₹{{ totals.grand_total }}</b></td></tr>
+</table>
+
+<h3>📅 Today</h3>
+{% if today_report %}
+  <p>Total: ₹{{ today_report.total_income }}</p>
+  <p>Binary: ₹{{ today_report.binary_income }} | Sponsor: ₹{{ today_report.sponsor_income }} | Salary: ₹{{ today_report.salary_income }}</p>
+{% else %}
+  <p>No report for today.</p>
+{% endif %}
+
+<h3>⭐ Active Rank Rewards</h3>
+{% for r in active_rewards %}
+  <p>{{ r.rank_title }} : ₹{{ r.monthly_income }} × {{ r.duration_months }} (Paid: {{ r.months_paid }}) | Active={{ r.active }}</p>
+{% empty %}
+  <p>No active rank rewards.</p>
+{% endfor %}
+
+<h3>🧾 Last 30 Days Reports</h3>
+<table border="1" cellpadding="6">
+  <tr>
+    <th>Date</th><th>Binary</th><th>Eligibility</th><th>Sponsor</th><th>Salary</th><th>Total</th>
+  </tr>
+  {% for d in last_reports %}
+  <tr>
+    <td>{{ d.date }}</td>
+    <td>{{ d.binary_income }}</td>
+    <td>{{ d.binary_eligibility_income }}</td>
+    <td>{{ d.sponsor_income }}</td>
+    <td>{{ d.salary_income }}</td>
+    <td><b>{{ d.total_income }}</b></td>
+  </tr>
+  {% endfor %}
+</table>
+

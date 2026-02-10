@@ -1661,35 +1661,172 @@ def generate_daily_report():
 
     return "Daily report sent via WhatsApp"
 
-from django.shortcuts import render, redirect
+# ✅ Dashboard (Member Home) — FINAL BV + RANK + INCOME SAFE VERSION
+from decimal import Decimal
 from django.contrib import messages
-from django.utils import timezone
 from django.contrib.auth.decorators import login_required
-from .models import Member
+from django.shortcuts import render, redirect
+from django.utils import timezone
+from django.db.models import Sum
+
+from .models import Member, Product, DailyIncomeReport, RankReward
 
 
-# ✅ Dashboard
 @login_required
 def dashboard(request):
+    """
+    Member dashboard:
+    ✅ Shows latest income snapshot (from DailyIncomeReport)
+    ✅ Shows BV / Rank progress (from Member totals)
+    ✅ Shows rank reward running status (RankReward)
+    ✅ Shows products list
+    ✅ No template method calls
+    """
 
-    # ✅ Ensure user has a linked Member record
+    # -------------------------------------------------
+    # 1) Resolve member for logged in user
+    # -------------------------------------------------
+    # If you have OneToOne User->Member, this works:
     try:
         member = request.user.member
-    except:
-        messages.error(request, "Member profile not found.")
-        return redirect("member_list")
+    except Exception:
+        # Fallback: if username equals auto_id (optional)
+        member = Member.objects.filter(auto_id=getattr(request.user, "username", "")).first()
+        if not member:
+            messages.error(request, "Member profile not found.")
+            return redirect("member_list")
 
-    # ✅ Wallet values (safe fallback)
-    rep_wallet = member.repurchase_wallet or 0
-    flash_wallet = member.flash_wallet or 0
-    total_wallet = rep_wallet + flash_wallet
+    # -------------------------------------------------
+    # 2) Today's report (or latest report) income snapshot
+    # -------------------------------------------------
+    today = timezone.localdate()
 
-    return render(request, "dashboard.html", {
+    report = (
+        DailyIncomeReport.objects
+        .filter(member=member)
+        .order_by("-date")
+        .first()
+    )
+
+    # Safe defaults
+    binary_income = Decimal("0.00")
+    eligibility_income = Decimal("0.00")
+    sponsor_income = Decimal("0.00")
+    flashout_wallet_income = Decimal("0.00")
+    salary_income = Decimal("0.00")
+    total_income = Decimal("0.00")
+
+    if report:
+        binary_income = report.binary_income or Decimal("0.00")
+        eligibility_income = report.binary_eligibility_income or Decimal("0.00")
+        sponsor_income = report.sponsor_income or Decimal("0.00")
+        flashout_wallet_income = report.flashout_wallet_income or Decimal("0.00")
+        salary_income = report.salary_income or Decimal("0.00")
+        total_income = report.total_income or Decimal("0.00")
+
+    # -------------------------------------------------
+    # 3) Wallets (Member table)
+    # -------------------------------------------------
+    rep_wallet = getattr(member, "repurchase_wallet", Decimal("0.00")) or Decimal("0.00")
+    flash_wallet = getattr(member, "flash_wallet", Decimal("0.00")) or Decimal("0.00")
+    main_wallet = getattr(member, "main_wallet", Decimal("0.00")) or Decimal("0.00")
+
+    # -------------------------------------------------
+    # 4) BV + Matched BV (Member snapshots)
+    # -------------------------------------------------
+    left_bv = int(getattr(member, "total_left_bv", 0) or 0)
+    right_bv = int(getattr(member, "total_right_bv", 0) or 0)
+    matched_bv = min(left_bv, right_bv)
+
+    # -------------------------------------------------
+    # 5) Rank fields
+    # -------------------------------------------------
+    rank = (getattr(member, "current_rank", None) or "").strip() or None
+    rank_level = int(getattr(member, "rank_level", 0) or 0)
+    rank_checkpoint_bv = int(getattr(member, "rank_checkpoint_bv", 0) or 0)
+
+    # Rank Target Logic (lifetime, step-by-step from checkpoint)
+    # Level 0 -> First Star target 50k
+    # Level 1 -> Double Star target 1L
+    # Level 2 -> Triple Star target 2.5L
+    if rank_level == 0:
+        target_bv = 50000
+        next_rank_name = "1st Star"
+    elif rank_level == 1:
+        target_bv = 100000
+        next_rank_name = "Double Star"
+    elif rank_level == 2:
+        target_bv = 250000
+        next_rank_name = "Triple Star"
+    else:
+        target_bv = 250000
+        next_rank_name = "Next Rank"
+
+    # progress is based on (matched_bv - checkpoint)
+    progress_current = max(matched_bv - rank_checkpoint_bv, 0)
+    target_span = max(target_bv - rank_checkpoint_bv, 1)
+    progress_pct = int(min((progress_current * 100) / target_span, 100))
+
+    # -------------------------------------------------
+    # 6) RankReward status (if any active)
+    # -------------------------------------------------
+    active_rewards = RankReward.objects.filter(member=member, active=True).order_by("-start_date")
+    reward = active_rewards.first()
+
+    reward_info = None
+    if reward:
+        reward_info = {
+            "rank_title": reward.rank_title,
+            "monthly_income": reward.monthly_income,
+            "duration_months": reward.duration_months,
+            "months_paid": reward.months_paid,
+            "active": reward.active,
+            "start_date": reward.start_date,
+        }
+
+    # -------------------------------------------------
+    # 7) Products
+    # -------------------------------------------------
+    products = Product.objects.all().order_by("-id")[:6]
+
+    context = {
         "member": member,
+        "products": products,
+
+        # Income snapshot (latest report)
+        "report": report,
+        "report_date": report.date if report else today,
+
+        "binary_income": binary_income,
+        "eligibility_income": eligibility_income,
+        "sponsor_income": sponsor_income,
+        "flashout_wallet_income": flashout_wallet_income,
+        "salary_income": salary_income,
+        "total_income": total_income,
+
+        # Wallet
         "rep_wallet": rep_wallet,
         "flash_wallet": flash_wallet,
-        "total_wallet": total_wallet,
-    })
+        "main_wallet": main_wallet,
+
+        # BV + rank
+        "left_bv": left_bv,
+        "right_bv": right_bv,
+        "matched_bv": matched_bv,
+        "rank": rank,
+        "rank_level": rank_level,
+        "rank_checkpoint_bv": rank_checkpoint_bv,
+
+        "target_bv": target_bv,
+        "next_rank_name": next_rank_name,
+        "progress_current": progress_current,
+        "progress_pct": progress_pct,
+
+        # rank reward info
+        "reward_info": reward_info,
+    }
+
+    return render(request, "dashboard.html", context)
 
 
 # ✅ Members list
@@ -2348,5 +2485,64 @@ def member_details_api(request, member_id):
         "sponsor": m.sponsor.auto_id if m.sponsor else "",
         "parent": m.parent.auto_id if m.parent else "",
         "side": m.side or "",
+    })
+from django.utils import timezone
+from django.db.models import Sum, Value, DecimalField
+from django.db.models.functions import Coalesce
+from herbalapp.models import DailyIncomeReport, RankReward, Member
+
+@login_required
+def member_root_income_dashboard(request):
+    # ✅ if your auth linked like request.user.member
+    try:
+        member = request.user.member
+    except:
+        messages.error(request, "Member profile not found.")
+        return redirect("member_list")
+
+    # ✅ BV (life-time)
+    bv_data = member.calculate_bv()
+    left_bv = bv_data.get("left_bv", 0)
+    right_bv = bv_data.get("right_bv", 0)
+    matched_bv = bv_data.get("matched_bv", 0)
+
+    # ✅ Lifetime income totals (DailyIncomeReport தான் source of truth)
+    totals = DailyIncomeReport.objects.filter(member=member).aggregate(
+        total_binary=Coalesce(Sum("binary_income"), Value(0), output_field=DecimalField()),
+        total_elig=Coalesce(Sum("binary_eligibility_income"), Value(0), output_field=DecimalField()),
+        total_sponsor=Coalesce(Sum("sponsor_income"), Value(0), output_field=DecimalField()),
+        total_flash=Coalesce(Sum("flashout_wallet_income"), Value(0), output_field=DecimalField()),
+        total_salary=Coalesce(Sum("salary_income"), Value(0), output_field=DecimalField()),
+        grand_total=Coalesce(Sum("total_income"), Value(0), output_field=DecimalField()),
+    )
+
+    # ✅ Today report
+    today = timezone.localdate()
+    today_report = DailyIncomeReport.objects.filter(member=member, date=today).first()
+
+    # ✅ Rank reward status (active payouts)
+    active_rewards = RankReward.objects.filter(member=member, active=True).order_by("-start_date")
+    all_rewards = RankReward.objects.filter(member=member).order_by("-start_date")
+
+    # ✅ Last 30 days history
+    last_reports = DailyIncomeReport.objects.filter(member=member).order_by("-date")[:30]
+
+    return render(request, "herbalapp/member_root_income.html", {
+        "member": member,
+        "wallet": member.main_wallet,
+
+        "left_bv": left_bv,
+        "right_bv": right_bv,
+        "matched_bv": matched_bv,
+
+        "current_rank": member.current_rank,
+        "rank_level": member.rank_level,
+        "rank_checkpoint_bv": member.rank_checkpoint_bv,
+
+        "totals": totals,
+        "today_report": today_report,
+        "active_rewards": active_rewards,
+        "all_rewards": all_rewards,
+        "last_reports": last_reports,
     })
 

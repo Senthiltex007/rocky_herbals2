@@ -203,6 +203,56 @@
     </div>
   </div>
 
+  <hr>
+
+  <h3>📊 Income Overview</h3>
+
+  <div class="row">
+
+    <div class="col">
+      <strong>Binary Income</strong><br>
+      ₹ {{ binary_income }}
+    </div>
+
+    <div class="col">
+      <strong>Eligibility Income</strong><br>
+      ₹ {{ eligibility_income }}
+    </div>
+
+    <div class="col">
+      <strong>Sponsor Income</strong><br>
+      ₹ {{ sponsor_income }}
+    </div>
+
+    <div class="col">
+      <strong>Total Income</strong><br>
+      ₹ {{ total_income }}
+    </div>
+
+  </div>
+
+  <hr>
+
+  <h3>🏆 Rank & BV Progress</h3>
+
+  <p>
+    <strong>Current Rank:</strong>
+    {{ rank|default:"No Rank" }}
+  </p>
+
+  <p>
+    <strong>Left BV:</strong> {{ left_bv }} <br>
+    <strong>Right BV:</strong> {{ right_bv }} <br>
+    <strong>Matched BV:</strong> {{ matched_bv }}
+  </p>
+
+  {% if rank_level == 0 %}
+  <p>🎯 Target: 50,000 BV – First Star</p>
+  {% elif rank_level == 1 %}
+  <p>🎯 Target: 1,00,000 BV – Double Star</p>
+  {% elif rank_level == 2 %}
+  <p>🎯 Target: 2,50,000 BV – Triple Star</p>
+  {% endif %}
+  <!-- ✅ PASTE END -->
 </div>
 {% endblock %}
-
