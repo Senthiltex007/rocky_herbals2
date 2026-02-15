@@ -13,6 +13,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.db.models import Sum, Value, DecimalField
 from django.db.models.functions import Coalesce
 from herbalapp.models import DailyIncomeReport
+from herbalapp.utils.invite import validate_and_consume_invite
 
 import csv
 import openpyxl
@@ -1303,37 +1304,117 @@ def edit_sponsor(request, auto_id):
 
 
 # ======================================================
-# INCOME PAGE WITH FILTERS (FINAL VERSION)
+# INCOME PAGE WITH FILTERS (FINAL VERSION) ✅ FIXED
+# - Supports Date filter (DD-MM-YYYY + YYYY-MM-DD)
+# - Supports min/max filter
+# - Sends template context: run_date, reports, totals ✅
 # ======================================================
-from django.db.models import Sum
+
+from decimal import Decimal
+from datetime import datetime
+from django.shortcuts import render
+from django.utils.timezone import localdate
+from django.db.models import Sum, Value, DecimalField
+from django.db.models.functions import Coalesce
+
 from herbalapp.models import DailyIncomeReport
 
+
 def income_view(request):
+    # -----------------------------
+    # 1) Date filter
+    # supports:
+    # - UI input date picker: YYYY-MM-DD
+    # - manual typed: DD-MM-YYYY
+    # -----------------------------
+    date_str = request.GET.get("date")
+    if date_str:
+        try:
+            run_date = datetime.strptime(date_str, "%d-%m-%Y").date()
+        except ValueError:
+            try:
+                run_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+            except ValueError:
+                run_date = localdate()
+    else:
+        run_date = localdate()
 
-    incomes = DailyIncomeReport.objects.select_related("member")
+    # -----------------------------
+    # 2) Base queryset by date
+    # -----------------------------
+    reports = (
+        DailyIncomeReport.objects
+        .select_related("member")
+        .filter(date=run_date)
+        .order_by("member__auto_id")
+    )
 
-    # ---------------- FILTER INPUTS ----------------
+    # -----------------------------
+    # 3) Min/Max total income filter
+    # -----------------------------
     min_income = request.GET.get("min")
     max_income = request.GET.get("max")
 
-    # ---------------- INCOME RANGE FILTER ----------------
     if min_income:
-        incomes = incomes.filter(total_income__gte=float(min_income))
+        try:
+            reports = reports.filter(total_income__gte=Decimal(str(min_income)))
+        except Exception:
+            pass
 
     if max_income:
-        incomes = incomes.filter(total_income__lte=float(max_income))
+        try:
+            reports = reports.filter(total_income__lte=Decimal(str(max_income)))
+        except Exception:
+            pass
 
-    # ---------------- GRAND TOTAL ----------------
-    total_income_all = incomes.aggregate(
-        total=Sum('total_income')
-    )['total'] or 0
+    # -----------------------------
+    # 4) Totals (same keys your template expects)
+    # -----------------------------
+    totals = reports.aggregate(
+        total_eligibility=Coalesce(
+            Sum("binary_eligibility_income"),
+            Value(Decimal("0.00")),
+            output_field=DecimalField()
+        ),
+        total_binary=Coalesce(
+            Sum("binary_income"),
+            Value(Decimal("0.00")),
+            output_field=DecimalField()
+        ),
+        total_sponsor=Coalesce(
+            Sum("sponsor_income"),
+            Value(Decimal("0.00")),
+            output_field=DecimalField()
+        ),
+        total_wallet=Coalesce(
+            Sum("member__repurchase_wallet"),
+            Value(Decimal("0.00")),
+            output_field=DecimalField()
+        ),
+        total_salary=Coalesce(
+            Sum("salary_income"),
+            Value(Decimal("0.00")),
+            output_field=DecimalField()
+        ),
+        grand_total=Coalesce(
+            Sum("total_income"),
+            Value(Decimal("0.00")),
+            output_field=DecimalField()
+        ),
+    )
 
-    context = {
-        "incomes": incomes,
-        "total_income_all": total_income_all,
-    }
+    # -----------------------------
+    # 5) Render (template expects reports/totals/run_date)
+    # -----------------------------
+    return render(request, "herbalapp/income_report.html", {
+        "run_date": run_date,
+        "reports": reports,
+        "totals": totals,
 
-    return render(request, "herbalapp/income_report.html", context)
+        # Optional: keep filters to show in UI (if needed)
+        "min_income": min_income or "",
+        "max_income": max_income or "",
+    })
 
 # ======================================================
 # EXPORT INCOME TO EXCEL (multi-sheet + charts)
@@ -1970,7 +2051,10 @@ def generate_auto_id():
 # ---------------------------------
 from django.db import transaction
 from django.contrib import messages
+from django.shortcuts import render, redirect, get_object_or_404
+from django.utils import timezone
 from .models import Member
+
 
 @transaction.atomic
 def add_member_under_parent(request, parent_id, position):
@@ -1991,21 +2075,48 @@ def add_member_under_parent(request, parent_id, position):
         messages.error(request, f"{parent.auto_id} RIGHT side already filled.")
         return redirect("tree_view", parent.auto_id)
 
-    # GET → form
+    # -------------------------
+    # GET → SHOW FORM
+    # -------------------------
     if request.method == "GET":
-        return render(
-            request,
-            "herbalapp/add_member_form.html",
-            {"parent": parent, "side": position}
+        return render(request, "herbalapp/add_member_form.html", {
+            "parent": parent,
+            "parent_auto_id": parent.auto_id,
+            "position": position,
+            "side": position,
+        })
+
+    # -------------------------
+    # POST → PROCESS FORM
+    # -------------------------
+    if request.method == "POST":
+
+        # OTP VALIDATION + DEBUG (SAFE)
+        otp = (request.POST.get("otp") or request.POST.get("invite_code") or "").strip()
+        phone = (request.POST.get("phone") or "").strip()
+        sponsor_id = (request.POST.get("sponsor_id") or "").strip()
+
+        print("DEBUG OTP =", otp)
+        print("DEBUG phone/sponsor =", phone, sponsor_id)
+
+        ok, msg = validate_and_consume_invite(
+            otp,
+            phone=phone,
+            sponsor_auto_id=sponsor_id,
         )
 
-    # -------------------------
-    # AUTO ID GENERATION (SAFE)
-    # -------------------------
-    from django.db import transaction
-    from django.utils import timezone
+        print("DEBUG validate =", ok, msg)
 
-    with transaction.atomic():
+        if not ok:
+            return render(request, "herbalapp/add_member_form.html", {
+                "parent": parent,
+                "parent_auto_id": parent.auto_id,
+                "position": position,
+                "side": position,
+                "error": msg,
+            })
+
+    # AUTO ID GENERATION (SAFE)
         last_member = Member.objects.select_for_update().order_by("-id").first()
         if last_member and last_member.auto_id:
             last_num = int(last_member.auto_id.replace("rocky", ""))
@@ -2013,56 +2124,70 @@ def add_member_under_parent(request, parent_id, position):
         else:
             auto_id = "rocky001"
 
-    # -------------------------
-    # POST DATA
-    # -------------------------
-    name = request.POST.get("name")
-    phone = request.POST.get("phone")
-    email = request.POST.get("email")
-    aadhar = request.POST.get("aadhar")
-    place = request.POST.get("place")
-    district = request.POST.get("district")
-    pincode = request.POST.get("pincode")
-    sponsor_auto_id = request.POST.get("sponsor_id")
-    avatar = request.FILES.get("avatar")
+        # POST DATA
+        name = (request.POST.get("name") or "").strip()
+        phone = (request.POST.get("phone") or "").strip()
+        email = request.POST.get("email")
+        aadhar = request.POST.get("aadhar")
+        place = request.POST.get("place")
+        district = request.POST.get("district")
+        pincode = request.POST.get("pincode")
+        sponsor_auto_id = (request.POST.get("sponsor_id") or "").strip()
+        avatar = request.FILES.get("avatar")
 
-    # -------------------------
-    # SPONSOR VALIDATION (FIXED)
-    # -------------------------
-    sponsor = None
-    if sponsor_auto_id:
+        if not name:
+            return render(request, "herbalapp/add_member_form.html", {
+                "parent": parent,
+                "parent_auto_id": parent.auto_id,
+                "position": position,
+                "side": position,
+                "error": "Name is required",
+            })
+
+        if not phone:
+            return render(request, "herbalapp/add_member_form.html", {
+                "parent": parent,
+                "parent_auto_id": parent.auto_id,
+                "position": position,
+                "side": position,
+                "error": "Phone is required",
+            })
+
         sponsor = Member.objects.filter(auto_id=sponsor_auto_id).first()
         if not sponsor:
-            messages.error(request, "Invalid Sponsor ID")
-            return redirect(request.path)
+            return render(request, "herbalapp/add_member_form.html", {
+                "parent": parent,
+                "parent_auto_id": parent.auto_id,
+                "position": position,
+                "side": position,
+                "error": "Sponsor not found",
+            })
 
-    # ✅ CREATE MEMBER (FIXED)
-    from django.utils import timezone
+        # CREATE MEMBER
+        new_member = Member.objects.create(
+            auto_id=auto_id,
+            name=name,
+            phone=phone,
+            email=email,
+            aadhar=aadhar,
+            place=place,
+            district=district,
+            pincode=pincode,
+            parent=parent,
+            placement=parent,
+            side=position,
+            sponsor=sponsor,
+            avatar=avatar,
+            joined_date=timezone.localdate(),
+            is_active=True,
+        )
 
-    new_member = Member.objects.create(
-        auto_id=auto_id,
-        name=name,
-        phone=phone,
-        email=email,
-        aadhar=aadhar,
-        place=place,
-        district=district,
-        pincode=pincode,
+        messages.success(
+            request,
+            f"Member {new_member.auto_id} added under {parent.auto_id} ({position.upper()})"
+        )
 
-        parent=parent,        # 🌳 binary tree
-        placement=parent,     # 🔥 engine uses this
-        side=position,        # left / right
-        sponsor=sponsor,      # sponsor tree
-        joined_date=timezone.localdate(),
-        is_active=True
-    )
-
-    messages.success(
-        request,
-        f"Member {new_member.auto_id} added under {parent.auto_id} ({position.upper()})"
-    )
-
-    return redirect("tree_view", parent.auto_id)
+        return redirect("tree_view", parent.auto_id)
 
 # ===================== IMPORTS =====================
 from django.shortcuts import render, redirect
@@ -2108,9 +2233,23 @@ def add_member_form(request):
         sponsor_code = request.POST.get("sponsor_id")
         parent_code = request.POST.get("parent_id")  # clicked from tree
 
+        otp = (request.POST.get("otp") or request.POST.get("invite_code") or "").strip()
+        phone = request.POST.get("phone", "").strip()  # if your form has phone field
+        sponsor_auto_id = request.POST.get("sponsor_id", "").strip()  # if sponsor_id present
+
+        ok, msg = validate_and_consume_invite(
+            invite_code,
+            phone=phone,
+            sponsor_auto_id=sponsor_auto_id
+        )
+
+        if not ok:
+            messages.error(request, msg)
+            return redirect("add_member_form")
+
         # ---------------- VALIDATIONS ----------------
         if Member.objects.filter(auto_id=auto_id).exists():
-            return render(request, "add_member.html", {
+            return render(request, "herbalapp/add_member_form.html", {
                 "error": "Member ID already exists",
                 "auto_id": new_member_id
             })
@@ -2119,13 +2258,13 @@ def add_member_form(request):
         parent = Member.objects.filter(auto_id=parent_code).first() or parent_member
 
         if not parent:
-            return render(request, "add_member.html", {
+            return render(request, "herbalapp/add_member_form.html", {
                 "error": "Invalid parent ID",
                 "auto_id": new_member_id
             })
 
         if not sponsor:
-            return render(request, "add_member.html", {
+            return render(request, "herbalapp/add_member_form.html", {
                 "error": "Invalid sponsor ID",
                 "auto_id": new_member_id
             })
@@ -2187,7 +2326,7 @@ def add_member_form(request):
         # ===================================================
         # INITIAL PAGE LOAD
         # ===================================================
-        return render(request, "add_member.html", {
+        return render(request, "herbalapp/add_member_form.html", {
             "auto_id": new_member_id,
             "placement_member_id": parent_member.auto_id if parent_member else ""
         })

@@ -13,8 +13,19 @@ SECRET_KEY = "django-insecure-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 DEBUG = False
 
 # ✅ Allow local access
-ALLOWED_HOSTS = ["rockysriherbals.com", "www.rockysriherbals.com", "127.0.0.1", "localhost"]
+ALLOWED_HOSTS = [
+    "rockysriherbals.com",
+    "www.rockysriherbals.com",
+    "app.rockysriherbals.com",
+    "72.60.101.126",
+    "127.0.0.1",
+    "localhost",
 
+    # ✅ Hostinger internal/probe domains (fix DisallowedHost)
+    "srv1356217.hstgr.cloud",
+    "autodiscover.srv1356217.hstgr.cloud",
+    ".hstgr.cloud",  # allows any subdomain under hstgr.cloud
+]
 # Application definition
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -112,7 +123,7 @@ WSGI_APPLICATION = "rocky_herbals2.wsgi.application"
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
-        "NAME": "rockydb",
+        "NAME": "rocky_herbals2",
         "USER": "rockyuser",
         "PASSWORD": "StrongPassword123",
         "HOST": "localhost",
@@ -155,11 +166,11 @@ LOGIN_URL = "/"
 # ✅ SSL / NGINX SETTINGS
 # =========================
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
-SECURE_SSL_REDIRECT = True
-
+SECURE_SSL_REDIRECT = False
 CSRF_TRUSTED_ORIGINS = [
     "https://rockysriherbals.com",
     "https://www.rockysriherbals.com",
+    "https://app.rockysriherbals.com",
 ]
 
 SESSION_COOKIE_SECURE = True
@@ -174,4 +185,24 @@ SECURE_HSTS_PRELOAD = False
 SECURE_CONTENT_TYPE_NOSNIFF = True
 SECURE_REFERRER_POLICY = "same-origin"
 X_FRAME_OPTIONS = "DENY"
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+        },
+    },
+    "loggers": {
+        "django.request": {
+            "handlers": ["console"],
+            "level": "ERROR",
+            "propagate": False,
+        },
+        "django": {
+            "handlers": ["console"],
+            "level": "INFO",
+        },
+    },
+}
 
